@@ -1,0 +1,108 @@
+# ==========================================
+# .NET / Visual Studio
+# ==========================================
+
+## Build output
+**/bin/
+**/obj/
+**/out/
+
+## Visual Studio
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Rider / ReSharper
+.idea/
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+## NuGet
+packages/
+*.nupkg
+*.snupkg
+
+## Test results
+TestResults/
+**/TestResults/
+*.trx
+
+# ==========================================
+# ASP.NET / Local Development
+# ==========================================
+
+## Local configuration
+appsettings.Local.json
+appsettings.*.Local.json
+
+## Development certificates
+*.pfx
+
+# ==========================================
+# Environment / Secrets
+# ==========================================
+
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# Angular / Node
+# ==========================================
+
+**/node_modules/
+**/dist/
+**/tmp/
+**/out-tsc/
+**/bazel-out/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+## Angular cache
+**/.angular/cache/
+
+## Angular coverage
+**/coverage/
+
+# ==========================================
+# Frontend IDE
+# ==========================================
+
+**/.history/
+
+# ==========================================
+# Operating System
+# ==========================================
+
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Logs
+# ==========================================
+
+*.log
+
+# ==========================================
+# Temporary files
+# ==========================================
+
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ==========================================
+# Database / Local development
+# ==========================================
+
+*.mdf
+*.ldf
+*.ndf
