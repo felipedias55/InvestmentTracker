@@ -63,6 +63,7 @@ appsettings.*.Local.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+preprocessed.xml
 
 ## Angular cache
 **/.angular/cache/
