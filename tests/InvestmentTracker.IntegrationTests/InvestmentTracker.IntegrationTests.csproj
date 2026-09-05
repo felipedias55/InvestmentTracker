@@ -5,17 +5,29 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+	  
+	<UserSecretsId>InvestmentTracker.IntegrationTests</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.11" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+	  <ProjectReference Include="..\..\InvestmentTracker.Application\InvestmentTracker.Application.csproj" />
+	  <ProjectReference Include="..\..\InvestmentTracker.Domain\InvestmentTracker.Domain.csproj" />
+	  <ProjectReference Include="..\..\InvestmentTracker.Infrastructure\InvestmentTracker.Infrastructure.csproj" />
+	  <ProjectReference Include="..\..\InvestmentTracker.Api\InvestmentTracker.Api.csproj" />
   </ItemGroup>
 
 </Project>

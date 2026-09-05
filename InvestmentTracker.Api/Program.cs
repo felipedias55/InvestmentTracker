@@ -1,5 +1,7 @@
 using InvestmentTracker.Infrastructure.Persistence;
+using InvestmentTracker.Application;
 using Microsoft.EntityFrameworkCore;
+using InvestmentTracker.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +14,9 @@ var connectionString =
 
 builder.Services.AddDbContext<InvestmentTrackerDbContext>(options =>
     options.UseSqlServer(connectionString));
+
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure();
 
 builder.Services.AddCors(options =>
 {

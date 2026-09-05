@@ -6,7 +6,9 @@
   <Project Path="InvestmentTracker.Api/InvestmentTracker.Api.csproj" Id="ed3f29b8-a48c-41cf-b5a0-1e61637135cc" />
   <Project Path="InvestmentTracker.Application/InvestmentTracker.Application.csproj" Id="6eb30716-7a0c-4c4d-b1f0-b5ec93951ae5" />
   <Project Path="InvestmentTracker.Domain/InvestmentTracker.Domain.csproj" Id="b2da4333-dd13-4389-a21d-9186738be443" />
-  <Project Path="InvestmentTracker.Infrastructure/InvestmentTracker.Infrastructure.csproj" Id="10b85c51-1b7b-4d70-95c0-74e731a4e8f8" />
+  <Project Path="InvestmentTracker.Infrastructure/InvestmentTracker.Infrastructure.csproj" Id="10b85c51-1b7b-4d70-95c0-74e731a4e8f8">
+    <BuildDependency Project="InvestmentTracker.Application/InvestmentTracker.Application.csproj" />
+  </Project>
   <Project Path="tests/InvestmentTracker.IntegrationTests/InvestmentTracker.IntegrationTests.csproj" Id="fd67c3d1-fbf8-4e35-a503-1b2e947df518">
     <BuildDependency Project="InvestmentTracker.Api/InvestmentTracker.Api.csproj" />
     <BuildDependency Project="InvestmentTracker.Infrastructure/InvestmentTracker.Infrastructure.csproj" />

@@ -16,10 +16,12 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\InvestmentTracker.Domain\InvestmentTracker.Domain.csproj" />
+	  <ProjectReference Include="..\InvestmentTracker.Application\InvestmentTracker.Application.csproj" />
   </ItemGroup>
 
 </Project>
