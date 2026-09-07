@@ -1,0 +1,151 @@
+<header class="page-header">
+  <p class="eyebrow">CADASTROS</p>
+  <h1>Ativos</h1>
+  <p>Seu catálogo de investimentos, organizado por instrumento, geografia e estratégia.</p>
+</header>
+@if (error()) {
+  <div class="notice error" role="alert">{{ error() }}</div>
+}
+@if (success()) {
+  <div class="notice success" role="status">{{ success() }}</div>
+}
+<div class="workspace assets-workspace">
+  <section class="panel editor">
+    <h2>{{ editing() === null ? 'Novo ativo' : 'Editar ativo' }}</h2>
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <fieldset [disabled]="saving() || !ready()">
+        <label for="ticker">Ticker</label
+        ><input
+          id="ticker"
+          formControlName="ticker"
+          maxlength="20"
+          placeholder="Ex.: PETR4"
+          autocomplete="off"
+        />
+        @if (form.controls.ticker.touched && form.controls.ticker.invalid) {
+          <small class="field-error">Informe o ticker com até 20 caracteres.</small>
+        }
+        <label for="asset-name">Nome</label
+        ><input
+          id="asset-name"
+          formControlName="name"
+          maxlength="200"
+          placeholder="Nome do ativo"
+          autocomplete="off"
+        />
+        @if (form.controls.name.touched && form.controls.name.invalid) {
+          <small class="field-error">Informe o nome com até 200 caracteres.</small>
+        }
+        @for (field of fields; track field.control) {
+          <label [for]="field.control">{{ field.label }}</label
+          ><select [id]="field.control" [formControlName]="field.control">
+            <option [ngValue]="0">Selecione</option>
+            @for (item of references()[field.key] || []; track item.id) {
+              <option [ngValue]="item.id">
+                {{ item.code ? item.code + ' — ' : '' }}{{ item.name }}
+              </option>
+            }
+          </select>
+          @if (ready() && !references()[field.key]?.length) {
+            <small
+              >Cadastre primeiro em <a [routerLink]="'/' + field.key">{{ field.label }}</a
+              >.</small
+            >
+          }
+          @if (form.controls[field.control].touched && form.controls[field.control].invalid) {
+            <small class="field-error">Selecione {{ field.label.toLowerCase() }}.</small>
+          }
+        }
+        <p class="hint">O país classifica o ativo. A moeda é definida separadamente.</p>
+        <div class="actions">
+          <button class="primary" type="submit" [disabled]="saving() || !ready()">
+            {{ saving() ? 'Salvando…' : 'Salvar ativo' }}
+          </button>
+          @if (editing() !== null) {
+            <button type="button" (click)="cancel()">Cancelar</button>
+          }
+        </div>
+      </fieldset>
+    </form>
+  </section>
+  <section class="panel list">
+    <div class="section-title">
+      <h2>
+        Ativos cadastrados <span class="count">{{ items().length }}</span>
+      </h2>
+      <button (click)="load()" [disabled]="loading() || saving()">Atualizar</button>
+    </div>
+    @if (pendingDelete(); as asset) {
+      <div class="confirmation" role="alert">
+        <p>
+          Excluir <strong>{{ asset.ticker }}</strong
+          >?
+        </p>
+        <p>Ativos com posição em carteira não podem ser excluídos.</p>
+        <div class="actions">
+          <button class="danger" (click)="remove()" [disabled]="saving()">Confirmar exclusão</button
+          ><button (click)="pendingDelete.set(null)" [disabled]="saving()">Cancelar</button>
+        </div>
+      </div>
+    }
+    @if (loading()) {
+      <p class="empty" role="status">Carregando ativos e classificações…</p>
+    } @else if (!items().length) {
+      <div class="empty">
+        <h3>Comece pelo seu primeiro ativo</h3>
+        <p>Preencha os dados e escolha as classificações ao lado.</p>
+      </div>
+    } @else {
+      <div class="asset-cards">
+        @for (asset of items(); track asset.id) {
+          <article class="asset-card">
+            <div class="section-title">
+              <div>
+                <strong class="ticker">{{ asset.ticker }}</strong>
+                <h3>{{ asset.name }}</h3>
+              </div>
+              <span class="badge">{{ label('asset-types', asset.assetTypeId) }}</span>
+            </div>
+            <dl>
+              <div>
+                <dt>País</dt>
+                <dd>{{ label('countries', asset.countryId) }}</dd>
+              </div>
+              <div>
+                <dt>Moeda</dt>
+                <dd>{{ label('currencies', asset.currencyId) }}</dd>
+              </div>
+              <div>
+                <dt>Categoria</dt>
+                <dd>{{ label('asset-categories', asset.assetCategoryId) }}</dd>
+              </div>
+              <div>
+                <dt>Setor</dt>
+                <dd>{{ label('sectors', asset.sectorId) }}</dd>
+              </div>
+            </dl>
+            <div class="card-footer">
+              <small>Cadastrado em {{ asset.createdAt | date: 'dd/MM/yyyy' }}</small>
+              <div class="row-actions">
+                <button
+                  (click)="edit(asset)"
+                  [disabled]="saving()"
+                  [attr.aria-label]="'Editar ' + asset.ticker"
+                >
+                  Editar</button
+                ><button
+                  class="text-danger"
+                  (click)="pendingDelete.set(asset)"
+                  [disabled]="saving()"
+                  [attr.aria-label]="'Excluir ' + asset.ticker"
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+</div>

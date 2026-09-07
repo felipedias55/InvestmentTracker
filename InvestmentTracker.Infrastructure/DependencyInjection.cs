@@ -1,9 +1,11 @@
-﻿using InvestmentTracker.Application.AssetTypes.Interfaces;
+using InvestmentTracker.Application.AssetCategories.Interfaces;
+using InvestmentTracker.Application.AssetTypes.Interfaces;
+using InvestmentTracker.Application.Assets.Interfaces;
+using InvestmentTracker.Application.Countries.Interfaces;
+using InvestmentTracker.Application.Currencies.Interfaces;
+using InvestmentTracker.Application.Sectors.Interfaces;
 using InvestmentTracker.Infrastructure.Persistence.Repositories;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace InvestmentTracker.Infrastructure
 {
@@ -13,6 +15,16 @@ namespace InvestmentTracker.Infrastructure
             this IServiceCollection services)
         {
             services.AddScoped<IAssetTypeRepository, AssetTypeRepository>();
+
+            services.AddScoped<ICountryRepository, CountryRepository>();
+
+            services.AddScoped<ICurrencyRepository, CurrencyRepository>();
+
+            services.AddScoped<IAssetCategoryRepository, AssetCategoryRepository>();
+
+            services.AddScoped<ISectorRepository, SectorRepository>();
+
+            services.AddScoped<IAssetRepository, AssetRepository>();
 
             return services;
         }

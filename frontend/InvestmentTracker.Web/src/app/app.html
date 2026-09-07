@@ -1,2 +1,25 @@
-<h1>{{ title }}</h1>
-<p>Status da API: {{ apiStatus }}</p>
+<button class="skip-link" type="button" (click)="main.focus()">Ir para o conteúdo</button>
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" routerLink="/assets"
+      ><span class="brand-icon" aria-hidden="true">↗</span
+      ><span>Investment <br /><strong>Tracker</strong></span></a
+    >
+    <p class="nav-label">ORGANIZE SEUS INVESTIMENTOS</p>
+    <nav aria-label="Cadastros">
+      <a routerLink="/assets" routerLinkActive="active" ariaCurrentWhenActive="page"
+        >Ativos <span aria-hidden="true">↗</span></a
+      >
+      @for (catalog of catalogs; track catalog.key) {
+        <a
+          [routerLink]="'/' + catalog.key"
+          routerLinkActive="active"
+          ariaCurrentWhenActive="page"
+          >{{ catalog.label }}</a
+        >
+      }
+    </nav>
+    <p class="sidebar-note">Cada investimento.<br />Uma visão mais clara.</p>
+  </aside>
+  <main #main id="main" tabindex="-1"><router-outlet /></main>
+</div>

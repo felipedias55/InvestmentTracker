@@ -1,4 +1,6 @@
-﻿using InvestmentTracker.Domain.Entities;
+using InvestmentTracker.Application.AssetTypes.Exceptions;
+using Microsoft.Data.SqlClient;
+using InvestmentTracker.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -68,7 +70,27 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
         public async Task SaveChangesAsync(
             CancellationToken cancellationToken = default)
         {
-            await context.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException { Number: 2601 or 2627 }
+                && ex.Entries.Count > 0
+                && ex.Entries.All(entry => entry.Entity is AssetType))
+            {
+                throw new AssetTypeConflictException(
+                    "Já existe um tipo de ativo com esse nome.", ex);
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException { Number: 547 }
+                && ex.Entries.Count > 0
+                && ex.Entries.All(entry => entry.Entity is AssetType
+                    && entry.State == EntityState.Deleted))
+            {
+                throw new AssetTypeConflictException(
+                    "O tipo de ativo está em uso e não pode ser excluído.", ex);
+            }
         }
     }
 }

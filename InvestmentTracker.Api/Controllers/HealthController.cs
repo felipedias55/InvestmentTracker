@@ -1,18 +1,20 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 
-namespace InvestmentTracker.Api.Controllers;
-
-[ApiController]
-[Route("api/health")]
-public class HealthController : ControllerBase
+namespace InvestmentTracker.Api.Controllers
 {
-    [HttpGet]
-    public IActionResult Get()
+
+    [ApiController]
+    [Route("api/health")]
+    public class HealthController : ControllerBase
     {
-        return Ok(new
+        [HttpGet]
+        public IActionResult Get()
         {
-            status = "ok",
-            application = "InvestmentTracker.Api"
-        });
+            return Ok(new
+            {
+                status = "ok",
+                application = "InvestmentTracker.Api"
+            });
+        }
     }
 }

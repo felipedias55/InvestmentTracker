@@ -1,0 +1,129 @@
+<header class="page-header">
+  <p class="eyebrow">CADASTROS</p>
+  <h1>{{ config.label }}</h1>
+  <p>{{ config.description }}</p>
+</header>
+@if (error()) {
+  <div class="notice error" role="alert">{{ error() }}</div>
+}
+@if (success()) {
+  <div class="notice success" role="status">{{ success() }}</div>
+}
+<div class="workspace">
+  <section class="panel editor">
+    <h2>{{ editing() === null ? 'Novo cadastro' : 'Editar cadastro' }}</h2>
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <fieldset [disabled]="saving()">
+        @if (isCurrency) {
+          <label for="code">Código da moeda</label
+          ><input
+            id="code"
+            formControlName="code"
+            maxlength="3"
+            placeholder="Ex.: BRL"
+            autocomplete="off"
+          />
+          @if (form.controls.code.touched && form.controls.code.invalid) {
+            <small class="field-error">Informe três letras, como BRL ou USD.</small>
+          }
+        }
+        <label for="name">Nome</label
+        ><input id="name" formControlName="name" maxlength="100" autocomplete="off" />
+        @if (form.controls.name.touched && form.controls.name.invalid) {
+          <small class="field-error">Informe um nome com até 100 caracteres.</small>
+        }
+        @if (isCurrency) {
+          <label for="symbol">Símbolo <span>(opcional)</span></label
+          ><input id="symbol" formControlName="symbol" maxlength="10" placeholder="Ex.: R$" />
+        }
+        <div class="actions">
+          <button class="primary" type="submit" [disabled]="saving()">
+            {{ saving() ? 'Salvando…' : 'Salvar cadastro' }}
+          </button>
+          @if (editing() !== null) {
+            <button type="button" (click)="cancel()">Cancelar edição</button>
+          }
+        </div>
+      </fieldset>
+    </form>
+  </section>
+  <section class="panel list">
+    <div class="section-title">
+      <h2>
+        Registros <span class="count">{{ items().length }}</span>
+      </h2>
+      <button type="button" (click)="load()" [disabled]="loading() || saving()">Atualizar</button>
+    </div>
+    @if (pendingDelete(); as item) {
+      <div class="confirmation" role="alert">
+        <p>
+          Excluir <strong>{{ item.name }}</strong
+          >?
+        </p>
+        <p>Registros em uso não podem ser excluídos.</p>
+        <div class="actions">
+          <button class="danger" (click)="remove()" [disabled]="saving()">Confirmar exclusão</button
+          ><button (click)="pendingDelete.set(null)" [disabled]="saving()">Cancelar</button>
+        </div>
+      </div>
+    }
+    @if (loading()) {
+      <p role="status" class="empty">Carregando cadastros…</p>
+    } @else if (!items().length) {
+      <div class="empty">
+        <h3>Nenhum registro cadastrado</h3>
+        <p>Use o formulário para adicionar o primeiro.</p>
+      </div>
+    } @else {
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              @if (isCurrency) {
+                <th>Código</th>
+              }
+              <th>Nome</th>
+              @if (isCurrency) {
+                <th>Símbolo</th>
+              }
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.id) {
+              <tr>
+                @if (isCurrency) {
+                  <td>
+                    <strong>{{ item.code }}</strong>
+                  </td>
+                }
+                <td>{{ item.name }}</td>
+                @if (isCurrency) {
+                  <td>{{ item.symbol || '—' }}</td>
+                }
+                <td>
+                  <div class="row-actions">
+                    <button
+                      (click)="edit(item)"
+                      [disabled]="saving()"
+                      [attr.aria-label]="'Editar ' + item.name"
+                    >
+                      Editar</button
+                    ><button
+                      class="text-danger"
+                      (click)="pendingDelete.set(item)"
+                      [disabled]="saving()"
+                      [attr.aria-label]="'Excluir ' + item.name"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

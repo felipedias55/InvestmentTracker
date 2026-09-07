@@ -1,4 +1,4 @@
-﻿using InvestmentTracker.Application.AssetTypes.Dtos;
+using InvestmentTracker.Application.AssetTypes.Dtos;
 using InvestmentTracker.Application.AssetTypes.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -40,31 +40,9 @@ namespace InvestmentTracker.Api.Controllers
             CreateAssetTypeDto dto,
             CancellationToken cancellationToken)
         {
-            try
-            {
-                var assetType = await service.CreateAsync(
-                    dto,
-                    cancellationToken);
+            var assetType = await service.CreateAsync(dto, cancellationToken);
 
-                return CreatedAtAction(
-                    nameof(GetById),
-                    new { id = assetType.Id },
-                    assetType);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new
-                {
-                    message = ex.Message
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new
-                {
-                    message = ex.Message
-                });
-            }
+            return CreatedAtAction(nameof(GetById), new { id = assetType.Id }, assetType);
         }
 
         [HttpPut("{id:int}")]
@@ -73,34 +51,14 @@ namespace InvestmentTracker.Api.Controllers
             UpdateAssetTypeDto dto,
             CancellationToken cancellationToken)
         {
-            try
-            {
-                var assetType = await service.UpdateAsync(
-                    id,
-                    dto,
-                    cancellationToken);
+            var assetType = await service.UpdateAsync(id, dto, cancellationToken);
 
-                if (assetType is null)
-                {
-                    return NotFound();
-                }
+            if (assetType is null)
+            {
+                return NotFound();
+            }
 
-                return Ok(assetType);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new
-                {
-                    message = ex.Message
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new
-                {
-                    message = ex.Message
-                });
-            }
+            return Ok(assetType);
         }
 
         [HttpDelete("{id:int}")]

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -6,6 +6,10 @@ namespace InvestmentTracker.Domain.Entities
 {
     public class Currency
     {
+        public const int CodeLength = 3;
+        public const int NameMaxLength = 100;
+        public const int SymbolMaxLength = 10;
+
         public int Id { get; set; }
 
         public string Code { get; set; } = string.Empty;

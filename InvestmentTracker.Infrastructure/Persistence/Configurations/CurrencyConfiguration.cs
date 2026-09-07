@@ -1,4 +1,4 @@
-﻿using InvestmentTracker.Domain.Entities;
+using InvestmentTracker.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
@@ -17,14 +17,14 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Code)
                 .IsRequired()
-                .HasMaxLength(3);
+                .HasMaxLength(Currency.CodeLength);
 
             builder.Property(x => x.Name)
                 .IsRequired()
-                .HasMaxLength(100);
+                .HasMaxLength(Currency.NameMaxLength);
 
             builder.Property(x => x.Symbol)
-                .HasMaxLength(10);
+                .HasMaxLength(Currency.SymbolMaxLength);
 
             builder.HasIndex(x => x.Code)
                 .IsUnique();

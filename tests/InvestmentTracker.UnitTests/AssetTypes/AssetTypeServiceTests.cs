@@ -1,4 +1,5 @@
-﻿using InvestmentTracker.Application.AssetTypes;
+using InvestmentTracker.Application.AssetTypes.Exceptions;
+using InvestmentTracker.Application.AssetTypes;
 using InvestmentTracker.Application.AssetTypes.Dtos;
 using InvestmentTracker.Application.AssetTypes.Interfaces;
 using InvestmentTracker.Application.AssetTypes.Services;
@@ -9,6 +10,71 @@ namespace InvestmentTracker.UnitTests.AssetTypes
 {
     public class AssetTypeServiceTests
     {
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task CreateAndUpdate_ShouldRejectMissingName(string? name)
+        {
+            var repository = new Mock<IAssetTypeRepository>(MockBehavior.Strict);
+            var service = new AssetTypeService(repository.Object);
+
+            await Assert.ThrowsAsync<AssetTypeValidationException>(
+                () => service.CreateAsync(new CreateAssetTypeDto(name!)));
+            await Assert.ThrowsAsync<AssetTypeValidationException>(
+                () => service.UpdateAsync(1, new UpdateAssetTypeDto(name!)));
+            repository.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task CreateAndUpdate_ShouldRejectNameOverLimit()
+        {
+            var repository = new Mock<IAssetTypeRepository>(MockBehavior.Strict);
+            var service = new AssetTypeService(repository.Object);
+            var name = new string('a', AssetType.NameMaxLength + 1);
+
+            await Assert.ThrowsAsync<AssetTypeValidationException>(
+                () => service.CreateAsync(new CreateAssetTypeDto(name)));
+            await Assert.ThrowsAsync<AssetTypeValidationException>(
+                () => service.UpdateAsync(1, new UpdateAssetTypeDto(name)));
+            repository.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task CreateAndUpdate_ShouldTrimAndAcceptNameAtLimit()
+        {
+            var repository = new Mock<IAssetTypeRepository>();
+            var entity = new AssetType { Id = 1, Name = "Original" };
+            repository.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(entity);
+            var service = new AssetTypeService(repository.Object);
+            var name = new string('a', AssetType.NameMaxLength);
+
+            var created = await service.CreateAsync(new CreateAssetTypeDto($"  {name}  "));
+            var updated = await service.UpdateAsync(1, new UpdateAssetTypeDto($"  {name}  "));
+
+            Assert.Equal(name, created.Name);
+            Assert.Equal(name, updated!.Name);
+        }
+
+        [Fact]
+        public async Task Update_ShouldRejectDuplicateName()
+        {
+            var repository = new Mock<IAssetTypeRepository>();
+            var entity = new AssetType { Id = 1, Name = "Original" };
+            repository.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(entity);
+            repository.Setup(r => r.ExistsByNameAsync("Duplicado", 1, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            var service = new AssetTypeService(repository.Object);
+
+            await Assert.ThrowsAsync<AssetTypeConflictException>(
+                () => service.UpdateAsync(1, new UpdateAssetTypeDto("Duplicado")));
+
+            Assert.Equal("Original", entity.Name);
+            repository.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
         [Fact]
         public async Task CreateAsync_ShouldCreateAssetType_WhenNameIsValid()
         {
@@ -70,7 +136,7 @@ namespace InvestmentTracker.UnitTests.AssetTypes
 
             var dto = new CreateAssetTypeDto(string.Empty);
 
-            await Assert.ThrowsAsync<ArgumentException>(
+            await Assert.ThrowsAsync<AssetTypeValidationException>(
                 () => service.CreateAsync(dto));
 
             repository.Verify(
@@ -94,7 +160,7 @@ namespace InvestmentTracker.UnitTests.AssetTypes
 
             var dto = new CreateAssetTypeDto("   ");
 
-            await Assert.ThrowsAsync<ArgumentException>(
+            await Assert.ThrowsAsync<AssetTypeValidationException>(
                 () => service.CreateAsync(dto));
 
             repository.Verify(
@@ -125,7 +191,7 @@ namespace InvestmentTracker.UnitTests.AssetTypes
 
             var dto = new CreateAssetTypeDto("Ação");
 
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            await Assert.ThrowsAsync<AssetTypeConflictException>(
                 () => service.CreateAsync(dto));
 
             repository.Verify(

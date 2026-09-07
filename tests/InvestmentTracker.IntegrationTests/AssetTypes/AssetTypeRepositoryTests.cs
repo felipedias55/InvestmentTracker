@@ -1,4 +1,5 @@
-﻿using InvestmentTracker.Domain.Entities;
+using InvestmentTracker.Application.AssetTypes.Exceptions;
+using InvestmentTracker.Domain.Entities;
 using InvestmentTracker.Infrastructure.Persistence.Repositories;
 using InvestmentTracker.IntegrationTests.Infrastructure;
 
@@ -12,6 +13,56 @@ namespace InvestmentTracker.IntegrationTests.AssetTypes
         public AssetTypeRepositoryTests(DatabaseFixture fixture)
         {
             _fixture = fixture;
+        }
+
+        [Fact]
+        public async Task SaveChanges_ShouldTranslateDuplicateAfterBothChecksPass()
+        {
+            await _fixture.ResetAsync();
+            await using var firstContext = _fixture.Database.CreateContext();
+            await using var secondContext = _fixture.Database.CreateContext();
+            var first = new AssetTypeRepository(firstContext);
+            var second = new AssetTypeRepository(secondContext);
+
+            Assert.False(await first.ExistsByNameAsync("Duplicado"));
+            Assert.False(await second.ExistsByNameAsync("Duplicado"));
+            await first.AddAsync(new AssetType { Name = "Duplicado" });
+            await second.AddAsync(new AssetType { Name = "Duplicado" });
+            await first.SaveChangesAsync();
+
+            var exception = await Assert.ThrowsAsync<AssetTypeConflictException>(
+                () => second.SaveChangesAsync());
+            Assert.Equal("Já existe um tipo de ativo com esse nome.", exception.Message);
+        }
+
+        [Fact]
+        public async Task SaveChanges_ShouldTranslateDeletionOfReferencedType()
+        {
+            await _fixture.ResetAsync();
+            int typeId;
+            await using (var seed = _fixture.Database.CreateContext())
+            {
+                var type = new AssetType { Name = "Ação" };
+                seed.Assets.Add(new Asset
+                {
+                    Name = "Ativo", Ticker = "TEST3", AssetType = type,
+                    Country = new Country { Name = "Brasil" },
+                    Currency = new Currency { Code = "BRL", Name = "Real" },
+                    AssetCategory = new AssetCategory { Name = "Renda variável" },
+                    Sector = new Sector { Name = "Tecnologia" },
+                    CreatedAt = DateTime.UtcNow
+                });
+                await seed.SaveChangesAsync();
+                typeId = type.Id;
+            }
+
+            await using var context = _fixture.Database.CreateContext();
+            var repository = new AssetTypeRepository(context);
+            var entity = await repository.GetByIdAsync(typeId);
+            await repository.DeleteAsync(entity!);
+            var exception = await Assert.ThrowsAsync<AssetTypeConflictException>(
+                () => repository.SaveChangesAsync());
+            Assert.Equal("O tipo de ativo está em uso e não pode ser excluído.", exception.Message);
         }
 
         [Fact]

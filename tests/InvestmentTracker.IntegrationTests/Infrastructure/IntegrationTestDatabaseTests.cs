@@ -1,4 +1,5 @@
-﻿using System;
+using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using InvestmentTracker.IntegrationTests.Infrastructure;
@@ -24,6 +25,7 @@ namespace InvestmentTracker.IntegrationTests.Infrastructure
             var canConnect = await context.Database.CanConnectAsync();
 
             Assert.True(canConnect);
+            Assert.False(context.Database.HasPendingModelChanges());
         }
     }
 }

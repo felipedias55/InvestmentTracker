@@ -1,4 +1,5 @@
-﻿using InvestmentTracker.Application.AssetTypes.Dtos;
+using InvestmentTracker.Application.AssetTypes.Exceptions;
+using InvestmentTracker.Application.AssetTypes.Dtos;
 using InvestmentTracker.Application.AssetTypes.Interfaces;
 using InvestmentTracker.Domain.Entities;
 using System;
@@ -37,14 +38,7 @@ namespace InvestmentTracker.Application.AssetTypes.Services
             CreateAssetTypeDto dto,
             CancellationToken cancellationToken = default)
         {
-            var name = dto.Name.Trim();
-
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                throw new ArgumentException(
-                    "O nome do tipo de ativo é obrigatório.",
-                    nameof(dto));
-            }
+            var name = ValidateName(dto.Name);
 
             var exists = await repository.ExistsByNameAsync(
                 name,
@@ -52,7 +46,7 @@ namespace InvestmentTracker.Application.AssetTypes.Services
 
             if (exists)
             {
-                throw new InvalidOperationException(
+                throw new AssetTypeConflictException(
                     "Já existe um tipo de ativo com esse nome.");
             }
 
@@ -76,14 +70,7 @@ namespace InvestmentTracker.Application.AssetTypes.Services
             UpdateAssetTypeDto dto,
             CancellationToken cancellationToken = default)
         {
-            var name = dto.Name.Trim();
-
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                throw new ArgumentException(
-                    "O nome do tipo de ativo é obrigatório.",
-                    nameof(dto));
-            }
+            var name = ValidateName(dto.Name);
 
             var assetType = await repository.GetByIdAsync(
                 id,
@@ -101,7 +88,7 @@ namespace InvestmentTracker.Application.AssetTypes.Services
 
             if (exists)
             {
-                throw new InvalidOperationException(
+                throw new AssetTypeConflictException(
                     "Já existe um tipo de ativo com esse nome.");
             }
 
@@ -134,6 +121,24 @@ namespace InvestmentTracker.Application.AssetTypes.Services
                 cancellationToken);
 
             return true;
+        }
+
+        private static string ValidateName(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new AssetTypeValidationException(
+                    "O nome do tipo de ativo é obrigatório.");
+            }
+
+            var name = value.Trim();
+            if (name.Length > AssetType.NameMaxLength)
+            {
+                throw new AssetTypeValidationException(
+                    $"O nome do tipo de ativo deve ter no máximo {AssetType.NameMaxLength} caracteres.");
+            }
+
+            return name;
         }
 
         private static AssetTypeDto MapToDto(AssetType assetType)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -6,6 +6,9 @@ namespace InvestmentTracker.Domain.Entities
 {
     public class Asset
     {
+        public const int TickerMaxLength = 20;
+        public const int NameMaxLength = 200;
+
         public int Id { get; set; }
 
         public string Ticker { get; set; } = string.Empty;
