@@ -1,3 +1,7 @@
+using InvestmentTracker.Application.Portfolios;
+using InvestmentTracker.Application.Portfolios.Interfaces;
+using InvestmentTracker.Application.Portfolios.Services;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using InvestmentTracker.Application.AssetCategories.Interfaces;
 using InvestmentTracker.Application.AssetCategories.Services;
 using InvestmentTracker.Application.AssetTypes.Interfaces;
@@ -32,6 +36,9 @@ namespace InvestmentTracker.Application
             services.AddScoped<ISectorService, SectorService>();
 
             services.AddScoped<IAssetService, AssetService>();
+
+            services.TryAddSingleton(new PortfolioDefaults());
+            services.AddScoped<IPortfolioService, PortfolioService>();
 
             return services;
         }

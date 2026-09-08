@@ -1,4 +1,4 @@
-﻿using InvestmentTracker.Domain.Entities;
+using InvestmentTracker.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
@@ -14,6 +14,8 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
             builder.ToTable("Portfolio");
 
             builder.HasKey(x => x.Id);
+            builder.HasOne(x => x.BaseCurrency).WithMany()
+                .HasForeignKey(x => x.BaseCurrencyId).OnDelete(DeleteBehavior.Restrict);
 
             builder.Property(x => x.Name)
                 .IsRequired()

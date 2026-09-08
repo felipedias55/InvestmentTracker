@@ -27,6 +27,8 @@ namespace InvestmentTracker.Application.Assets.Interfaces
             Asset asset,
             CancellationToken cancellationToken = default);
 
+        Task<bool> HasPositionsAsync(int assetId, CancellationToken cancellationToken = default);
+
         Task SaveChangesAsync(
             CancellationToken cancellationToken = default);
     }

@@ -64,6 +64,9 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
             return Task.CompletedTask;
         }
 
+        public Task<bool> HasPositionsAsync(int assetId, CancellationToken cancellationToken = default)
+            => context.PortfolioAssets.AnyAsync(x => x.AssetId == assetId, cancellationToken);
+
         public async Task SaveChangesAsync(
             CancellationToken cancellationToken = default)
         {

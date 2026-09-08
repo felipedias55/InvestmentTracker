@@ -142,7 +142,7 @@ namespace InvestmentTracker.IntegrationTests.Catalogs
             }
             context.PortfolioAssets.Add(new PortfolioAsset
             {
-                AssetId = asset.Id, Portfolio = new Portfolio { Name = "Teste", CreatedAt = DateTime.UtcNow }
+                AssetId = asset.Id, Portfolio = new Portfolio { Name = "Teste", CreatedAt = DateTime.UtcNow, BaseCurrencyId = asset.CurrencyId }
             });
             await context.SaveChangesAsync();
             Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync(created.Headers.Location)).StatusCode);

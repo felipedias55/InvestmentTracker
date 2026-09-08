@@ -1,7 +1,11 @@
 import { Routes } from '@angular/router';
 import { catalogs } from './features/catalogs/catalog.models';
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'assets' },
+  {
+    path: 'portfolio',
+    loadComponent: () => import('./features/portfolio/portfolio-page').then((m) => m.PortfolioPage),
+  },
+  { path: '', pathMatch: 'full', redirectTo: 'portfolio' },
   {
     path: 'assets',
     loadComponent: () => import('./features/assets/assets-page').then((m) => m.AssetsPage),
@@ -11,5 +15,5 @@ export const routes: Routes = [
     data: { catalog: catalog.key },
     loadComponent: () => import('./features/catalogs/catalog-page').then((m) => m.CatalogPage),
   })),
-  { path: '**', redirectTo: 'assets' },
+  { path: '**', redirectTo: 'portfolio' },
 ];

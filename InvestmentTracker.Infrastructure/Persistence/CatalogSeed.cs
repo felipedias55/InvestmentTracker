@@ -41,6 +41,13 @@ namespace InvestmentTracker.Infrastructure.Persistence
                     context.Sectors.Add(new Sector { Name = name });
             }
             await context.SaveChangesAsync(cancellationToken);
+            if (!await context.Portfolios.AnyAsync(cancellationToken))
+            {
+                var brl = await context.Currencies.SingleAsync(x => x.Code == "BRL", cancellationToken);
+                context.Portfolios.Add(new Portfolio { Name = "Carteira Principal", BaseCurrencyId = brl.Id,
+                    CreatedAt = DateTime.UtcNow });
+                await context.SaveChangesAsync(cancellationToken);
+            }
             await transaction.CommitAsync(cancellationToken);
         }
     }

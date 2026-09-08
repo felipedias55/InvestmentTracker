@@ -8,6 +8,22 @@ Tipos de ativo, países, moedas, categorias, setores e ativos possuem listagem, 
 
 Veja [regras, contratos e escopo desta etapa](docs/cadastros.md).
 
+## Carteiras, posições e câmbio
+
+A tela inicial agora é **Carteira**. É possível criar e editar carteiras, definir a moeda-base de cada uma, adicionar/editar/remover posições e alternar entre moeda original e moeda-base. Os totais são sempre convertidos; a visualização original apresenta subtotais separados por moeda.
+
+O provedor é [Frankfurter v2](https://frankfurter.dev/): gratuito, sem chave de API. O backend consulta cotações diárias e mantém cache persistente no SQL Server. Nenhum valor de investimento é enviado ao provedor. Sem cotação disponível, os totais convertidos ficam indisponíveis, sem ocultar os valores originais.
+
+**Ao atualizar uma instalação existente, aplique a nova migration antes de iniciar a API:**
+
+```powershell
+dotnet ef database update --project InvestmentTracker.Infrastructure --startup-project InvestmentTracker.Api
+```
+
+O comando de carga inicial abaixo também aplica as migrations e cria a **Carteira Principal** em BRL se ainda não houver carteiras. A configuração `Portfolio:DefaultCurrencyCode` em `appsettings.json` define o padrão de novas carteiras quando nenhuma moeda for informada. Alterar esse padrão não modifica carteiras existentes.
+
+Detalhes de precisão, cache, indisponibilidade e endpoints: [carteira e câmbio](docs/carteira-e-cambio.md).
+
 ## Executar localmente
 
 Pré-requisitos: SDK .NET 10, SQL Server acessível (ou LocalDB no Windows), Node.js compatível com o Angular instalado e npm. Use as versões do `package-lock.json` com `npm ci`.
@@ -45,6 +61,8 @@ No Visual Studio, os mesmos projetos podem ser configurados como projetos de ini
 ## Testes
 
 ```powershell
+dotnet test
+# Ou somente os unitários:
 dotnet test tests/InvestmentTracker.UnitTests
 ```
 
@@ -67,4 +85,4 @@ Os testes Angular usam Vitest, Reactive Forms e o backend HTTP de teste. Os test
 
 ## Próximas etapas da especificação
 
-Carteira/posições, patrimônio externo, metas e seus cálculos, dashboard e aportes continuam como etapas seguintes. A fórmula de aporte requer os critérios da planilha original. Docker, CI/CD, cloud e uma suíte E2E automatizada também são evoluções previstas; esta entrega conclui a sequência de cadastros da seção 42.
+Patrimônio externo, metas e seus cálculos, dashboard de alocação e aportes continuam como etapas seguintes. A fórmula de aporte requer os critérios da planilha original. Docker, CI/CD, cloud e uma suíte E2E automatizada também são evoluções previstas; os cadastros, carteiras/posições e a conversão de moedas estão implementados.

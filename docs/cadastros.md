@@ -54,3 +54,7 @@ As telas incluem estados de carregamento e vazio, erros de conexão/validação/
 - Inspeção manual no navegador: carregamento pela API local, navegação e formulário de moedas em viewport mobile.
 
 Os testes de integração usam banco temporário exclusivo, mantêm o padrão xUnit/WebApplicationFactory e não dependem de dados existentes na base de desenvolvimento.
+
+## Evolução posterior
+
+Carteiras, posições e moeda-base foram implementadas na etapa seguinte. A carga inicial agora inclui a Carteira Principal quando não houver carteiras. Consulte [carteira e câmbio](carteira-e-cambio.md) para as migrations e regras atuais.

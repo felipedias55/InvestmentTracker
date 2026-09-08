@@ -27,6 +27,8 @@ namespace InvestmentTracker.Application.Currencies.Interfaces
             Currency currency,
             CancellationToken cancellationToken = default);
 
+        Task<bool> IsInUseAsync(int currencyId, CancellationToken cancellationToken = default);
+
         Task SaveChangesAsync(
             CancellationToken cancellationToken = default);
     }

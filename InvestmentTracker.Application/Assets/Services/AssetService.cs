@@ -65,6 +65,9 @@ namespace InvestmentTracker.Application.Assets.Services
                 dto.AssetCategoryId, dto.SectorId, cancellationToken);
             await CheckDuplicateAsync(ticker, id, cancellationToken);
 
+            if (asset.CurrencyId != dto.CurrencyId && await repository.HasPositionsAsync(id, cancellationToken))
+                throw new ResourceConflictException("A moeda de um ativo com posições não pode ser alterada.");
+
             asset.Ticker = ticker;
             asset.Name = name;
             asset.AssetTypeId = dto.AssetTypeId;

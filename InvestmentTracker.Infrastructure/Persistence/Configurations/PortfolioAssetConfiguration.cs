@@ -1,4 +1,4 @@
-﻿using InvestmentTracker.Domain.Entities;
+using InvestmentTracker.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
@@ -12,20 +12,24 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<PortfolioAsset> builder)
         {
-            builder.ToTable("PortfolioAsset");
+            builder.ToTable("PortfolioAsset", table =>
+            {
+                table.HasCheckConstraint("CK_PortfolioAsset_NonNegative",
+                    "[Quantity] >= 0 AND [InvestedAmount] >= 0 AND [CurrentValue] >= 0");
+            });
 
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Quantity)
-                .HasPrecision(18, 8)
+                .HasPrecision(19, 6)
                 .IsRequired();
 
             builder.Property(x => x.InvestedAmount)
-                .HasPrecision(18, 2)
+                .HasPrecision(19, 4)
                 .IsRequired();
 
             builder.Property(x => x.CurrentValue)
-                .HasPrecision(18, 2)
+                .HasPrecision(19, 4)
                 .IsRequired();
 
             builder.HasIndex(x => new
@@ -38,7 +42,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
             builder.HasOne(x => x.Portfolio)
                 .WithMany(x => x.PortfolioAssets)
                 .HasForeignKey(x => x.PortfolioId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasOne(x => x.Asset)
                 .WithMany(x => x.PortfolioAssets)

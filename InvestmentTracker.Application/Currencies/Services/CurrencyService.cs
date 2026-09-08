@@ -92,6 +92,9 @@ namespace InvestmentTracker.Application.Currencies.Services
                     "Já existe uma moeda com esse código.");
             }
 
+            if (currency.Code != code && await repository.IsInUseAsync(id, cancellationToken))
+                throw new ResourceConflictException("O código de uma moeda em uso não pode ser alterado.");
+
             currency.Code = code;
             currency.Name = name;
             currency.Symbol = symbol;

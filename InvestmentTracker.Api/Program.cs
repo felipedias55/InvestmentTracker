@@ -1,3 +1,6 @@
+using InvestmentTracker.Application.Portfolios;
+using InvestmentTracker.Application.ExchangeRates.Interfaces;
+using InvestmentTracker.Infrastructure.ExchangeRates;
 using InvestmentTracker.Api.Exceptions;
 using InvestmentTracker.Infrastructure.Persistence;
 using InvestmentTracker.Application;
@@ -20,6 +23,13 @@ builder.Services.AddDbContext<InvestmentTrackerDbContext>(options =>
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
+builder.Services.AddSingleton(new PortfolioDefaults(
+    (builder.Configuration["Portfolio:DefaultCurrencyCode"] ?? "BRL").Trim().ToUpperInvariant()));
+builder.Services.AddHttpClient<IExchangeRateProvider, FrankfurterClient>(client =>
+{
+    client.BaseAddress = new Uri("https://api.frankfurter.dev/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 builder.Services.AddCors(options =>
 {

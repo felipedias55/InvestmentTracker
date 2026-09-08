@@ -1,12 +1,13 @@
 <button class="skip-link" type="button" (click)="main.focus()">Ir para o conteúdo</button>
 <div class="app-shell">
   <aside class="sidebar">
-    <a class="brand" routerLink="/assets"
+    <a class="brand" routerLink="/portfolio"
       ><span class="brand-icon" aria-hidden="true">↗</span
       ><span>Investment <br /><strong>Tracker</strong></span></a
     >
     <p class="nav-label">ORGANIZE SEUS INVESTIMENTOS</p>
-    <nav aria-label="Cadastros">
+    <nav aria-label="Investimentos e cadastros">
+      <a routerLink="/portfolio" routerLinkActive="active" ariaCurrentWhenActive="page">Carteira</a>
       <a routerLink="/assets" routerLinkActive="active" ariaCurrentWhenActive="page"
         >Ativos <span aria-hidden="true">↗</span></a
       >

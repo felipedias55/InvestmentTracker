@@ -1,0 +1,278 @@
+<header class="page-header">
+  <p class="eyebrow">SEUS INVESTIMENTOS</p>
+  <h1>Carteira</h1>
+  <p>Acompanhe suas posições na moeda original ou na moeda-base da carteira.</p>
+</header>
+@if (error()) {
+  <div class="notice error" role="alert">{{ error() }}</div>
+}
+@if (success()) {
+  <div class="notice success" role="status">{{ success() }}</div>
+}
+<div class="portfolio-toolbar">
+  @if (portfolios().length) {
+    <label for="portfolio-select"
+      >Carteira<select
+        id="portfolio-select"
+        #portfolioSelect
+        [value]="selectedId()"
+        (change)="select(+portfolioSelect.value)"
+        [disabled]="saving() || loading()"
+      >
+        @for (p of portfolios(); track p.id) {
+          <option [value]="p.id">{{ p.name }} · {{ p.baseCurrencyCode }}</option>
+        }
+      </select></label
+    >
+  }
+  <button (click)="newPortfolio()" [disabled]="saving() || loading()">Nova carteira</button>
+  <button (click)="load()" [disabled]="saving() || loading()">Atualizar</button>
+</div>
+@if (showPortfolioForm()) {
+  <section class="panel portfolio-editor">
+    <h2>{{ editingPortfolio() === null ? 'Criar carteira' : 'Editar carteira' }}</h2>
+    <form [formGroup]="portfolioForm" (ngSubmit)="savePortfolio()">
+      <fieldset [disabled]="saving()">
+        <div class="form-grid">
+          <div>
+            <label for="portfolio-name">Nome</label
+            ><input id="portfolio-name" formControlName="name" maxlength="100" />
+          </div>
+          <div>
+            <label for="base-currency">Moeda-base</label
+            ><select id="base-currency" formControlName="baseCurrencyId">
+              <option [ngValue]="0">Selecione</option>
+              @for (c of currencies(); track c.id) {
+                <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label for="description">Descrição (opcional)</label
+            ><input id="description" formControlName="description" maxlength="500" />
+          </div>
+        </div>
+        @if (portfolioForm.touched && portfolioForm.invalid) {
+          <p class="field-error">Informe o nome e selecione uma moeda-base.</p>
+        }
+        @if (!currencies().length) {
+          <p>Cadastre uma <a routerLink="/currencies">moeda</a> antes de criar a carteira.</p>
+        }
+        <p class="hint">
+          Alterar a moeda-base muda a conversão para exibição, sem modificar os valores originais.
+        </p>
+        <div class="actions">
+          <button class="primary" type="submit">Salvar carteira</button>
+          @if (portfolios().length) {
+            <button type="button" (click)="showPortfolioForm.set(false)">Cancelar</button>
+          }
+        </div>
+      </fieldset>
+    </form>
+  </section>
+}
+@if (loading()) {
+  <p class="empty" role="status">Carregando carteira e cotações…</p>
+}
+@if (summary(); as s) {
+  <div class="section-title">
+    <h2>
+      {{ s.portfolio.name }} <span class="badge">Base {{ s.portfolio.baseCurrencyCode }}</span>
+    </h2>
+    <button (click)="editPortfolio()" [disabled]="saving()">Editar carteira</button>
+  </div>
+  @if (!s.conversionAvailable) {
+    <div class="notice error" role="alert">
+      Cotação indisponível para uma ou mais moedas. Os valores originais continuam disponíveis; o
+      total convertido não pode ser calculado.
+    </div>
+  }
+  @if (s.hasFallbackRates) {
+    <div class="notice error" role="status">
+      Não foi possível atualizar o câmbio. Usando a última cotação armazenada. Confira as datas
+      abaixo.
+    </div>
+  } @else if (s.hasStaleRates) {
+    <div class="notice" role="status">
+      Há cotações anteriores ao dia de hoje, como ocorre em fins de semana e feriados. Confira as
+      datas abaixo.
+    </div>
+  }
+  <div class="totals">
+    <section class="panel">
+      <p>Total investido · {{ s.portfolio.baseCurrencyCode }}</p>
+      <strong>{{
+        s.totalInvested === null
+          ? 'Indisponível'
+          : (s.totalInvested | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+      }}</strong>
+    </section>
+    <section class="panel">
+      <p>Valor atual · {{ s.portfolio.baseCurrencyCode }}</p>
+      <strong>{{
+        s.currentValue === null
+          ? 'Indisponível'
+          : (s.currentValue | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+      }}</strong>
+    </section>
+  </div>
+  <div class="display-mode" role="group" aria-label="Moeda de exibição">
+    <button
+      [class.primary]="view() === 'base'"
+      [attr.aria-pressed]="view() === 'base'"
+      (click)="view.set('base')"
+    >
+      Moeda-base ({{ s.portfolio.baseCurrencyCode }})</button
+    ><button
+      [class.primary]="view() === 'original'"
+      [attr.aria-pressed]="view() === 'original'"
+      (click)="view.set('original')"
+    >
+      Moeda original
+    </button>
+  </div>
+  @if (view() === 'original') {
+    <section class="panel subtotals">
+      <h2>Subtotais por moeda original</h2>
+      @for (subtotal of s.originalSubtotals; track subtotal.currencyCode) {
+        <p>
+          <strong>{{ subtotal.currencyCode }}</strong> · Investido
+          {{ subtotal.investedAmount | currency: subtotal.currencyCode : 'code' : '1.2-2' }} · Atual
+          {{ subtotal.currentValue | currency: subtotal.currencyCode : 'code' : '1.2-2' }}
+        </p>
+      }
+      <small
+        >Os totais acima sempre usam a moeda-base; moedas diferentes não são somadas
+        diretamente.</small
+      >
+    </section>
+  }
+  <div class="workspace">
+    <section class="panel editor">
+      <h2>{{ editingPosition() === null ? 'Adicionar posição' : 'Editar posição' }}</h2>
+      <form [formGroup]="positionForm" (ngSubmit)="savePosition()">
+        <fieldset [disabled]="saving()">
+          <label for="position-asset">Ativo</label
+          ><select id="position-asset" formControlName="assetId">
+            <option [ngValue]="0">Selecione</option>
+            @for (asset of availableAssets(); track asset.id) {
+              <option [ngValue]="asset.id">{{ asset.ticker }} — {{ asset.name }}</option>
+            }
+          </select>
+          @if (!assets().length) {
+            <p><a routerLink="/assets">Cadastre um ativo</a> para adicionar uma posição.</p>
+          }
+          <p class="hint">
+            <strong>Entrada sempre em {{ originalCurrency() }}.</strong> Os valores abaixo são
+            totais da posição, não preços por unidade.
+          </p>
+          <label for="quantity">Quantidade</label
+          ><input id="quantity" inputmode="decimal" formControlName="quantity" (blur)="formatInput('quantity')" />
+          <label for="invested">Valor investido ({{ originalCurrency() }})</label
+          ><input id="invested" inputmode="decimal" formControlName="investedAmount" (blur)="formatInput('investedAmount')" />
+          <label for="current">Valor atual ({{ originalCurrency() }})</label
+          ><input id="current" inputmode="decimal" formControlName="currentValue" (blur)="formatInput('currentValue')" />
+          @if (positionForm.touched && positionForm.invalid) {
+            <p class="field-error">
+              Selecione um ativo e informe valores não negativos. Use até 6 casas na quantidade e 4
+              nos valores. Use vírgula nos decimais e ponto nos milhares (ex.: 1.234,5).
+            </p>
+          }
+          <div class="actions">
+            <button class="primary" type="submit">Salvar posição</button>
+            @if (editingPosition() !== null) {
+              <button type="button" (click)="cancelPosition()">Cancelar</button>
+            }
+          </div>
+        </fieldset>
+      </form>
+    </section>
+    <section class="panel list">
+      <h2>
+        Posições <span class="count">{{ s.positions.length }}</span>
+      </h2>
+      @if (pendingDelete(); as p) {
+        <div class="confirmation" role="alert">
+          <p>Remover a posição de {{ p.ticker }} desta carteira?</p>
+          <div class="actions">
+            <button class="danger" (click)="remove()" [disabled]="saving()">
+              Confirmar remoção</button
+            ><button (click)="pendingDelete.set(null)" [disabled]="saving()">Cancelar</button>
+          </div>
+        </div>
+      }
+      @if (!s.positions.length) {
+        <p class="empty">Sua carteira ainda não possui posições. Adicione o primeiro ativo.</p>
+      }
+      @for (p of s.positions; track p.id) {
+        <article class="position-card">
+          <div class="section-title">
+            <div>
+              <strong class="ticker">{{ p.ticker }}</strong>
+              <p>{{ p.name }}</p>
+            </div>
+            <span class="badge">{{
+              view() === 'original' ? p.currencyCode : s.portfolio.baseCurrencyCode
+            }}</span>
+          </div>
+          <p>Quantidade: {{ formatNumber(p.quantity) }}</p>
+          <dl>
+            <div>
+              <dt>Investido</dt>
+              <dd>
+                {{
+                  view() === 'original'
+                    ? (p.investedAmount | currency: p.currencyCode : 'code' : '1.2-2')
+                    : p.baseInvestedAmount === null
+                      ? 'Indisponível'
+                      : (p.baseInvestedAmount
+                        | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+                }}
+              </dd>
+            </div>
+            <div>
+              <dt>Valor atual</dt>
+              <dd>
+                {{
+                  view() === 'original'
+                    ? (p.currentValue | currency: p.currencyCode : 'code' : '1.2-2')
+                    : p.baseCurrentValue === null
+                      ? 'Indisponível'
+                      : (p.baseCurrentValue
+                        | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+                }}
+              </dd>
+            </div>
+          </dl>
+          @if (p.currencyCode !== s.portfolio.baseCurrencyCode) {
+            <p class="hint">
+              @if (p.exchangeRate !== null) {
+                1 {{ p.currencyCode }} = {{ formatNumber(p.exchangeRate) }} {{ s.portfolio.baseCurrencyCode }} ·
+                {{ p.rateDate | date: 'dd/MM/yyyy' : 'UTC' }}
+                @if (p.isFallback) {
+                  · Última cotação armazenada
+                } @else if (p.isStale) {
+                  · Cotação de dia anterior
+                }
+              } @else {
+                Cotação {{ p.currencyCode }}/{{ s.portfolio.baseCurrencyCode }} indisponível.
+              }
+            </p>
+          }
+          <div class="row-actions">
+            <button (click)="editPosition(p)" [disabled]="saving()">Editar {{ p.ticker }}</button
+            ><button class="text-danger" (click)="pendingDelete.set(p)" [disabled]="saving()">
+              Remover {{ p.ticker }}
+            </button>
+          </div>
+        </article>
+      }
+      <p class="hint">
+        Câmbio diário de referência:
+        <a href="https://frankfurter.dev/" target="_blank" rel="noopener noreferrer">Frankfurter</a
+        >. Valores exibidos com duas casas; os valores cadastrados mantêm sua precisão. Cotações não
+        incluem tarifas ou spread.
+      </p>
+    </section>
+  </div>
+}
