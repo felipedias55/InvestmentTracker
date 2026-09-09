@@ -12,5 +12,7 @@ namespace InvestmentTracker.Application.Portfolios.Dtos
         decimal? CurrentValue,
         bool ConversionAvailable,
         bool HasStaleRates,
-        bool HasFallbackRates);
+        bool HasFallbackRates,
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)]
+        decimal? TotalIncome = 0m);
 }

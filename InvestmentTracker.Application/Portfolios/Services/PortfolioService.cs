@@ -10,8 +10,11 @@ using InvestmentTracker.Domain.Entities;
 namespace InvestmentTracker.Application.Portfolios.Services
 {
     public sealed class PortfolioService(IPortfolioRepository repository, ICurrencyRepository currencies,
-        IAssetRepository assets, IExchangeRateService rates, PortfolioDefaults defaults) : IPortfolioService
+        IAssetRepository assets, IExchangeRateService rates, PortfolioDefaults defaults, TimeProvider clock) : IPortfolioService
     {
+        private DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(),
+            TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo")).DateTime);
+
         public async Task<IReadOnlyList<PortfolioDto>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return (await repository.GetAllAsync(cancellationToken)).Select(Map).ToList();
@@ -72,15 +75,23 @@ namespace InvestmentTracker.Application.Portfolios.Services
                     quote is null ? null : p.InvestedAmount * quote.Rate,
                     quote is null ? null : p.CurrentValue * quote.Rate,
                     quote?.Rate, p.Asset.Currency.Code == portfolio.BaseCurrency.Code ? null : quote?.RateDate,
-                    quote?.IsStale ?? false, quote?.IsFallback ?? false);
+                    quote?.IsStale ?? false, quote?.IsFallback ?? false)
+                {
+                    UpdatedOn = p.UpdatedOn, Income = p.Income, BaseIncome = quote is null ? null : p.Income * quote.Rate,
+                    AssetTypeId = p.Asset.AssetTypeId, AssetTypeName = p.Asset.AssetType?.Name ?? string.Empty,
+                    AssetCategoryId = p.Asset.AssetCategoryId, AssetCategoryName = p.Asset.AssetCategory?.Name ?? string.Empty,
+                    SectorId = p.Asset.SectorId, SectorName = p.Asset.Sector?.Name ?? string.Empty,
+                    CountryId = p.Asset.CountryId, CountryName = p.Asset.Country?.Name ?? string.Empty
+                };
             }).ToList();
             var subtotals = positions.GroupBy(p => p.Asset.Currency.Code).OrderBy(g => g.Key)
-                .Select(g => new CurrencySubtotalDto(g.Key, g.Sum(p => p.InvestedAmount), g.Sum(p => p.CurrentValue))).ToList();
+                .Select(g => new CurrencySubtotalDto(g.Key, g.Sum(p => p.InvestedAmount), g.Sum(p => p.CurrentValue), g.Sum(p => p.Income))).ToList();
             var available = result.All(p => p.ExchangeRate.HasValue);
             return new PortfolioSummaryDto(Map(portfolio), result, subtotals,
                 available ? result.Sum(p => p.BaseInvestedAmount!.Value) : null,
                 available ? result.Sum(p => p.BaseCurrentValue!.Value) : null,
-                available, result.Any(p => p.IsStale), result.Any(p => p.IsFallback));
+                available, result.Any(p => p.IsStale), result.Any(p => p.IsFallback),
+                available ? result.Sum(p => p.BaseIncome!.Value) : null);
         }
 
         public async Task<int?> AddPositionAsync(int portfolioId, SavePositionDto dto, CancellationToken cancellationToken = default)
@@ -88,8 +99,8 @@ namespace InvestmentTracker.Application.Portfolios.Services
             ValidatePosition(dto);
             if (await repository.GetByIdAsync(portfolioId, cancellationToken) is null) return null;
             await ValidateAssetAsync(portfolioId, dto.AssetId, null, cancellationToken);
-            var position = new PortfolioAsset { PortfolioId = portfolioId, AssetId = dto.AssetId,
-                Quantity = dto.Quantity, InvestedAmount = dto.InvestedAmount, CurrentValue = dto.CurrentValue };
+            var position = new PortfolioAsset { UpdatedOn = Today, PortfolioId = portfolioId, AssetId = dto.AssetId,
+                Quantity = dto.Quantity, InvestedAmount = dto.InvestedAmount, CurrentValue = dto.CurrentValue, Income = dto.Income ?? 0m };
             await repository.AddPositionAsync(position, cancellationToken);
             await repository.SaveChangesAsync(cancellationToken);
             return position.Id;
@@ -103,9 +114,11 @@ namespace InvestmentTracker.Application.Portfolios.Services
             if (position is null) return false;
             if (position.AssetId != dto.AssetId)
                 throw new InputValidationException("O ativo da posição não pode ser trocado. Remova a posição e cadastre outra.");
+            position.UpdatedOn = Today;
             position.Quantity = dto.Quantity;
             position.InvestedAmount = dto.InvestedAmount;
             position.CurrentValue = dto.CurrentValue;
+            if (dto.Income.HasValue) position.Income = dto.Income.Value;
             await repository.SaveChangesAsync(cancellationToken);
             return true;
         }
@@ -131,7 +144,7 @@ namespace InvestmentTracker.Application.Portfolios.Services
         {
             if (dto.Quantity < 0 || dto.Quantity > 9999999999999.999999m || decimal.Round(dto.Quantity, 6) != dto.Quantity)
                 throw new InputValidationException("Quantidade deve ser não negativa, com até 13 inteiros e 6 casas decimais.");
-            foreach (var value in new[] { dto.InvestedAmount, dto.CurrentValue })
+            foreach (var value in new[] { dto.InvestedAmount, dto.CurrentValue, dto.Income ?? 0m })
             {
                 if (value < 0 || value > 999999999999999.9999m || decimal.Round(value, 4) != value)
                     throw new InputValidationException("Valores devem ser não negativos, com até 15 inteiros e 4 casas decimais.");

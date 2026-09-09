@@ -7,5 +7,7 @@ namespace InvestmentTracker.Application.Portfolios.Dtos
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)]
         decimal InvestedAmount,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)]
-        decimal CurrentValue);
+        decimal CurrentValue,
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)]
+        decimal Income = 0m);
 }

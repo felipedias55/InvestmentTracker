@@ -17,7 +17,7 @@ namespace InvestmentTracker.UnitTests.Portfolios
         private readonly Mock<ICurrencyRepository> _currencies = new();
         private readonly Mock<IAssetRepository> _assets = new();
         private readonly Mock<IExchangeRateService> _rates = new();
-        private PortfolioService Service => new(_repository.Object, _currencies.Object, _assets.Object, _rates.Object, new PortfolioDefaults());
+        private PortfolioService Service => new(_repository.Object, _currencies.Object, _assets.Object, _rates.Object, new PortfolioDefaults(), TimeProvider.System);
         private static readonly Currency Brl = new() { Id = 1, Code = "BRL" };
 
         private void PortfolioWith(params PortfolioAsset[] positions)

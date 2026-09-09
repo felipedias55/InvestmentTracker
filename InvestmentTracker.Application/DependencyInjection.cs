@@ -1,3 +1,9 @@
+using InvestmentTracker.Application.History.Interfaces;
+using InvestmentTracker.Application.History.Services;
+using InvestmentTracker.Application.ExternalAssets.Interfaces;
+using InvestmentTracker.Application.ExternalAssets.Services;
+using InvestmentTracker.Application.Allocation.Interfaces;
+using InvestmentTracker.Application.Allocation.Services;
 using InvestmentTracker.Application.Portfolios;
 using InvestmentTracker.Application.Portfolios.Interfaces;
 using InvestmentTracker.Application.Portfolios.Services;
@@ -40,6 +46,11 @@ namespace InvestmentTracker.Application
             services.TryAddSingleton(new PortfolioDefaults());
             services.AddScoped<IPortfolioService, PortfolioService>();
 
+            services.AddScoped<IAllocationService, AllocationService>();
+            services.AddScoped<IExternalAssetService, ExternalAssetService>();
+            services.AddScoped<IHistoryService, HistoryService>();
+            services.AddScoped<InvestmentTracker.Application.Trades.ITradeService, InvestmentTracker.Application.Trades.TradeService>();
+            services.AddScoped<InvestmentTracker.Application.Income.IIncomeService, InvestmentTracker.Application.Income.IncomeService>();
             return services;
         }
     }

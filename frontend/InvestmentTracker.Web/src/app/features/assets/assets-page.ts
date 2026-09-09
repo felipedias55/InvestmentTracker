@@ -1,4 +1,5 @@
-import { Component, DestroyRef, inject, signal, OnInit } from '@angular/core';
+import { EditPanel } from '../../shared/edit-panel';
+import { Component, computed, DestroyRef, inject, signal, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -13,7 +14,7 @@ type ReferenceField = 'assetTypeId' | 'countryId' | 'currencyId' | 'assetCategor
 @Component({
   standalone: true,
   selector: 'app-assets-page',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe],
+  imports: [EditPanel, ReactiveFormsModule, RouterLink, DatePipe],
   templateUrl: './assets-page.html',
 })
 export class AssetsPage implements OnInit {
@@ -29,6 +30,12 @@ export class AssetsPage implements OnInit {
   readonly success = signal('');
   readonly editing = signal<number | null>(null);
   readonly pendingDelete = signal<Asset | null>(null);
+  readonly query = signal('');
+  readonly filteredItems = computed(() => {
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    const query = normalize(this.query().trim());
+    return this.items().filter(asset => normalize([asset.ticker, asset.name, ...this.fields.map(field => this.label(field.key, asset[field.control]))].join(' ')).includes(query));
+  });
   readonly fields: { control: ReferenceField; key: CatalogKey; label: string }[] = [
     { control: 'assetTypeId', key: 'asset-types', label: 'Tipo de ativo' },
     { control: 'countryId', key: 'countries', label: 'País' },

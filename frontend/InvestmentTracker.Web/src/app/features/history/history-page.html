@@ -1,0 +1,467 @@
+<header class="page-header">
+  <p class="eyebrow">SUA TRAJETÓRIA</p>
+  <h1>Evolução e aportes</h1><a routerLink="/income">Consultar recebimentos de proventos</a> · <a routerLink="/trades">Consultar compras e vendas →</a>
+  <p>
+    Compare as fotografias da carteira e acompanhe o dinheiro que entrou e saiu ao longo do tempo.
+  </p>
+</header>
+<app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+@if (success()) {
+  <p class="notice success" role="status">{{ success() }}</p>
+}
+@if (loading()) {
+  <p role="status">Carregando histórico…</p>
+}
+@if (portfolioId()) {
+  <button (click)="load()" [disabled]="loading() || saving()">Atualizar histórico</button>
+}
+@if (data(); as h) {
+  <p class="hint">Compras com dinheiro novo e vendas com retirada geram movimentos automaticamente em <a routerLink="/trades">Compras e vendas</a>. Use o registro manual apenas para outros movimentos ou registros antigos, sem duplicar os automáticos.</p>
+  <section class="panel capture-panel">
+    <div>
+      <h2>Fotografia de {{ h.today | date: 'MM/yyyy' : 'UTC' }}</h2>
+      <p>
+        Atualize os valores em <a routerLink="/portfolio">Carteira</a> e
+        <a routerLink="/external-assets">Patrimônio externo</a> antes de registrar. A fotografia
+        inclui os saldos até {{ h.today | date: 'dd/MM/yyyy' : 'UTC' }}.
+      </p>
+      <p class="hint">
+        Uma fotografia por mês. Somente a do mês corrente pode ser substituída. Não há preenchimento
+        automático de meses passados.
+      </p>
+    </div>
+    <button class="primary" [disabled]="saving()" (click)="captureConfirmation.set(true)">
+      {{ currentSnapshot() === null ? 'Registrar fotografia' : 'Atualizar fotografia deste mês' }}
+    </button>
+  </section>
+  @if (captureConfirmation()) {
+    <div class="confirmation" role="alert">
+      <p>
+        {{
+          currentSnapshot() === null
+            ? 'Registrar a fotografia com os saldos atuais?'
+            : 'Substituir a fotografia deste mês pelos saldos atuais? A versão anterior deste mês será substituída.'
+        }}
+      </p>
+      <p>
+        Ela representará a carteira até a data de hoje. Confira se os aportes e retiradas desse dia
+        já estão refletidos nos saldos.
+      </p>
+      <div class="actions">
+        <button class="primary" [disabled]="saving()" (click)="capture()">
+          Confirmar fotografia</button
+        ><button [disabled]="saving()" (click)="captureConfirmation.set(false)">Cancelar</button>
+      </div>
+    </div>
+  }
+  <section class="panel">
+    <div class="toolbar">
+      <div role="group" aria-label="Agrupamento do histórico" class="actions">
+        <button
+          [class.primary]="mode() === 'months'"
+          [attr.aria-pressed]="mode() === 'months'"
+          (click)="mode.set('months')"
+        >
+          Mês a mês</button
+        ><button
+          [class.primary]="mode() === 'years'"
+          [attr.aria-pressed]="mode() === 'years'"
+          (click)="mode.set('years')"
+        >
+          Ano a ano
+        </button>
+      </div>
+      <div>
+        <label for="history-year">Ano dos meses e movimentos</label
+        ><select
+          id="history-year"
+          #year
+          [value]="selectedYear()"
+          (change)="selectedYear.set(year.value)"
+        >
+          <option value="">Todos</option>
+          @for (y of years(); track y) {
+            <option [value]="y">{{ y }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label for="chart-currency">Moeda do gráfico</label
+        ><select
+          id="chart-currency"
+          #chart
+          [value]="chartCurrency()"
+          (change)="chartCurrency.set(chart.value)"
+        >
+          @for (c of chartCurrencies(); track c) {
+            <option [value]="c">{{ c }}</option>
+          }
+        </select>
+      </div>
+    </div>
+    <h2 class="section-gap">Patrimônio registrado</h2>
+    <p class="hint">
+      Clique em uma barra para abrir a fotografia. Anos usam a última fotografia disponível, sem
+      somar saldos mensais. Lacunas e moedas diferentes não são tratadas como patrimônio zero.
+    </p>
+    <app-history-chart
+      [rows]="rows()"
+      [currency]="chartCurrency()"
+      (openSnapshot)="openSnapshot($event)"
+    />
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Período / fotografia</th>
+            <th scope="col">Patrimônio total</th>
+            <th scope="col">Proventos acumulados</th>
+            <th scope="col">Aportes do período</th>
+            <th scope="col">Retiradas do período</th>
+            <th scope="col">Variação entre fotos</th>
+            <th scope="col">Variação sem aportes/retiradas</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of rows(); track r.period) {
+            <tr>
+              <th scope="row">
+                {{ r.period
+                }}<small>{{
+                  r.snapshotDate ? (r.snapshotDate | date: 'dd/MM/yyyy' : 'UTC') : 'Sem fotografia'
+                }}</small>
+                @if (r.snapshotId !== null) {
+                  <button class="photo-link" (click)="openSnapshot(r.snapshotId)">
+                    Ver fotografia
+                  </button>
+                }
+              </th>
+              <td>
+                {{
+                  r.totalWealth === null
+                    ? '—'
+                    : (r.totalWealth | currency: r.currencyCode : 'code' : '1.2-2')
+                }}
+                @if (r.hasStaleRates || r.hasFallbackRates) {
+                  <small>Câmbio anterior</small>
+                }
+              </td>
+              <td>
+                {{
+                  r.totalIncome === null
+                    ? '—'
+                    : (r.totalIncome | currency: r.currencyCode : 'code' : '1.2-2')
+                }}
+              </td>
+              <td>
+                {{
+                  r.contributions === null
+                    ? 'Conversão não informada'
+                    : (r.contributions | currency: r.currencyCode : 'code' : '1.2-2')
+                }}
+              </td>
+              <td>
+                {{
+                  r.withdrawals === null
+                    ? 'Conversão não informada'
+                    : (r.withdrawals | currency: r.currencyCode : 'code' : '1.2-2')
+                }}
+              </td>
+              <td>
+                {{
+                  r.change === null ? '—' : (r.change | currency: r.currencyCode : 'code' : '1.2-2')
+                }}
+                @if (r.comparisonStart && r.change !== null) {
+                  <small>Desde {{ r.comparisonStart | date: 'dd/MM/yyyy' : 'UTC' }}</small>
+                }
+              </td>
+              <td>
+                {{
+                  r.changeExcludingFlows === null
+                    ? '—'
+                    : (r.changeExcludingFlows | currency: r.currencyCode : 'code' : '1.2-2')
+                }}
+                @if (r.comparisonNote) {
+                  <small>{{ r.comparisonNote }}</small>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">
+      Variação sem movimentos = patrimônio final − inicial − aportes + retiradas entre as datas das
+      fotografias. Não é rentabilidade: pode incluir câmbio, atualização de valores e movimentos não
+      registrados. Os proventos não são somados novamente. Aportes e retiradas nas colunas do
+      período abrangem o mês/ano calendário.
+    </p>
+  </section>
+  @if (detailLoading()) {
+    <p role="status">Abrindo fotografia…</p>
+  }
+  @if (detail(); as photo) {
+    <section class="panel section-gap" id="snapshot-detail">
+      <div class="section-title">
+        <h2>Fotografia de {{ photo.month | date: 'MM/yyyy' : 'UTC' }}</h2>
+        <button (click)="detail.set(null)">Fechar fotografia</button>
+      </div>
+      <p>
+        {{ photo.dashboard.summary.portfolio.name }} · Capturada em
+        {{ photo.snapshotDate | date: 'dd/MM/yyyy' : 'UTC' }} · Base
+        {{ photo.dashboard.summary.portfolio.baseCurrencyCode }}
+      </p>
+      <p class="hint">
+        Valores e classificações preservados na data da fotografia. Os cadastros atuais não alteram
+        esta imagem.
+      </p>
+      <div class="snapshot-totals">
+        <div>
+          <h3>Ativos</h3>
+          <strong>{{
+            photo.dashboard.summary.currentValue
+              | currency: photo.dashboard.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2'
+          }}</strong>
+        </div>
+        <div>
+          <h3>Patrimônio externo</h3>
+          <strong>{{
+            photo.dashboard.externalAssets?.totalValue
+              | currency: photo.dashboard.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2'
+          }}</strong>
+        </div>
+        <div>
+          <h3>Total</h3>
+          <strong>{{
+            photo.dashboard.totalWealth
+              | currency: photo.dashboard.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2'
+          }}</strong>
+        </div>
+        <div>
+          <h3>Proventos acumulados</h3>
+          <strong>{{
+            photo.dashboard.summary.totalIncome
+              | currency: photo.dashboard.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2'
+          }}</strong>
+        </div>
+      </div>
+      @if (photo.dashboard.summary.hasStaleRates || photo.dashboard.externalAssets?.hasStaleRates) {
+        <p class="notice">Esta fotografia usa cotações anteriores à data de captura.</p>
+      }
+      <h3>Posições na moeda original</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Ativo</th>
+              <th scope="col">Quantidade</th>
+              <th scope="col">Investido</th>
+              <th scope="col">Valor atual</th>
+              <th scope="col">Proventos</th>
+              <th scope="col">Câmbio de referência</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of photo.dashboard.summary.positions; track p.id) {
+              <tr>
+                <th scope="row">
+                  {{ p.ticker }}<small>{{ p.name }}</small><small>Dados atualizados em: {{ p.updatedOn ? (p.updatedOn | date: 'dd/MM/yyyy' : 'UTC') : 'Não informado nesta fotografia' }}</small>
+                  <small
+                    >{{ p.assetTypeName }} · {{ p.assetCategoryName }} · {{ p.sectorName }} ·
+                    {{ p.countryName }}</small
+                  >
+                </th>
+                <td>{{ formatNumber(p.quantity) }}</td>
+                <td>{{ p.investedAmount | currency: p.currencyCode : 'code' : '1.2-2' }}</td>
+                <td>{{ p.currentValue | currency: p.currencyCode : 'code' : '1.2-2' }}</td>
+                <td>{{ p.income | currency: p.currencyCode : 'code' : '1.2-2' }}</td>
+                <td>
+                  {{ p.exchangeRate === null ? '—' : formatNumber(p.exchangeRate)
+                  }}<small>{{
+                    p.rateDate ? (p.rateDate | date: 'dd/MM/yyyy' : 'UTC') : 'Mesma moeda'
+                  }}</small>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (photo.dashboard.externalAssets; as external) {
+        <h3>Patrimônio externo na moeda original</h3>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Nome</th>
+                <th scope="col">Valor</th>
+                <th scope="col">Descrição</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of external.items; track item.id) {
+                <tr>
+                  <th scope="row">{{ item.name }}<small>Dados atualizados em: {{ item.updatedOn ? (item.updatedOn | date: 'dd/MM/yyyy' : 'UTC') : 'Não informado nesta fotografia' }}</small></th>
+                  <td>{{ item.value | currency: item.currencyCode : 'code' : '1.2-2' }}</td>
+                  <td>{{ item.description }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+      <app-allocation-table
+        title="Categorias e metas da época"
+        [rows]="photo.dashboard.allocation.categories"
+        [currency]="photo.dashboard.summary.portfolio.baseCurrencyCode"
+      />
+      <app-allocation-table
+        title="Setores e metas da época"
+        [rows]="photo.dashboard.allocation.sectors"
+        [currency]="photo.dashboard.summary.portfolio.baseCurrencyCode"
+      />
+      <app-allocation-table
+        title="Países da época"
+        [rows]="photo.dashboard.allocation.countries"
+        [currency]="photo.dashboard.summary.portfolio.baseCurrencyCode"
+        [showTargets]="false"
+      />
+    </section>
+  }
+  <section class="section-gap">
+    <h2>Aportes e retiradas realizados</h2>
+    <p>
+      Registre entradas e saídas reais de dinheiro, inclusive as do patrimônio externo.
+      Transferências internas e proventos não são novos aportes. O registro não atualiza
+      automaticamente os saldos.
+    </p>
+    <div class="workspace">
+      <form class="panel" [formGroup]="form" (ngSubmit)="saveFlow()">
+        <fieldset [disabled]="saving()">
+          <h3>{{ editingFlow() === null ? 'Registrar movimento' : 'Editar movimento' }}</h3>
+          <label for="flow-date">Data</label
+          ><input
+            id="flow-date"
+            type="date"
+            min="1900-01-01"
+            [max]="h.today"
+            formControlName="date"
+          />
+          <label for="flow-kind">Tipo</label
+          ><select id="flow-kind" formControlName="kind">
+            <option value="contribution">Aporte</option>
+            <option value="withdrawal">Retirada</option>
+          </select>
+          <label for="flow-currency">Moeda</label
+          ><select id="flow-currency" formControlName="currencyId">
+            <option [ngValue]="0">Selecione</option>
+            @for (c of currencies(); track c.id) {
+              <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
+            }
+          </select>
+          <label for="flow-amount">Valor original</label
+          ><input
+            id="flow-amount"
+            inputmode="decimal"
+            formControlName="amount"
+            (blur)="formatInput('amount')"
+          />
+          @if (foreignCurrency()) {
+            <label for="flow-base"
+              >Valor equivalente em {{ flowBaseCode() }} na data do movimento (opcional)</label
+            ><input
+              id="flow-base"
+              inputmode="decimal"
+              formControlName="baseAmount"
+              (blur)="formatInput('baseAmount')"
+            />
+            <p class="hint">
+              Informe o equivalente efetivo da época, sem usar o câmbio de hoje. Se não souber,
+              deixe vazio; as comparações que dependem desse valor ficarão indisponíveis.
+            </p>
+          }
+          <label for="flow-notes">Observação (opcional)</label
+          ><input id="flow-notes" formControlName="notes" maxlength="500" />
+          @if (form.touched && form.invalid) {
+            <p class="field-error">
+              Informe data, moeda e valor no padrão brasileiro, com até quatro casas decimais.
+            </p>
+          }
+          <div class="actions">
+            <button class="primary" type="submit">Salvar movimento</button>
+            @if (editingFlow() !== null) {
+              <button type="button" (click)="cancelFlow()">Cancelar edição</button>
+            }
+          </div>
+        </fieldset>
+      </form>
+      <div class="panel">
+        <h3>Movimentos {{ selectedYear() || 'de todos os anos' }}</h3>
+        @if (pendingDelete(); as flow) {
+          <div class="confirmation" role="alert">
+            <p>
+              Remover este movimento de {{ flow.date | date: 'dd/MM/yyyy' : 'UTC' }}? As comparações
+              históricas serão recalculadas.
+            </p>
+            <div class="actions">
+              <button class="danger" [disabled]="saving()" (click)="deleteFlow()">
+                Confirmar remoção</button
+              ><button [disabled]="saving()" (click)="pendingDelete.set(null)">Cancelar</button>
+            </div>
+          </div>
+        }
+        @if (!flows().length) {
+          <p>Nenhum movimento registrado para o filtro escolhido.</p>
+        }
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Data / tipo</th>
+                <th scope="col">Valor original</th>
+                <th scope="col">Equivalente informado</th>
+                <th scope="col">Observação</th>
+                <th scope="col">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (flow of flows(); track flow.id) {
+                <tr>
+                  <th scope="row">
+                    {{ flow.date | date: 'dd/MM/yyyy' : 'UTC'
+                    }}<small>{{ flow.kind === 'contribution' ? 'Aporte' : 'Retirada' }}</small>
+                  </th>
+                  <td>{{ flow.amount | currency: flow.currencyCode : 'code' : '1.2-2' }}</td>
+                  <td>
+                    {{
+                      flow.baseAmount === null
+                        ? 'Não informado'
+                        : (flow.baseAmount | currency: flow.baseCurrencyCode : 'code' : '1.2-2')
+                    }}
+                  </td>
+                  <td>{{ flow.notes }}</td>
+                  <td>
+                    @if (flow.tradeId) { <a routerLink="/trades">Gerado pela operação #{{ flow.tradeId }}</a> } @else {
+                    <div class="row-actions">
+                      <button [disabled]="saving()" (click)="editFlow(flow)">Editar</button
+                      ><button
+                        class="text-danger"
+                        [disabled]="saving()"
+                        (click)="pendingDelete.set(flow)"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+}

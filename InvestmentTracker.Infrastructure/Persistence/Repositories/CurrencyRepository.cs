@@ -66,7 +66,9 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
 
         public async Task<bool> IsInUseAsync(int currencyId, CancellationToken cancellationToken = default)
             => await context.Assets.AnyAsync(x => x.CurrencyId == currencyId, cancellationToken)
-                || await context.Portfolios.AnyAsync(x => x.BaseCurrencyId == currencyId, cancellationToken);
+                || await context.Portfolios.AnyAsync(x => x.BaseCurrencyId == currencyId, cancellationToken)
+                || await context.ExternalAssets.AnyAsync(x => x.CurrencyId == currencyId, cancellationToken)
+                || await context.PortfolioCashFlows.AnyAsync(x => x.CurrencyId == currencyId, cancellationToken);
 
         public async Task SaveChangesAsync(
             CancellationToken cancellationToken = default)

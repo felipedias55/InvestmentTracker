@@ -87,4 +87,13 @@ describe('CatalogPage', () => {
     http.expectOne('/api/currencies').flush([]);
     expect(fixture.componentInstance.error()).toBe('');
   });
+  it('filters a long list by name or code without changing records', () => {
+    const fixture = page([{ id: 1, code: 'BRL', name: 'Real' }, { id: 2, code: 'USD', name: 'Dólar' }]);
+    const search: HTMLInputElement = fixture.nativeElement.querySelector('#registration-search');
+    search.value = 'dolar'; search.dispatchEvent(new Event('input')); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(1);
+    expect(fixture.nativeElement.querySelector('tbody').textContent).toContain('USD');
+    expect(fixture.componentInstance.items().length).toBe(2);
+  });
+
 });

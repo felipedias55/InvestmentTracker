@@ -1,0 +1,73 @@
+<header class="page-header">
+  <p class="eyebrow">SUA ESTRATÉGIA</p>
+  <h1>Metas de alocação</h1>
+  <p>
+    Defina a distribuição desejada. As metas de categoria e setor são independentes e cada conjunto
+    deve somar 100%.
+  </p>
+</header>
+<app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
+@if (portfolioId()) {
+  <div class="actions" role="group" aria-label="Tipo de meta">
+    <button
+      [class.primary]="dimension() === 'category'"
+      [attr.aria-pressed]="dimension() === 'category'"
+      [disabled]="saving()"
+      (click)="changeDimension('category')"
+    >
+      Categorias
+    </button>
+    <button
+      [class.primary]="dimension() === 'sector'"
+      [attr.aria-pressed]="dimension() === 'sector'"
+      [disabled]="saving()"
+      (click)="changeDimension('sector')"
+    >
+      Setores
+    </button>
+  </div>
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="notice success" role="status">{{ success() }}</p>
+  }
+  @if (loading()) {
+    <p role="status">Carregando metas…</p>
+  }
+  @if (!ready() && !loading()) {
+    <button (click)="load()">Tentar novamente</button>
+  }
+  @if (ready()) {
+    <form class="panel" [formGroup]="form" (ngSubmit)="save()" style="margin-top: 24px">
+      <fieldset [disabled]="saving()">
+        <h2>Metas por {{ dimension() === 'category' ? 'categoria' : 'setor' }}</h2>
+        <p>
+          Deixe em branco os grupos sem meta cadastrada. Na comparação, eles terão meta de 0% quando
+          este conjunto estiver configurado.
+        </p>
+        <div formArrayName="rows">
+          @for (row of rows.controls; track row.controls.groupId.value; let i = $index) {
+            <div [formGroupName]="i">
+              <label [for]="'target-' + i">{{ row.controls.name.value }} (%)</label>
+              <input
+                [id]="'target-' + i"
+                formControlName="percentage"
+                inputmode="decimal"
+                placeholder="Ex.: 25,5"
+              />
+            </div>
+          }
+        </div>
+        <p aria-live="polite">
+          <strong>Total: {{ total() }}%</strong>
+        </p>
+        <div class="actions">
+          <button class="primary" type="submit" [disabled]="!rows.length">
+            Salvar conjunto de metas
+          </button>
+        </div>
+      </fieldset>
+    </form>
+  }
+}

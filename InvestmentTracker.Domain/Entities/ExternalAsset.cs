@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -7,6 +7,16 @@ namespace InvestmentTracker.Domain.Entities
     public class ExternalAsset
     {
         public int Id { get; set; }
+
+        public DateOnly UpdatedOn { get; set; }
+
+        public int PortfolioId { get; set; }
+
+        public int CurrencyId { get; set; }
+
+        public Portfolio Portfolio { get; set; } = null!;
+
+        public Currency Currency { get; set; } = null!;
 
         public string Name { get; set; } = string.Empty;
 

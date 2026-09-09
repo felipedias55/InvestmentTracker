@@ -14,6 +14,10 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
             => context.Portfolios.Include(p => p.BaseCurrency).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         public async Task<IReadOnlyList<PortfolioAsset>> GetPositionsAsync(int portfolioId, CancellationToken cancellationToken)
             => await context.PortfolioAssets.AsNoTracking().Include(p => p.Asset).ThenInclude(a => a.Currency)
+                .Include(p => p.Asset).ThenInclude(a => a.AssetType)
+                .Include(p => p.Asset).ThenInclude(a => a.AssetCategory)
+                .Include(p => p.Asset).ThenInclude(a => a.Sector)
+                .Include(p => p.Asset).ThenInclude(a => a.Country)
                 .Where(p => p.PortfolioId == portfolioId).OrderBy(p => p.Asset.Ticker).ToListAsync(cancellationToken);
         public Task<PortfolioAsset?> GetPositionAsync(int portfolioId, int id, CancellationToken cancellationToken)
             => context.PortfolioAssets.SingleOrDefaultAsync(p => p.PortfolioId == portfolioId && p.Id == id, cancellationToken);

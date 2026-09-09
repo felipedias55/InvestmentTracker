@@ -1,0 +1,48 @@
+<header class="page-header">
+  <p class="eyebrow">MOVIMENTE SUA CARTEIRA</p><h1>Compras e vendas</h1>
+  <p>Registre uma operação uma única vez. A quantidade, o custo da posição e o movimento do dinheiro serão atualizados juntos.</p>
+  <a routerLink="/portfolio">Ver carteira</a> · <a routerLink="/history">Evolução e aportes</a>
+</header>
+<app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
+@if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
+@if (loading()) { <p role="status">Carregando operações e saldos…</p> }
+@if (id()) { <button [disabled]="loading() || saving()" (click)="load()">Atualizar saldos e histórico</button> }
+@if (summary(); as s) {
+  <div class="workspace" style="margin-top: 24px">
+    <section class="panel">
+      <h2>Nova operação</h2>
+      <form [formGroup]="form" (ngSubmit)="save()">
+        <fieldset [disabled]="saving()">
+          <label for="trade-kind">Operação</label><select id="trade-kind" formControlName="kind"><option value="buy">Comprar / aportar</option><option value="sell">Vender</option></select>
+          <label for="trade-date">Data da operação</label><input id="trade-date" type="date" formControlName="date" [max]="today" />
+          <label for="trade-asset">Ativo</label><select id="trade-asset" formControlName="assetId" (change)="form.patchValue({ cashAssetId: 0, baseAmount: '' })"><option [ngValue]="0">Selecione</option>@for (a of assets(); track a.id) { <option [ngValue]="a.id">{{ a.ticker }} — {{ a.name }}</option> }</select>
+          @if (!assets().length) { <p><a routerLink="/assets">Cadastre o ativo</a> antes de registrar a compra.</p> }
+          <p class="hint">Quantidade disponível: {{ formatNumber(availableQuantity()) }}. Valores em {{ currency() || 'moeda do ativo' }}.</p>
+          <label for="trade-quantity">Quantidade {{ form.controls.kind.value === 'sell' ? 'vendida' : 'comprada' }}</label><input id="trade-quantity" formControlName="quantity" inputmode="decimal" placeholder="Ex.: 10" (blur)="formatInput('quantity')" />
+          <label for="trade-price">Preço por unidade ({{ currency() }})</label><input id="trade-price" formControlName="unitPrice" inputmode="decimal" placeholder="Ex.: 25,50" (blur)="formatInput('unitPrice')" />
+          @if (form.controls.quantity.valid && form.controls.unitPrice.valid && form.controls.quantity.value && form.controls.unitPrice.value) { <p>Total estimado: <strong>{{ estimatedTotal() | currency: currency() : 'code' : '1.2-4' }}</strong></p> }
+          <label for="trade-cash">{{ form.controls.kind.value === 'buy' ? 'Origem do dinheiro' : 'Destino do dinheiro' }}</label><select id="trade-cash" formControlName="cashAssetId" (change)="form.controls.baseAmount.reset('')"><option [ngValue]="0">{{ form.controls.kind.value === 'buy' ? 'Dinheiro novo — gerar aporte' : 'Retirar da carteira — gerar retirada' }}</option>@for (b of cashOptions(); track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.value | currency: b.currencyCode : 'code' : '1.2-2' }}</option> }</select>
+          <p class="hint">Escolha um saldo de patrimônio externo para reinvestir dinheiro que já está na carteira. O saldo será debitado na compra ou creditado na venda, sem gerar novo aporte. <a routerLink="/external-assets">Cadastrar saldo disponível</a>.</p>
+          @if (!form.controls.cashAssetId.value && currency() && currency() !== s.portfolio.baseCurrencyCode) {
+            <label for="trade-base">Equivalente total em {{ s.portfolio.baseCurrencyCode }} (opcional)</label><input id="trade-base" formControlName="baseAmount" inputmode="decimal" (blur)="formatInput('baseAmount')" />
+            <p class="hint">Para hoje, usamos o câmbio disponível se você não informar o equivalente. Em outra data, ou se o câmbio estiver indisponível, será necessário informar o valor equivalente da época.</p>
+          }
+          <p class="hint">A posição será avaliada pelo preço desta operação. Na venda, o custo remanescente será reduzido proporcionalmente à quantidade. Operações anteriores à última operação ou fotografia não são aceitas.</p>
+          @if (form.touched && form.invalid) { <p class="field-error">Preencha data e ativo. Use valores positivos, com até 6 casas na quantidade e 4 no preço (ex.: 1.234,50).</p> }
+          <div class="actions"><button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Confirmar operação' }}</button></div>
+        </fieldset>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>Histórico de compras e vendas</h2>
+      <label for="trade-search">Filtrar por ativo</label><input id="trade-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" placeholder="Ex.: PETR4" />
+      <p class="hint">As posições já cadastradas são o saldo inicial. Compras e vendas antigas não são inventadas. Este histórico inclui também operações com saldo reinvestido.</p>
+      <div class="table-scroll"><table><thead><tr><th>Data / ativo</th><th>Operação</th><th>Quantidade</th><th>Preço unitário</th><th>Total</th><th>Dinheiro</th></tr></thead><tbody>
+        @for (t of filteredTrades(); track t.id) { <tr><th scope="row">{{ t.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ t.ticker }}</th><td>{{ t.kind === 'buy' ? 'Compra' : 'Venda' }}</td><td>{{ formatNumber(t.quantity) }}</td><td>{{ t.unitPrice | currency: t.currencyCode : 'code' : '1.2-4' }}</td><td>{{ t.amount | currency: t.currencyCode : 'code' : '1.2-4' }}</td><td>{{ t.cashAssetName || (t.kind === 'buy' ? 'Aporte automático' : 'Retirada automática') }}</td></tr> }
+      </tbody></table></div>
+      @if (!filteredTrades().length) { <p class="empty">Nenhuma operação para este filtro.</p> }
+      <p class="hint">Os registros são preservados para consulta. Confira os dados antes de confirmar. Uma venda total mantém a posição zerada e preserva os proventos acumulados.</p>
+    </section>
+  </div>
+}

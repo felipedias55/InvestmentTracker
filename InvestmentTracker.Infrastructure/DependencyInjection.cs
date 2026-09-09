@@ -1,3 +1,6 @@
+using InvestmentTracker.Application.History.Interfaces;
+using InvestmentTracker.Application.ExternalAssets.Interfaces;
+using InvestmentTracker.Application.Allocation.Interfaces;
 using InvestmentTracker.Application.Portfolios.Interfaces;
 using InvestmentTracker.Application.ExchangeRates.Interfaces;
 using InvestmentTracker.Infrastructure.ExchangeRates;
@@ -35,6 +38,11 @@ namespace InvestmentTracker.Infrastructure
             services.AddScoped<IExchangeRateService, CachedExchangeRateService>();
             services.TryAddSingleton(TimeProvider.System);
             services.TryAddSingleton<ExchangeRateRefreshCoordinator>();
+            services.AddScoped<IAllocationRepository, AllocationRepository>();
+            services.AddScoped<IExternalAssetRepository, ExternalAssetRepository>();
+            services.AddScoped<IHistoryRepository, HistoryRepository>();
+            services.AddScoped<InvestmentTracker.Application.Trades.ITradeRepository, TradeRepository>();
+            services.AddScoped<InvestmentTracker.Application.Income.IIncomeRepository, IncomeRepository>();
             return services;
         }
     }

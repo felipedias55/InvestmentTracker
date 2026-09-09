@@ -1,0 +1,47 @@
+<header class="page-header">
+  <p class="eyebrow">RENDIMENTOS DA CARTEIRA</p><h1>Proventos</h1>
+  <p>Registre cada recebimento pelo valor líquido total. O acumulado do ativo será atualizado automaticamente.</p>
+  <a routerLink="/portfolio">Ver carteira</a> · <a routerLink="/history">Evolução da carteira</a>
+</header>
+<app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
+@if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
+@if (loading()) { <p role="status">Carregando recebimentos…</p> }
+@if (id()) { <button [disabled]="loading() || saving()" (click)="load()">Atualizar recebimentos</button> }
+@if (summary(); as s) {
+  <section class="panel section-gap"><h2>Total de proventos acumulados</h2>
+    <strong>{{ s.totalIncome === null ? 'Conversão indisponível' : (s.totalIncome | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2') }}</strong>
+    <p>Inclui o saldo inicial informado na carteira e os novos recebimentos. Valores antigos não são transformados em recebimentos fictícios.</p>
+  </section>
+  <div class="workspace section-gap">
+    <section class="panel"><h2>Novo recebimento</h2>
+      <form [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="saving()">
+        <label for="income-date">Data do recebimento</label><input id="income-date" type="date" formControlName="date" [max]="today" min="1900-01-01" />
+        <label for="income-asset">Ativo</label><select id="income-asset" formControlName="assetId" (change)="form.controls.cashAssetId.setValue(0)">
+          <option [ngValue]="0">Selecione</option>
+          @for (p of positions(); track p.id) { <option [ngValue]="p.assetId">{{ p.ticker }} — {{ p.name }}</option> }
+        </select>
+        <p class="hint">Inclui posições zeradas, para recebimentos após a venda do ativo.</p>
+        <label for="income-amount">Valor líquido total ({{ currency() || 'moeda do ativo' }})</label>
+        <input id="income-amount" formControlName="amount" inputmode="decimal" placeholder="Ex.: 123,45" (blur)="formatInput()" />
+        <label for="income-cash">Destino do recebimento</label><select id="income-cash" formControlName="cashAssetId">
+          <option [ngValue]="0">Recebido fora dos saldos desta carteira</option>
+          @for (b of cashOptions(); track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.value | currency: b.currencyCode : 'code' : '1.2-2' }}</option> }
+        </select>
+        <p class="hint">Ao escolher um saldo, o valor será creditado nele e poderá ser reinvestido. Proventos não são novos aportes. <a routerLink="/external-assets">Cadastrar saldo disponível</a>.</p>
+        <label for="income-notes">Observação (opcional)</label><input id="income-notes" formControlName="notes" maxlength="500" placeholder="Ex.: dividendos, JCP ou rendimento de FII" />
+        <p class="hint">Informe apenas recebimentos ainda não incluídos no acumulado. A data não pode ser anterior à última operação, recebimento ou fotografia. Fotografias já registradas permanecem preservadas.</p>
+        @if (form.touched && form.invalid) { <p class="field-error">Preencha data, ativo e valor no padrão brasileiro, com até quatro casas decimais.</p> }
+        <div class="actions"><button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Registrar recebimento' }}</button></div>
+      </fieldset></form>
+    </section>
+    <section class="panel"><h2>Histórico de recebimentos</h2>
+      <label for="income-search">Filtrar por ativo</label><input id="income-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" />
+      <div class="table-scroll"><table><thead><tr><th>Data / ativo</th><th>Valor líquido</th><th>Destino</th><th>Observação</th></tr></thead><tbody>
+        @for (r of filteredIncomeReceipts(); track r.id) { <tr><th scope="row">{{ r.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ r.ticker }}</th><td>{{ r.amount | currency: r.currencyCode : 'code' : '1.2-4' }}</td><td>{{ r.cashAssetName || 'Fora dos saldos da carteira' }}</td><td>{{ r.notes || '—' }}</td></tr> }
+      </tbody></table></div>
+      @if (!filteredIncomeReceipts().length) { <p class="empty">Nenhum recebimento para este filtro.</p> }
+      <p class="hint">Valores exibidos na moeda original. Os recebimentos confirmados são preservados; confira os dados antes de registrar.</p>
+    </section>
+  </div>
+}

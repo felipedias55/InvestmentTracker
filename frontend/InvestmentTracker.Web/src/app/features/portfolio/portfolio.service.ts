@@ -17,15 +17,22 @@ export interface PositionInput {
   quantity: string;
   investedAmount: string;
   currentValue: string;
+  income: string;
 }
 export interface Position extends PositionInput {
+  assetTypeName?: string;
+  assetCategoryName?: string;
+  sectorName?: string;
+  countryName?: string;
   id: number;
   ticker: string;
   name: string;
   currencyCode: string;
   baseInvestedAmount: string | null;
   baseCurrentValue: string | null;
+  baseIncome: string | null;
   exchangeRate: string | null;
+  updatedOn?: string | null;
   rateDate: string | null;
   isStale: boolean;
   isFallback: boolean;
@@ -33,8 +40,14 @@ export interface Position extends PositionInput {
 export interface PortfolioSummary {
   portfolio: Portfolio;
   positions: Position[];
-  originalSubtotals: { currencyCode: string; investedAmount: string; currentValue: string }[];
+  originalSubtotals: {
+    currencyCode: string;
+    investedAmount: string;
+    currentValue: string;
+    income: string;
+  }[];
   totalInvested: string | null;
+  totalIncome: string | null;
   currentValue: string | null;
   conversionAvailable: boolean;
   hasStaleRates: boolean;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -7,6 +7,8 @@ namespace InvestmentTracker.Domain.Entities
     public class PortfolioAsset
     {
         public int Id { get; set; }
+
+        public DateOnly UpdatedOn { get; set; }
 
         public int PortfolioId { get; set; }
 
@@ -17,6 +19,8 @@ namespace InvestmentTracker.Domain.Entities
         public decimal InvestedAmount { get; set; }
 
         public decimal CurrentValue { get; set; }
+
+        public decimal Income { get; set; }
 
         public Portfolio Portfolio { get; set; } = null!;
 

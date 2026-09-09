@@ -27,9 +27,12 @@
   }
   <button (click)="newPortfolio()" [disabled]="saving() || loading()">Nova carteira</button>
   <button (click)="load()" [disabled]="saving() || loading()">Atualizar</button>
+  <a routerLink="/external-assets">Patrimônio externo</a>
+  <a routerLink="/income">Registrar proventos</a>
+  <a routerLink="/history">Evolução e aportes realizados</a>
 </div>
 @if (showPortfolioForm()) {
-  <section class="panel portfolio-editor">
+  <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Carteira" (closed)="showPortfolioForm.set(false)"><section class="panel portfolio-editor">
     <h2>{{ editingPortfolio() === null ? 'Criar carteira' : 'Editar carteira' }}</h2>
     <form [formGroup]="portfolioForm" (ngSubmit)="savePortfolio()">
       <fieldset [disabled]="saving()">
@@ -69,7 +72,7 @@
         </div>
       </fieldset>
     </form>
-  </section>
+  </section></app-edit-panel>
 }
 @if (loading()) {
   <p class="empty" role="status">Carregando carteira e cotações…</p>
@@ -99,6 +102,14 @@
     </div>
   }
   <div class="totals">
+    <section class="panel">
+      <p>Total de proventos · {{ s.portfolio.baseCurrencyCode }}</p>
+      <strong>{{
+        s.totalIncome === null
+          ? 'Indisponível'
+          : (s.totalIncome | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+      }}</strong>
+    </section>
     <section class="panel">
       <p>Total investido · {{ s.portfolio.baseCurrencyCode }}</p>
       <strong>{{
@@ -138,7 +149,9 @@
         <p>
           <strong>{{ subtotal.currencyCode }}</strong> · Investido
           {{ subtotal.investedAmount | currency: subtotal.currencyCode : 'code' : '1.2-2' }} · Atual
-          {{ subtotal.currentValue | currency: subtotal.currencyCode : 'code' : '1.2-2' }}
+          {{ subtotal.currentValue | currency: subtotal.currencyCode : 'code' : '1.2-2' }} ·
+          Proventos
+          {{ subtotal.income | currency: subtotal.currencyCode : 'code' : '1.2-2' }}
         </p>
       }
       <small
@@ -147,9 +160,10 @@
       >
     </section>
   }
+  <section class="panel" style="margin: 20px 0"><h2>Vai comprar ou vender?</h2><p><a routerLink="/trades">Registrar compra ou venda →</a> atualiza a posição e registra o movimento automaticamente.</p><p class="hint">O formulário abaixo serve para saldo inicial, correção ou atualização de valores e proventos. Ele não representa uma compra ou venda.</p></section>
   <div class="workspace">
-    <section class="panel editor">
-      <h2>{{ editingPosition() === null ? 'Adicionar posição' : 'Editar posição' }}</h2>
+    <app-edit-panel [editing]="editingPosition() !== null" [busy]="saving()" [error]="error()" title="Ajustar posição" (closed)="cancelPosition()"><section class="panel editor">
+      <h2>{{ editingPosition() === null ? 'Cadastrar saldo inicial' : 'Ajustar posição' }}</h2>
       <form [formGroup]="positionForm" (ngSubmit)="savePosition()">
         <fieldset [disabled]="saving()">
           <label for="position-asset">Ativo</label
@@ -167,11 +181,37 @@
             totais da posição, não preços por unidade.
           </p>
           <label for="quantity">Quantidade</label
-          ><input id="quantity" inputmode="decimal" formControlName="quantity" (blur)="formatInput('quantity')" />
+          ><input
+            id="quantity"
+            inputmode="decimal"
+            formControlName="quantity"
+            (blur)="formatInput('quantity')"
+          />
           <label for="invested">Valor investido ({{ originalCurrency() }})</label
-          ><input id="invested" inputmode="decimal" formControlName="investedAmount" (blur)="formatInput('investedAmount')" />
+          ><input
+            id="invested"
+            inputmode="decimal"
+            formControlName="investedAmount"
+            (blur)="formatInput('investedAmount')"
+          />
           <label for="current">Valor atual ({{ originalCurrency() }})</label
-          ><input id="current" inputmode="decimal" formControlName="currentValue" (blur)="formatInput('currentValue')" />
+          ><input
+            id="current"
+            inputmode="decimal"
+            formControlName="currentValue"
+            (blur)="formatInput('currentValue')"
+          />
+          <label for="income">Proventos acumulados ({{ originalCurrency() }})</label>
+          <input
+            id="income"
+            inputmode="decimal"
+            formControlName="income"
+            (blur)="formatInput('income')"
+          />
+          <p class="hint">
+            Informe o total recebido nesta posição. Proventos são acompanhados separadamente e não
+            são somados automaticamente ao patrimônio.
+          </p>
           @if (positionForm.touched && positionForm.invalid) {
             <p class="field-error">
               Selecione um ativo e informe valores não negativos. Use até 6 casas na quantidade e 4
@@ -186,20 +226,20 @@
           </div>
         </fieldset>
       </form>
-    </section>
+    </section></app-edit-panel>
     <section class="panel list">
       <h2>
         Posições <span class="count">{{ s.positions.length }}</span>
       </h2>
       @if (pendingDelete(); as p) {
-        <div class="confirmation" role="alert">
+        <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar remoção" (closed)="pendingDelete.set(null)"><div class="confirmation" role="alert">
           <p>Remover a posição de {{ p.ticker }} desta carteira?</p>
           <div class="actions">
             <button class="danger" (click)="remove()" [disabled]="saving()">
               Confirmar remoção</button
             ><button (click)="pendingDelete.set(null)" [disabled]="saving()">Cancelar</button>
           </div>
-        </div>
+        </div></app-edit-panel>
       }
       @if (!s.positions.length) {
         <p class="empty">Sua carteira ainda não possui posições. Adicione o primeiro ativo.</p>
@@ -243,11 +283,25 @@
                 }}
               </dd>
             </div>
+            <div>
+              <dt>Proventos acumulados</dt>
+              <dd>
+                {{
+                  view() === 'original'
+                    ? (p.income | currency: p.currencyCode : 'code' : '1.2-2')
+                    : p.baseIncome === null
+                      ? 'Indisponível'
+                      : (p.baseIncome | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+                }}
+              </dd>
+            </div>
           </dl>
+          <p class="hint">Dados atualizados em: {{ p.updatedOn ? (p.updatedOn | date: 'dd/MM/yyyy' : 'UTC') : 'Não informado' }}.</p>
           @if (p.currencyCode !== s.portfolio.baseCurrencyCode) {
             <p class="hint">
               @if (p.exchangeRate !== null) {
-                1 {{ p.currencyCode }} = {{ formatNumber(p.exchangeRate) }} {{ s.portfolio.baseCurrencyCode }} ·
+                1 {{ p.currencyCode }} = {{ formatNumber(p.exchangeRate) }}
+                {{ s.portfolio.baseCurrencyCode }} ·
                 {{ p.rateDate | date: 'dd/MM/yyyy' : 'UTC' }}
                 @if (p.isFallback) {
                   · Última cotação armazenada
@@ -260,6 +314,8 @@
             </p>
           }
           <div class="row-actions">
+            <a routerLink="/trades" [queryParams]="{ assetId: p.assetId, kind: 'buy' }">Comprar</a>
+            <a routerLink="/trades" [queryParams]="{ assetId: p.assetId, kind: 'sell' }">Vender</a>
             <button (click)="editPosition(p)" [disabled]="saving()">Editar {{ p.ticker }}</button
             ><button class="text-danger" (click)="pendingDelete.set(p)" [disabled]="saving()">
               Remover {{ p.ticker }}

@@ -1,0 +1,57 @@
+.capture-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 24px 0;
+}
+.capture-panel p {
+  line-height: 1.6;
+}
+.capture-panel > button {
+  flex-shrink: 0;
+}
+.toolbar {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.toolbar .actions {
+  margin: 0;
+}
+.section-gap {
+  margin-top: 28px;
+}
+.snapshot-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.snapshot-totals strong {
+  font-size: 19px;
+  overflow-wrap: anywhere;
+}
+small {
+  display: block;
+  margin-top: 7px;
+  font-size: 11px;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.photo-link {
+  margin-top: 8px;
+  font-size: 11px;
+}
+th {
+  min-width: 100px;
+}
+@media (max-width: 850px) {
+  .capture-panel {
+    flex-direction: column;
+    align-items: start;
+  }
+}

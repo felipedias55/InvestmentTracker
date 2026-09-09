@@ -1,15 +1,34 @@
-<button class="skip-link" type="button" (click)="main.focus()">Ir para o conteúdo</button>
-<div class="app-shell">
-  <aside class="sidebar">
-    <a class="brand" routerLink="/portfolio"
+<button class="skip-link" [inert]="mobile() && menuOpen()" type="button" (click)="main.focus()">Ir para o conteúdo</button>
+<header class="app-toolbar">
+  <button #menuButton class="menu-toggle" [attr.aria-label]="menuOpen() ? 'Recolher menu' : 'Abrir menu'" type="button" (click)="toggleMenu()" aria-controls="app-navigation" [attr.aria-expanded]="menuOpen()"><span aria-hidden="true">☰</span></button>
+  <a class="brand" routerLink="/dashboard" (click)="navigate($event)"
       ><span class="brand-icon" aria-hidden="true">↗</span
       ><span>Investment <br /><strong>Tracker</strong></span></a
     >
+</header>
+@if (mobile() && menuOpen()) { <div class="menu-backdrop" (click)="closeMenu()" aria-hidden="true"></div> }
+<div class="app-shell" [class.menu-open]="menuOpen()" [class.mobile-menu-open]="mobile() && menuOpen()">
+  <aside #sidebar id="app-navigation" class="sidebar" [hidden]="!menuOpen()" aria-label="Menu de navegação" (click)="navigate($event)">
     <p class="nav-label">ORGANIZE SEUS INVESTIMENTOS</p>
     <nav aria-label="Investimentos e cadastros">
+      <a routerLink="/income" routerLinkActive="active" ariaCurrentWhenActive="page">Proventos</a>
+      <a routerLink="/trades" routerLinkActive="active" ariaCurrentWhenActive="page">Compras e vendas</a>
+      <a routerLink="/history" routerLinkActive="active" ariaCurrentWhenActive="page"
+        >Evolução e aportes</a
+      >
+      <a routerLink="/external-assets" routerLinkActive="active" ariaCurrentWhenActive="page"
+        >Patrimônio externo</a
+      >
+      <a routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page"
+        >Dashboard <span aria-hidden="true">⌂</span></a
+      >
+      <a routerLink="/allocation" routerLinkActive="active" ariaCurrentWhenActive="page">Metas</a>
+      <a routerLink="/contributions" routerLinkActive="active" ariaCurrentWhenActive="page"
+        >Aportes</a
+      >
       <a routerLink="/portfolio" routerLinkActive="active" ariaCurrentWhenActive="page">Carteira</a>
       <a routerLink="/assets" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Ativos <span aria-hidden="true">↗</span></a
+        >Ativos</a
       >
       @for (catalog of catalogs; track catalog.key) {
         <a
@@ -22,5 +41,5 @@
     </nav>
     <p class="sidebar-note">Cada investimento.<br />Uma visão mais clara.</p>
   </aside>
-  <main #main id="main" tabindex="-1"><router-outlet /></main>
+  <main #main id="main" tabindex="-1" [inert]="mobile() && menuOpen()"><router-outlet /></main>
 </div>

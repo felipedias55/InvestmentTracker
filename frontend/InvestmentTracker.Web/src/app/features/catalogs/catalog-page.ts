@@ -1,4 +1,5 @@
-import { Component, DestroyRef, inject, signal, OnInit } from '@angular/core';
+import { EditPanel } from '../../shared/edit-panel';
+import { Component, computed, DestroyRef, inject, signal, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -10,7 +11,7 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-catalog-page',
-  imports: [ReactiveFormsModule],
+  imports: [EditPanel, ReactiveFormsModule],
   templateUrl: './catalog-page.html',
 })
 export class CatalogPage implements OnInit {
@@ -26,6 +27,12 @@ export class CatalogPage implements OnInit {
   readonly success = signal('');
   readonly editing = signal<number | null>(null);
   readonly pendingDelete = signal<CatalogItem | null>(null);
+  readonly query = signal('');
+  readonly filteredItems = computed(() => {
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    const query = normalize(this.query().trim());
+    return this.items().filter(item => normalize([item.name, item.code ?? '', item.symbol ?? ''].join(' ')).includes(query));
+  });
   readonly form = inject(FormBuilder).nonNullable.group({
     name: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(100)]],
     code: ['', this.isCurrency ? [Validators.required, Validators.pattern(/^[a-zA-Z]{3}$/)] : []],

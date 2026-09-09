@@ -1,0 +1,158 @@
+<header class="page-header">
+  <p class="eyebrow">VISÃO GERAL</p>
+  <h1>Dashboard</h1>
+  <a routerLink="/history">Acompanhar evolução e aportes realizados →</a>
+  <p>Acompanhe o patrimônio da carteira, sua distribuição e a distância até suas metas.</p>
+</header>
+<app-portfolio-picker (selectedId)="select($event)" />
+@if (portfolioId()) {
+  <button (click)="load()" [disabled]="loading()">Atualizar dashboard</button>
+}
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+@if (loading()) {
+  <p role="status">Calculando distribuição…</p>
+}
+@if (data(); as d) {
+  @if (!d.summary.conversionAvailable) {
+    <p class="notice error" role="alert">
+      Câmbio indisponível. Os totais e percentuais não serão calculados com valores parciais.
+    </p>
+  }
+  @if (d.summary.hasFallbackRates) {
+    <p class="notice error" role="status">
+      Usando a última cotação armazenada. Confira as datas abaixo.
+    </p>
+  } @else if (d.summary.hasStaleRates) {
+    <p class="notice" role="status">Há cotações de dias anteriores. Confira as datas abaixo.</p>
+  }
+  <div class="totals">
+    <section class="panel">
+      <h2>Patrimônio total</h2>
+      <strong>{{
+        d.totalWealth === null
+          ? 'Indisponível'
+          : (d.totalWealth | currency: d.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+      }}</strong>
+    </section>
+    <section class="panel">
+      <h2>Patrimônio externo</h2>
+      <strong>{{
+        d.externalAssets?.totalValue == null
+          ? 'Indisponível'
+          : (d.externalAssets!.totalValue
+            | currency: d.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+      }}</strong>
+      <p><a routerLink="/external-assets">Gerenciar patrimônio externo</a></p>
+    </section>
+    <section class="panel">
+      <h2>Total de proventos</h2>
+      <p><a routerLink="/income">Registrar recebimento</a></p>
+      <strong>{{
+        d.summary.totalIncome === null
+          ? 'Indisponível'
+          : (d.summary.totalIncome
+            | currency: d.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+      }}</strong>
+    </section>
+    <section class="panel">
+      <h2>Ativos da carteira</h2>
+      <strong>{{
+        d.summary.currentValue === null
+          ? 'Indisponível'
+          : (d.summary.currentValue
+            | currency: d.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+      }}</strong>
+    </section>
+    <section class="panel">
+      <h2>Total investido</h2>
+      <strong>{{
+        d.summary.totalInvested === null
+          ? 'Indisponível'
+          : (d.summary.totalInvested
+            | currency: d.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+      }}</strong>
+    </section>
+    <section class="panel">
+      <h2>Posições cadastradas</h2>
+      <strong>{{ d.summary.positions.length }}</strong>
+    </section>
+  </div>
+  <p class="hint">
+    Valores na moeda-base {{ d.summary.portfolio.baseCurrencyCode }}. Patrimônio total = ativos da
+    carteira + patrimônio externo. Proventos são exibidos separadamente, sem serem somados
+    novamente. Metas, distribuições e aportes consideram apenas os ativos da carteira.
+  </p>
+  @if (d.externalAssets; as external) {
+    @if (!external.conversionAvailable) {
+      <p class="notice error" role="alert">
+        Câmbio indisponível no patrimônio externo. O total patrimonial está indisponível.
+      </p>
+    }
+    @if (external.hasFallbackRates || external.hasStaleRates) {
+      <p class="notice">
+        O patrimônio externo utiliza cotações anteriores.
+        <a routerLink="/external-assets">Confira as referências</a>.
+      </p>
+    }
+  }
+  @if (!d.summary.positions.length) {
+    <p>Adicione suas primeiras posições em <a routerLink="/portfolio">Carteira</a>.</p>
+  }
+  @if (!d.allocation.categoryTargetsConfigured || !d.allocation.sectorTargetsConfigured) {
+    <p>
+      Configure as <a routerLink="/allocation">metas de alocação</a> para completar a comparação.
+    </p>
+  }
+  <p>
+    Diferença positiva: abaixo da meta. Diferença negativa: acima da meta. Diferenças em pontos
+    percentuais.
+  </p>
+  <section class="panel dashboard-filters" aria-label="Filtros dos gráficos">
+    <div class="section-title"><h2>Distribuição dos investimentos</h2><button (click)="resetLayout()">Restaurar gráficos</button></div>
+    <div class="filter-grid">
+      <div><label for="chart-search">Buscar grupo</label><input id="chart-search" type="search" placeholder="Categoria, setor ou país" [value]="query()" (input)="query.set($any($event.target).value)" /></div>
+      <div><label for="chart-status">Situação das metas</label><select id="chart-status" [value]="status()" (change)="status.set($any($event.target).value)"><option value="all">Todas</option><option value="below">Abaixo da meta</option><option value="above">Acima da meta</option><option value="missing">Sem meta configurada</option></select></div>
+      <div><label for="chart-sort">Ordenar grupos</label><select id="chart-sort" [value]="sort()" (change)="sort.set($any($event.target).value)"><option value="value">Maior valor primeiro</option><option value="name">Nome (A–Z)</option></select></div>
+      <button (click)="clearFilters()">Limpar filtros</button>
+    </div>
+    <p class="hint">Os filtros alteram apenas os grupos exibidos. Totais e percentuais continuam referentes à carteira inteira. O filtro de metas se aplica a categorias e setores.</p>
+  </section>
+  <p class="sr-only" role="status">{{ announcement() }}</p>
+  @for (id of order(); track id; let first = $first; let last = $last) {
+    <section class="chart-card panel">
+      <div class="section-title chart-heading">
+        <h2>{{ titles[id] }}</h2>
+        <div class="chart-controls">
+          <button (click)="moveChart(id, -1)" [disabled]="first" [attr.aria-label]="'Mover ' + titles[id] + ' para cima'">↑</button>
+          <button (click)="moveChart(id, 1)" [disabled]="last" [attr.aria-label]="'Mover ' + titles[id] + ' para baixo'">↓</button>
+          <button (click)="toggleChart(id)" [attr.aria-expanded]="!collapsed().includes(id)" [attr.aria-controls]="'chart-' + id">{{ collapsed().includes(id) ? 'Expandir' : 'Recolher' }}</button>
+        </div>
+      </div>
+      <div [id]="'chart-' + id" [hidden]="collapsed().includes(id)">
+        <p class="hint" role="status">{{ filteredRows(id).length }} de {{ d.allocation[id].length }} grupos</p>
+        @if (d.allocation[id].length && !filteredRows(id).length) {
+          <p class="empty">Nenhum grupo corresponde aos filtros.</p>
+        } @else {
+          <app-allocation-table [title]="titles[id]" [rows]="filteredRows(id)" [currency]="d.summary.portfolio.baseCurrencyCode" [showTargets]="id !== 'countries'" [visual]="true" />
+        }
+      </div>
+    </section>
+  }
+  <a routerLink="/contributions">Simular próximo aporte →</a>
+  <details style="margin-top: 24px">
+    <summary>Referências de câmbio por posição</summary>
+    @for (p of d.summary.positions; track p.id) {
+      @if (p.currencyCode !== d.summary.portfolio.baseCurrencyCode) {
+        <p>
+          {{ p.ticker }} · {{ p.currencyCode }}/{{ d.summary.portfolio.baseCurrencyCode }} ·
+          {{ p.rateDate ? (p.rateDate | date: 'dd/MM/yyyy' : 'UTC') : 'Indisponível' }}
+          @if (p.isFallback) {
+            · Última cotação armazenada
+          }
+        </p>
+      }
+    }
+  </details>
+}

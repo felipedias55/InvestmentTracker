@@ -10,7 +10,7 @@
   <div class="notice success" role="status">{{ success() }}</div>
 }
 <div class="workspace">
-  <section class="panel editor">
+  <app-edit-panel [editing]="editing() !== null" [busy]="saving()" [error]="error()" title="Editar cadastro" (closed)="cancel()"><section class="panel editor">
     <h2>{{ editing() === null ? 'Novo cadastro' : 'Editar cadastro' }}</h2>
     <form [formGroup]="form" (ngSubmit)="save()">
       <fieldset [disabled]="saving()">
@@ -46,8 +46,11 @@
         </div>
       </fieldset>
     </form>
-  </section>
+  </section></app-edit-panel>
   <section class="panel list">
+    <label for="registration-search">Buscar cadastro</label><input id="registration-search" type="search" placeholder="Digite nome ou código" [value]="query()" (input)="query.set($any($event.target).value)" />
+    <p class="hint" role="status">{{ filteredItems().length }} de {{ items().length }} registros</p>
+    @if (items().length && !filteredItems().length) { <p class="empty">Nenhum cadastro corresponde à busca.</p> }
     <div class="section-title">
       <h2>
         Registros <span class="count">{{ items().length }}</span>
@@ -55,7 +58,7 @@
       <button type="button" (click)="load()" [disabled]="loading() || saving()">Atualizar</button>
     </div>
     @if (pendingDelete(); as item) {
-      <div class="confirmation" role="alert">
+      <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar remoção" (closed)="pendingDelete.set(null)"><div class="confirmation" role="alert">
         <p>
           Excluir <strong>{{ item.name }}</strong
           >?
@@ -65,7 +68,7 @@
           <button class="danger" (click)="remove()" [disabled]="saving()">Confirmar exclusão</button
           ><button (click)="pendingDelete.set(null)" [disabled]="saving()">Cancelar</button>
         </div>
-      </div>
+      </div></app-edit-panel>
     }
     @if (loading()) {
       <p role="status" class="empty">Carregando cadastros…</p>
@@ -90,7 +93,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (item of items(); track item.id) {
+            @for (item of filteredItems(); track item.id) {
               <tr>
                 @if (isCurrency) {
                   <td>

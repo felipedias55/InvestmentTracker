@@ -12,6 +12,9 @@ namespace InvestmentTracker.Infrastructure.Persistence
         {
         }
 
+        public DbSet<PortfolioSnapshot> PortfolioSnapshots => Set<PortfolioSnapshot>();
+        public DbSet<PortfolioCashFlow> PortfolioCashFlows => Set<PortfolioCashFlow>();
+
         public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
         public DbSet<Asset> Assets => Set<Asset>();

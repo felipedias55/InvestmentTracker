@@ -1,0 +1,114 @@
+<header class="page-header">
+  <p class="eyebrow">PRÓXIMO INVESTIMENTO</p>
+  <h1>Simulador de aportes</h1>
+  <p>
+    Distribua um novo aporte conforme as metas da carteira. A simulação não altera posições nem
+    registra compras.
+  </p>
+</header>
+<app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+@if (loading()) {
+  <p role="status">Carregando carteira…</p>
+}
+@if (portfolioId() && !dashboard() && !loading()) {
+  <button (click)="select(portfolioId()!)">Tentar novamente</button>
+}
+@if (dashboard(); as d) {
+  <form class="panel" [formGroup]="form" (ngSubmit)="simulate()">
+    <fieldset [disabled]="saving()">
+      <label for="contribution-dimension">Analisar por</label
+      ><select id="contribution-dimension" formControlName="dimension">
+        <option value="category">Categoria</option>
+        <option value="sector">Setor</option>
+      </select>
+      <label for="contribution-amount">Aporte em {{ d.summary.portfolio.baseCurrencyCode }}</label>
+      <input
+        id="contribution-amount"
+        formControlName="amount"
+        inputmode="decimal"
+        (blur)="formatAmount()"
+      />
+      @if (form.touched && form.invalid) {
+        <p class="field-error">
+          Informe um valor não negativo, com vírgula nos decimais e até duas casas.
+        </p>
+      }
+      <p class="hint">
+        Categoria e setor são alternativas para o mesmo aporte. Não some os resultados das duas
+        análises.
+      </p>
+      @if (!d.summary.conversionAvailable) {
+        <p class="notice error">
+          Câmbio indisponível. Atualize as cotações na carteira antes de simular.
+        </p>
+      }
+      @if (
+        !(form.controls.dimension.value === 'category'
+          ? d.allocation.categoryTargetsConfigured
+          : d.allocation.sectorTargetsConfigured)
+      ) {
+        <p>Configure as <a routerLink="/allocation">metas</a> para esta análise.</p>
+      }
+      <div class="actions">
+        <button class="primary" type="submit" [disabled]="!d.summary.conversionAvailable">
+          {{ saving() ? 'Calculando…' : 'Simular aporte' }}
+        </button>
+      </div>
+    </fieldset>
+  </form>
+}
+@if (result(); as r) {
+  <section class="panel" style="margin-top: 24px" aria-live="polite">
+    <h2>Distribuição sugerida · {{ r.dimension === 'category' ? 'Categoria' : 'Setor' }}</h2>
+    <p>
+      Aporte: <strong>{{ r.amount | currency: r.currencyCode : 'code' : '1.2-2' }}</strong>
+    </p>
+    @if (r.hasFallbackRates || r.hasStaleRates) {
+      <p class="notice error">
+        A simulação utiliza cotações anteriores. Confira as referências no
+        <a routerLink="/dashboard">dashboard</a>.
+      </p>
+    }
+    @if (number(r.unallocatedAmount) > 0) {
+      <p>
+        Sem grupos abaixo da meta. Valor sem distribuição:
+        <strong>{{ r.unallocatedAmount | currency: r.currencyCode : 'code' : '1.2-2' }}</strong
+        >.
+      </p>
+    }
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Grupo</th>
+            <th scope="col">Atual</th>
+            <th scope="col">Meta</th>
+            <th scope="col">Diferença (p.p.)</th>
+            <th scope="col">Peso ajustado</th>
+            <th scope="col">Aporte sugerido</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of r.rows; track row.groupId) {
+            <tr>
+              <th scope="row">{{ row.name }}</th>
+              <td>{{ row.currentPercentage | percent: '1.2-4' }}</td>
+              <td>{{ row.targetPercentage | percent: '1.2-4' }}</td>
+              <td>{{ number(row.difference) * 100 | number: '1.2-4' }}</td>
+              <td>{{ row.adjustedWeight | percent: '1.2-4' }}</td>
+              <td>{{ row.suggestedContribution | currency: r.currencyCode : 'code' : '1.2-2' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">
+      Peso ajustado = maior valor entre diferença e zero. Aporte sugerido = peso ÷ soma dos pesos ×
+      aporte. Centavos restantes são distribuídos pelas maiores frações. A regra usa a distribuição
+      atual e não garante atingir todas as metas após o aporte.
+    </p>
+  </section>
+}

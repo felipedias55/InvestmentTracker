@@ -1,4 +1,4 @@
-﻿using InvestmentTracker.Domain.Entities;
+using InvestmentTracker.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
@@ -12,12 +12,12 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<SectorAllocationTarget> builder)
         {
-            builder.ToTable("SectorAllocationTarget");
+            builder.ToTable("SectorAllocationTarget", t => t.HasCheckConstraint("CK_SectorAllocationTarget_Percentage", "[TargetPercentage] >= 0 AND [TargetPercentage] <= 1"));
 
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.TargetPercentage)
-                .HasPrecision(5, 4)
+                .HasPrecision(9, 6)
                 .IsRequired();
 
             builder.HasIndex(x => new
@@ -30,7 +30,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
             builder.HasOne(x => x.Portfolio)
                 .WithMany(x => x.SectorAllocationTargets)
                 .HasForeignKey(x => x.PortfolioId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasOne(x => x.Sector)
                 .WithMany(x => x.AllocationTargets)

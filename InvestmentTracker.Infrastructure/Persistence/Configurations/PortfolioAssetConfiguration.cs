@@ -15,10 +15,15 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
             builder.ToTable("PortfolioAsset", table =>
             {
                 table.HasCheckConstraint("CK_PortfolioAsset_NonNegative",
-                    "[Quantity] >= 0 AND [InvestedAmount] >= 0 AND [CurrentValue] >= 0");
+                    "[Quantity] >= 0 AND [InvestedAmount] >= 0 AND [CurrentValue] >= 0 AND [Income] >= 0");
             });
 
             builder.HasKey(x => x.Id);
+            builder.Property(x => x.Quantity).IsConcurrencyToken();
+            builder.Property(x => x.InvestedAmount).IsConcurrencyToken();
+            builder.Property(x => x.CurrentValue).IsConcurrencyToken();
+            builder.Property(x => x.Income).IsConcurrencyToken();
+            builder.Property(x => x.UpdatedOn).HasColumnType("date").IsRequired();
 
             builder.Property(x => x.Quantity)
                 .HasPrecision(19, 6)
@@ -31,6 +36,8 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
             builder.Property(x => x.CurrentValue)
                 .HasPrecision(19, 4)
                 .IsRequired();
+
+            builder.Property(x => x.Income).HasPrecision(19, 4).IsRequired();
 
             builder.HasIndex(x => new
             {

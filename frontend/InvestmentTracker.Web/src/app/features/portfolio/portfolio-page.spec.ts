@@ -25,6 +25,8 @@ const sample: PortfolioSummary = {
       quantity: '1.123456',
       investedAmount: '10.1234',
       currentValue: '20.5678',
+      income: '2.1234',
+      baseIncome: '10.6170',
       baseInvestedAmount: '50.6170',
       baseCurrentValue: '102.8390',
       exchangeRate: '5',
@@ -33,8 +35,11 @@ const sample: PortfolioSummary = {
       isFallback: false,
     },
   ],
-  originalSubtotals: [{ currencyCode: 'USD', investedAmount: '10.1234', currentValue: '20.5678' }],
+  originalSubtotals: [
+    { currencyCode: 'USD', investedAmount: '10.1234', currentValue: '20.5678', income: '2.1234' },
+  ],
   totalInvested: '50.6170',
+  totalIncome: '10.6170',
   currentValue: '102.8390',
   conversionAvailable: true,
   hasStaleRates: false,
@@ -46,7 +51,12 @@ describe('PortfolioPage', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [PortfolioPage],
-      providers: [brazilianLocaleProvider, provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        brazilianLocaleProvider,
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
   });

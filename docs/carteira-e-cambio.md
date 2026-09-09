@@ -64,7 +64,7 @@ Entradas inválidas usam 400, recursos inexistentes 404 e conflitos 409, no Prob
 - `Quantity`: decimal(19,6), até 13 inteiros e 6 casas decimais.
 - `InvestedAmount` e `CurrentValue`: decimal(19,4), até 15 inteiros e 4 casas decimais.
 - Taxa: decimal(28,12).
-- Nos DTOs financeiros, valores decimais são serializados como strings para não perder precisão ao editar pelo JavaScript. A API aceita também números JSON. As entradas das telas aceitam ponto ou vírgula decimal, sem separador de milhar.
+- Nos DTOs financeiros, valores decimais são serializados como strings para não perder precisão ao editar pelo JavaScript. A API aceita também números JSON. As entradas e a exibição usam o padrão brasileiro: ponto nos milhares e vírgula nos decimais (ex.: `1.234,5`).
 - Os cálculos usam decimal no backend. A tela arredonda a apresentação monetária para duas casas; o formulário preserva a precisão original.
 - A migration `PortfolioBaseCurrencyAndExchangeRates` adiciona a FK de moeda-base, cache, precisão e constraint de valores não negativos. Carteiras existentes recebem BRL, preservando seus IDs e valores.
 - Se dados existentes forem negativos, excederem os novos limites ou perderem casas decimais de quantidade, a migration aborta com mensagem; não arredonda os dados silenciosamente. O rollback também verifica a perda de precisão.
@@ -79,4 +79,4 @@ Os testes Angular cobrem o seletor de exibição, totais indisponíveis, data/fa
 
 ## Etapas futuras
 
-Patrimônio externo com moeda própria, metas, distribuições por categoria/setor/país, consolidação patrimonial e aporte sugerido. Esses cálculos deverão consolidar os valores em uma moeda comum antes de comparar percentuais; não estão incluídos nesta implementação de posições.
+Metas, distribuições por categoria/setor/país, dashboard da carteira e aporte sugerido foram implementados na etapa seguinte: [regras e utilização](metas-dashboard-aportes.md). Patrimônio externo por carteira, consolidação patrimonial e proventos acumulados também estão disponíveis: [regras e utilização](patrimonio-externo-e-proventos.md).

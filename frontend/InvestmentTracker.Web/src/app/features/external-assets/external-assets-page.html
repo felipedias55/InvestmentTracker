@@ -1,0 +1,156 @@
+<header class="page-header">
+  <p class="eyebrow">SEU PATRIMÔNIO</p>
+  <h1>Patrimônio externo</h1>
+  <p>
+    Registre reservas, FGTS e outros valores vinculados à carteira, fora das posições em ativos.
+  </p>
+</header>
+<app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
+@if (portfolioId()) {
+  <button (click)="load()" [disabled]="saving() || loading()">Atualizar</button>
+}
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+@if (success()) {
+  <p class="notice success" role="status">{{ success() }}</p>
+}
+@if (loading()) {
+  <p role="status">Carregando patrimônio externo…</p>
+}
+@if (summary(); as s) {
+  <section class="panel" style="margin: 24px 0">
+    <h2>Total externo · {{ s.portfolio.baseCurrencyCode }}</h2>
+    <strong>{{
+      s.totalValue === null
+        ? 'Indisponível'
+        : (s.totalValue | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+    }}</strong>
+    <p><a routerLink="/dashboard">Ver patrimônio total no dashboard</a></p>
+  </section>
+  @if (!s.conversionAvailable) {
+    <p class="notice error">
+      Câmbio indisponível. O total externo não pode ser calculado; os valores originais continuam
+      disponíveis.
+    </p>
+  }
+  @if (s.hasFallbackRates) {
+    <p class="notice error">Usando a última cotação armazenada. Confira as datas de referência.</p>
+  } @else if (s.hasStaleRates) {
+    <p class="notice">Há cotações de dias anteriores. Confira as datas de referência.</p>
+  }
+  <div class="workspace">
+    <app-edit-panel [editing]="editingId() !== null" [busy]="saving()" [error]="error()" title="Editar patrimônio" (closed)="cancel()"><form class="panel" [formGroup]="form" (ngSubmit)="save()">
+      <fieldset [disabled]="saving()">
+        <h2>{{ editingId() === null ? 'Adicionar patrimônio' : 'Editar patrimônio' }}</h2>
+        <label for="external-name">Nome</label
+        ><input id="external-name" formControlName="name" maxlength="200" />
+        <label for="external-currency">Moeda original</label
+        ><select id="external-currency" formControlName="currencyId">
+          <option [ngValue]="0">Selecione</option>
+          @for (c of currencies(); track c.id) {
+            <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
+          }
+        </select>
+        <label for="external-value">Valor na moeda selecionada</label
+        ><input
+          id="external-value"
+          formControlName="value"
+          inputmode="decimal"
+          (blur)="formatValue()"
+        />
+        <label for="external-description">Descrição (opcional)</label
+        ><input id="external-description" formControlName="description" maxlength="500" />
+        <p class="hint">
+          Ao mudar a moeda, informe o valor correspondente. O valor digitado não é convertido
+          automaticamente. Não cadastre novamente valores que já fazem parte das posições da
+          carteira.
+        </p>
+        @if (form.touched && form.invalid) {
+          <p class="field-error">
+            Informe nome, moeda e valor não negativo, com até quatro casas decimais. Exemplo:
+            1.234,50.
+          </p>
+        }
+        <div class="actions">
+          <button class="primary" type="submit">Salvar</button>
+          @if (editingId() !== null) {
+            <button type="button" (click)="cancel()">Cancelar</button>
+          }
+        </div>
+      </fieldset>
+    </form></app-edit-panel>
+    <section class="panel">
+      <h2>
+        Itens cadastrados <span class="count">{{ s.items.length }}</span>
+      </h2>
+      <div class="actions" role="group" aria-label="Moeda de exibição" style="margin-bottom: 20px">
+        <button
+          [class.primary]="view() === 'base'"
+          [attr.aria-pressed]="view() === 'base'"
+          (click)="view.set('base')"
+        >
+          Moeda-base
+        </button>
+        <button
+          [class.primary]="view() === 'original'"
+          [attr.aria-pressed]="view() === 'original'"
+          (click)="view.set('original')"
+        >
+          Moeda original
+        </button>
+      </div>
+      @if (pendingDelete(); as item) {
+        <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar remoção" (closed)="pendingDelete.set(null)"><div class="confirmation" role="alert">
+          <p>Remover {{ item.name }} desta carteira?</p>
+          <div class="actions">
+            <button class="danger" [disabled]="saving()" (click)="remove()">
+              Confirmar remoção
+            </button>
+            <button [disabled]="saving()" (click)="pendingDelete.set(null)">Cancelar</button>
+          </div>
+        </div></app-edit-panel>
+      }
+      @if (!s.items.length) {
+        <p class="empty">Nenhum patrimônio externo cadastrado nesta carteira.</p>
+      }
+      <div class="asset-cards">
+        @for (item of s.items; track item.id) {
+          <article class="asset-card">
+            <h3>{{ item.name }}</h3>
+            <strong>{{
+              view() === 'original'
+                ? (item.value | currency: item.currencyCode : 'code' : '1.2-2')
+                : item.baseValue === null
+                  ? 'Indisponível'
+                  : (item.baseValue | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2')
+            }}</strong>
+            @if (item.description) {
+              <p>{{ item.description }}</p>
+            }
+          <p class="hint">Dados atualizados em: {{ item.updatedOn ? (item.updatedOn | date: 'dd/MM/yyyy' : 'UTC') : 'Não informado' }}.</p>
+            @if (item.currencyCode !== s.portfolio.baseCurrencyCode) {
+              <p class="hint">
+                {{ item.currencyCode }}/{{ s.portfolio.baseCurrencyCode }} ·
+                {{
+                  item.rateDate
+                    ? (item.rateDate | date: 'dd/MM/yyyy' : 'UTC')
+                    : 'Cotação indisponível'
+                }}
+                @if (item.isFallback) {
+                  · Última cotação armazenada
+                }
+              </p>
+            }
+            <div class="actions">
+              <button [disabled]="saving()" (click)="edit(item)">Editar {{ item.name }}</button
+              ><button class="text-danger" [disabled]="saving()" (click)="pendingDelete.set(item)">
+                Remover {{ item.name }}
+              </button>
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+  </div>
+}

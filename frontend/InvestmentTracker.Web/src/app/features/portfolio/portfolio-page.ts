@@ -1,4 +1,10 @@
-import { brazilianNumberValidator, formatBrazilianNumber, parseBrazilianNumber } from '../../core/brazilian-number';
+import { EditPanel } from '../../shared/edit-panel';
+import {
+  brazilianNumberValidator,
+  formatBrazilianNumber,
+  parseBrazilianNumber,
+} from '../../core/brazilian-number';
+import { PortfolioSelection } from '../../shared/portfolio-picker';
 import { Component, DestroyRef, inject, signal, OnInit } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -14,12 +20,13 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-portfolio-page',
-  imports: [ReactiveFormsModule, CurrencyPipe, DatePipe, RouterLink],
+  imports: [EditPanel, ReactiveFormsModule, CurrencyPipe, DatePipe, RouterLink],
   templateUrl: './portfolio-page.html',
   styleUrl: './portfolio-page.css',
 })
 export class PortfolioPage implements OnInit {
   private readonly api = inject(PortfolioService);
+  private readonly selection = inject(PortfolioSelection);
   private readonly catalogs = inject(CatalogService);
   private readonly assetApi = inject(AssetService);
   private readonly destroyRef = inject(DestroyRef);
@@ -53,11 +60,12 @@ export class PortfolioPage implements OnInit {
     quantity: ['0', [Validators.required, brazilianNumberValidator(13, 6)]],
     investedAmount: ['0', [Validators.required, brazilianNumberValidator(15, 4)]],
     currentValue: ['0', [Validators.required, brazilianNumberValidator(15, 4)]],
+    income: ['0', [Validators.required, brazilianNumberValidator(15, 4)]],
   });
 
   readonly formatNumber = formatBrazilianNumber;
 
-  formatInput(field: 'quantity' | 'investedAmount' | 'currentValue') {
+  formatInput(field: 'quantity' | 'investedAmount' | 'currentValue' | 'income') {
     const control = this.positionForm.controls[field];
     if (control.valid) control.setValue(formatBrazilianNumber(parseBrazilianNumber(control.value)));
   }
@@ -89,7 +97,8 @@ export class PortfolioPage implements OnInit {
             return;
           }
           const selected =
-            data.portfolios.find((p) => p.id === this.selectedId()) ?? data.portfolios[0];
+            data.portfolios.find((p) => p.id === (this.selectedId() ?? this.selection.id())) ??
+            data.portfolios[0];
           this.select(selected.id);
         },
         error: (error) => {
@@ -101,6 +110,7 @@ export class PortfolioPage implements OnInit {
   select(id: number) {
     this.summaryRequest?.unsubscribe();
     this.selectedId.set(id);
+    this.selection.id.set(id);
     this.summary.set(null);
     this.cancelPosition();
     this.pendingDelete.set(null);
@@ -183,6 +193,7 @@ export class PortfolioPage implements OnInit {
       quantity: formatBrazilianNumber(String(position.quantity)),
       investedAmount: formatBrazilianNumber(String(position.investedAmount)),
       currentValue: formatBrazilianNumber(String(position.currentValue)),
+      income: formatBrazilianNumber(String(position.income)),
     });
     this.positionForm.controls.assetId.disable();
   }
@@ -203,6 +214,7 @@ export class PortfolioPage implements OnInit {
       quantity: parseBrazilianNumber(value.quantity),
       investedAmount: parseBrazilianNumber(value.investedAmount),
       currentValue: parseBrazilianNumber(value.currentValue),
+      income: parseBrazilianNumber(value.income),
     };
     const positionId = this.editingPosition();
     this.saving.set(true);
