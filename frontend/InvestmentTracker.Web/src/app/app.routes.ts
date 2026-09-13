@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { catalogs } from './features/catalogs/catalog.models';
 export const routes: Routes = [
+  { path: 'movements', loadComponent: () => import('./features/movements/movements-page').then(m => m.MovementsPage) },
   { path: 'income', loadComponent: () => import('./features/income/income-page').then(m => m.IncomePage) },
   { path: 'trades', loadComponent: () => import('./features/trades/trades-page').then(m => m.TradesPage) },
   {

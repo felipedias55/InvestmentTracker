@@ -12,7 +12,7 @@ using InvestmentTracker.Domain.Entities;
 namespace InvestmentTracker.Application.History.Services
 {
     public sealed class HistoryService(IHistoryRepository repository, IPortfolioRepository portfolios,
-        IAllocationService dashboard, ICurrencyRepository currencies, TimeProvider clock) : IHistoryService
+        IAllocationService dashboard, ICurrencyRepository currencies, TimeProvider clock, InvestmentTracker.Application.Income.IIncomeAnalysisService? income = null) : IHistoryService
     {
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
         private static readonly TimeZoneInfo BusinessZone = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
@@ -24,12 +24,13 @@ namespace InvestmentTracker.Application.History.Services
             if (portfolio is null) return null;
             var snapshots = await repository.GetSnapshotsAsync(portfolioId, cancellationToken);
             var flows = await repository.GetCashFlowsAsync(portfolioId, cancellationToken);
+            var incomeEvents = income is null ? null : await income.EventsAsync(portfolioId, cancellationToken);
             var today = Today;
             return new HistoryDto(new(portfolio.Id, portfolio.Name, portfolio.Description, portfolio.BaseCurrencyId, portfolio.BaseCurrency.Code),
-                today, HistoryCalculator.Months(snapshots, flows, today, portfolio.BaseCurrency.Code),
-                HistoryCalculator.Years(snapshots, flows, today, portfolio.BaseCurrency.Code),
+                today, HistoryCalculator.Months(snapshots, flows, today, portfolio.BaseCurrency.Code, incomeEvents),
+                HistoryCalculator.Years(snapshots, flows, today, portfolio.BaseCurrency.Code, incomeEvents),
                 flows.Select(f => new CashFlowDto(f.Id, f.Date, f.Kind, f.CurrencyId, f.Currency.Code,
-                    f.Amount, f.BaseCurrencyCode, f.BaseAmount, f.Notes) { TradeId = f.TradeId }).ToList());
+                    f.Amount, f.BaseCurrencyCode, f.BaseAmount, f.Notes) { TradeId = f.TradeId, MovementId = f.MovementId, IsReversal = f.IsReversal }).ToList());
         }
 
         public async Task<SnapshotDetailDto?> GetSnapshotAsync(int portfolioId, int id, CancellationToken cancellationToken = default)
@@ -79,7 +80,7 @@ namespace InvestmentTracker.Application.History.Services
         {
             var flow = await repository.GetCashFlowAsync(portfolioId, id, cancellationToken);
             if (flow is null) return false;
-            if (flow.TradeId.HasValue) throw new ResourceConflictException("Este movimento foi gerado por uma operação e não pode ser alterado separadamente.");
+            if (flow.TradeId.HasValue || flow.MovementId.HasValue) throw new ResourceConflictException("Este movimento foi gerado por uma operação e não pode ser alterado separadamente.");
             await ApplyAsync(flow, dto, cancellationToken);
             await repository.SaveChangesAsync(cancellationToken);
             return true;
@@ -89,7 +90,7 @@ namespace InvestmentTracker.Application.History.Services
         {
             var flow = await repository.GetCashFlowAsync(portfolioId, id, cancellationToken);
             if (flow is null) return false;
-            if (flow.TradeId.HasValue) throw new ResourceConflictException("Este movimento foi gerado por uma operação e não pode ser alterado separadamente.");
+            if (flow.TradeId.HasValue || flow.MovementId.HasValue) throw new ResourceConflictException("Este movimento foi gerado por uma operação e não pode ser alterado separadamente.");
             repository.RemoveCashFlow(flow);
             await repository.SaveChangesAsync(cancellationToken);
             return true;
@@ -120,8 +121,10 @@ namespace InvestmentTracker.Application.History.Services
                 throw new InputValidationException("O valor deve ser maior que zero, com até 15 inteiros e quatro casas decimais.");
         }
 
-        private static SnapshotDetailDto Map(PortfolioSnapshot s) => new(s.Id, s.Month, s.SnapshotDate, s.CapturedAtUtc, s.PayloadVersion,
+        public static SnapshotDetailDto Map(PortfolioSnapshot s) => new(s.Id, s.Month, s.SnapshotDate, s.CapturedAtUtc, s.PayloadVersion,
             JsonSerializer.Deserialize<DashboardDto>(s.DashboardJson, JsonOptions)
-                ?? throw new InvalidDataException("Fotografia inválida."));
+                ?? throw new InvalidDataException("Fotografia inválida."))
+            { IsOutdated = s.IsOutdated, IsReopened = s.IsReopened, Revision = s.Revision,
+                PreviousVersions = JsonSerializer.Deserialize<List<SnapshotDetailDto>>(s.PreviousVersionsJson, JsonOptions) ?? [] };
     }
 }

@@ -71,8 +71,9 @@ namespace InvestmentTracker.IntegrationTests.ExternalAssets
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path, new SaveExternalAssetDto("Reserva", usdId, -1m))).StatusCode);
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path, new SaveExternalAssetDto("Reserva", usdId, 0.00001m))).StatusCode);
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path, new SaveExternalAssetDto("Reserva", int.MaxValue, 1m))).StatusCode);
-            (await client.PutAsJsonAsync(path + $"/{item.Id}", new SaveExternalAssetDto("Atualizada", brlId, 30m))).EnsureSuccessStatusCode();
-            Assert.Equal(130m, (await client.GetFromJsonAsync<DashboardDto>($"/api/portfolios/{id}/dashboard"))!.TotalWealth);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync(path + $"/{item.Id}", new SaveExternalAssetDto("Atualizada", brlId, 30m))).StatusCode);
+            (await client.PutAsJsonAsync(path + $"/{item.Id}", new SaveExternalAssetDto("Atualizada", usdId, 10.1234m))).EnsureSuccessStatusCode();
+            Assert.Equal(150.617m, (await client.GetFromJsonAsync<DashboardDto>($"/api/portfolios/{id}/dashboard"))!.TotalWealth);
             Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(path + $"/{item.Id}")).StatusCode);
             Assert.Equal(0m, (await client.GetFromJsonAsync<ExternalAssetSummaryDto>(path))!.TotalValue);
             Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync(path + $"/{item.Id}")).StatusCode);

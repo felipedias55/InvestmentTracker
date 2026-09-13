@@ -15,6 +15,8 @@ import { ExternalAssetsService, ExternalAsset } from '../external-assets/externa
 import { brazilianNumberValidator, parseBrazilianNumber, formatBrazilianNumber } from '../../core/brazilian-number';
 import { apiError } from '../../core/services/api-error';
 
+export interface IncomeTotal { period: string; ticker: string; assetId: number; currencyCode: string; received: string; reversed: string; net: string; }
+export interface IncomeAnalysis { months: IncomeTotal[]; years: IncomeTotal[]; assets: IncomeTotal[]; }
 export interface IncomeReceipt {
   id: number; date: string; ticker: string; currencyCode: string;
   amount: string; cashAssetName: string | null; notes: string | null;
@@ -46,6 +48,21 @@ export class IncomePage {
   readonly error = signal('');
   readonly success = signal('');
   readonly query = signal('');
+  readonly analysis = signal<IncomeAnalysis>({ months: [], years: [], assets: [] });
+  readonly analysisMode = signal<'months' | 'years' | 'assets'>('months');
+  readonly analysisYear = signal('');
+  readonly analysisCurrency = signal('');
+  analysisRows() {
+    return this.analysis()[this.analysisMode()].filter(r => r.ticker.toLocaleLowerCase('pt-BR').includes(this.query().trim().toLocaleLowerCase('pt-BR'))
+      && (!this.analysisCurrency() || r.currencyCode === this.analysisCurrency())
+      && (this.analysisMode() === 'assets' || !this.analysisYear() || r.period.startsWith(this.analysisYear())));
+  }
+  analysisYears() { return [...new Set(this.analysis().years.map(x => x.period))]; }
+  analysisCurrencies() { return [...new Set(this.analysis().assets.map(x => x.currencyCode))]; }
+  barWidth(row: IncomeTotal) {
+    const max = Math.max(...this.analysisRows().filter(x => x.currencyCode === row.currencyCode).map(x => Math.abs(Number(x.net))), 1);
+    return Math.abs(Number(row.net)) / max * 100;
+  }
   readonly formatNumber = formatBrazilianNumber;
   readonly today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   readonly form = this.fb.nonNullable.group({
@@ -55,6 +72,7 @@ export class IncomePage {
   });
   select(id: number) {
     if (this.saving()) return;
+    this.analysisYear.set(''); this.analysisCurrency.set('');
     this.id.set(id); this.requestId = createRequestId();
     this.form.reset({ date: this.today, assetId: Number(this.route.snapshot.queryParamMap.get('assetId')) || 0,
       amount: '', cashAssetId: 0, notes: '' });
@@ -65,10 +83,11 @@ export class IncomePage {
     this.request?.unsubscribe(); this.loading.set(true); this.summary.set(null); this.error.set('');
     this.request = forkJoin({ summary: this.portfolioApi.summary(id), assets: this.assetApi.list(),
       currencies: this.catalogs.list('currencies'), balances: this.externalApi.summary(id),
+      analysis: this.http.get<IncomeAnalysis>(`/api/portfolios/${id}/income/analysis`),
       receipts: this.http.get<IncomeReceipt[]>(`/api/portfolios/${id}/income`) })
       .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: data => { this.summary.set(data.summary); this.assets.set(data.assets); this.currencies.set(data.currencies);
-          this.balances.set(data.balances.items); this.receipts.set(data.receipts); this.loading.set(false); },
+          this.balances.set(data.balances.items); this.receipts.set(data.receipts); this.analysis.set(data.analysis); this.loading.set(false); },
         error: error => { this.error.set(apiError(error)); this.loading.set(false); },
       });
   }

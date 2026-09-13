@@ -11,25 +11,16 @@
   <aside #sidebar id="app-navigation" class="sidebar" [hidden]="!menuOpen()" aria-label="Menu de navegação" (click)="navigate($event)">
     <p class="nav-label">ORGANIZE SEUS INVESTIMENTOS</p>
     <nav aria-label="Investimentos e cadastros">
-      <a routerLink="/income" routerLinkActive="active" ariaCurrentWhenActive="page">Proventos</a>
-      <a routerLink="/trades" routerLinkActive="active" ariaCurrentWhenActive="page">Compras e vendas</a>
-      <a routerLink="/history" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Evolução e aportes</a
-      >
-      <a routerLink="/external-assets" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Patrimônio externo</a
-      >
-      <a routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Dashboard <span aria-hidden="true">⌂</span></a
-      >
-      <a routerLink="/allocation" routerLinkActive="active" ariaCurrentWhenActive="page">Metas</a>
-      <a routerLink="/contributions" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Aportes</a
-      >
+      <a routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page">Dashboard ⌂</a>
       <a routerLink="/portfolio" routerLinkActive="active" ariaCurrentWhenActive="page">Carteira</a>
-      <a routerLink="/assets" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Ativos</a
-      >
+      <a routerLink="/trades" routerLinkActive="active" ariaCurrentWhenActive="page">Compras e vendas</a>
+      <a routerLink="/income" routerLinkActive="active" ariaCurrentWhenActive="page">Proventos</a>
+      <a routerLink="/movements" routerLinkActive="active" ariaCurrentWhenActive="page">Movimentações</a>
+      <a routerLink="/history" routerLinkActive="active" ariaCurrentWhenActive="page">Evolução e fechamentos</a>
+      <a routerLink="/contributions" routerLinkActive="active" ariaCurrentWhenActive="page">Simular aporte</a>
+      <a routerLink="/allocation" routerLinkActive="active" ariaCurrentWhenActive="page">Metas</a>
+      <a routerLink="/external-assets" routerLinkActive="active" ariaCurrentWhenActive="page">Patrimônio externo</a>
+      <a routerLink="/assets" routerLinkActive="active" ariaCurrentWhenActive="page">Ativos</a>
       @for (catalog of catalogs; track catalog.key) {
         <a
           [routerLink]="'/' + catalog.key"

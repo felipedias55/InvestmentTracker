@@ -11,7 +11,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const links = fixture.nativeElement.querySelectorAll('nav a');
-    expect(links.length).toBe(14);
+    expect(links.length).toBe(15);
     expect(fixture.nativeElement.textContent).toContain('Investment');
     expect(fixture.nativeElement.querySelector('a[href="/currencies"]')).toBeTruthy();
   });

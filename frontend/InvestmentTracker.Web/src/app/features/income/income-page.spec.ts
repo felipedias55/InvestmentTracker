@@ -23,6 +23,7 @@ describe('IncomePage', () => {
     http.expectOne(`/api/portfolios/${portfolio}/external-assets`).flush({ ...testDashboard.externalAssets,
       items: [{ id: 5, name: 'Saldo', currencyId: 1, currencyCode: 'BRL', value: '1000' }] });
     http.expectOne(`/api/portfolios/${portfolio}/income`).flush(trades);
+    http.expectOne(`/api/portfolios/${portfolio}/income/analysis`).flush({ months: [], years: [], assets: [] });
   }
   function initialize() {
     const fixture = TestBed.createComponent(IncomePage); fixture.detectChanges();
@@ -61,4 +62,15 @@ describe('IncomePage', () => {
     expect(request.request.body.cashAssetId).toBe(5);
     request.flush({ ...trade, cashAssetName: 'Saldo' }); flush();
   });
+  it('filters monthly receipts by year, currency and asset without combining currencies', () => {
+    const fixture = initialize(); const component = fixture.componentInstance;
+    const brl = { period: '2026-09', ticker: 'TEST', assetId: 1, currencyCode: 'BRL', received: '10', reversed: '2', net: '8' };
+    const usd = { ...brl, assetId: 2, ticker: 'OTHER', currencyCode: 'USD' };
+    component.analysis.set({ months: [brl, usd, { ...brl, period: '2025-09' }], years: [], assets: [brl, usd] });
+    component.analysisYear.set('2026'); component.analysisCurrency.set('BRL');
+    expect(component.analysisRows()).toEqual([brl]);
+    component.query.set('other'); expect(component.analysisRows()).toEqual([]);
+    component.analysisCurrency.set('USD'); expect(component.analysisRows()).toEqual([usd]);
+  });
+
 });

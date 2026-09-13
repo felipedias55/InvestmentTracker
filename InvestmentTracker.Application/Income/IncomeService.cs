@@ -35,9 +35,6 @@ namespace InvestmentTracker.Application.Income
                         throw new ResourceConflictException("Esta solicitação já foi usada com outros dados. Atualize a página.");
                     return existing;
                 }
-                var latest = await repository.LatestDateAsync(portfolioId, token);
-                if (latest.HasValue && dto.Date < latest)
-                    throw new InputValidationException("O recebimento não pode ser anterior à última operação, recebimento ou fotografia.");
                 var position = await repository.PositionAsync(portfolioId, dto.AssetId, token)
                     ?? throw new InputValidationException("Selecione um ativo com posição nesta carteira, mesmo que esteja zerada.");
                 var asset = await assets.GetByIdAsync(dto.AssetId, token)

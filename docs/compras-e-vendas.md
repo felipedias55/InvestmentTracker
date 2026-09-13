@@ -15,7 +15,7 @@ O saldo usado para reinvestir precisa ser da mesma carteira e moeda do ativo, e 
 
 ## Cálculo
 
-Total da operação = quantidade × preço unitário, arredondado a quatro casas com `AwayFromZero`. Quantidades aceitam seis casas. Os cálculos persistidos usam `decimal` no backend; a estimativa visual não é usada para gravação.
+Total bruto = quantidade × preço unitário, arredondado a quatro casas com `AwayFromZero`. Ao total somam-se taxas na compra e descontam-se taxas na venda. Quantidades aceitam seis casas. Os cálculos persistidos usam `decimal` no backend; a estimativa visual não é usada para gravação.
 
 Na compra, o custo remanescente recebe o total comprado. Na venda, o custo remanescente é reduzido proporcionalmente à quantidade (custo médio). O total vendido é o fluxo de dinheiro, não a redução do custo.
 
@@ -25,7 +25,7 @@ A venda total deixa quantidade, custo e valor atual zerados. A posição e seus 
 
 ## Datas e câmbio
 
-A data da operação pode ser até hoje e não pode anteceder a última operação ou fotografia da carteira. O histórico não é reconstruído retroativamente. Fotografias já salvas não são alteradas por uma operação; atualize a do mês corrente quando desejar um novo fechamento.
+A data da operação pode ser até hoje. Períodos fechados exigem reabertura para lançamentos anteriores; operações posteriores dependentes exigem estorno antes do relançamento. Fotografias afetadas são sinalizadas como desatualizadas. Veja [fechamentos, taxas e eventos](fechamentos-proventos-e-eventos.md).
 
 `UpdatedOn` recebe o dia da gravação em São Paulo. A data efetiva da negociação fica no registro da operação.
 
@@ -37,7 +37,7 @@ Posições e movimentos anteriores são preservados, sem gerar compras fictícia
 
 Os movimentos gerados têm vínculo com a operação e não podem ser editados ou apagados isoladamente. O histórico manual permanece para outros fluxos e registros antigos. Não duplique nele os movimentos automáticos.
 
-Nesta versão, não existe edição, cancelamento ou estorno de operações confirmadas. Confira os dados antes de confirmar. Correções auditáveis de operações, taxas de negociação, eventos corporativos e importação de corretoras são evoluções posteriores. Não há cálculo fiscal ou integração que execute ordens em corretoras.
+Operações com saldos auditados podem ser estornadas em **Movimentações**, com motivo e preservação do original. Operações antigas sem saldos anteriores permanecem protegidas contra estorno automático. Veja [regras de estorno](movimentacoes-e-estornos.md). Taxas e eventos corporativos estão disponíveis; importação de corretoras permanece uma evolução posterior. Não há cálculo fiscal ou integração que execute ordens em corretoras.
 
 ## Arquitetura e persistência
 
@@ -55,7 +55,7 @@ O identificador da solicitação evita duplicação em reenvios. Reutilizar o id
 
 A suíte cobre compra em posição nova e existente, custo na venda parcial e total, proventos preservados, reinvestimento, saldo insuficiente, carteira/moeda incorretas, repetição de requisições, concorrência, valores fracionários, limites, câmbio histórico, proteção de movimentos gerados e preservação de fotografias. Os testes Angular cobrem envio com precisão brasileira, prevenção de duplo envio e reenvio com o mesmo identificador.
 
-A suíte [E2E no navegador](testes-e2e.md) foi executada em desktop e celular emulado, com API real e uma base criada do zero pelas migrations. Para a homologação, continuam a conferência final dos dados com a planilha, a revisão em aparelhos físicos e a validação da instalação em outra máquina seguindo o README. Docker, CI/CD e publicação permanecem adiados. O cancelamento/estorno auditável de operações é a próxima melhoria funcional recomendada para este fluxo.
+A suíte [E2E no navegador](testes-e2e.md) foi executada em desktop e celular emulado, com API real e uma base criada do zero pelas migrations. Para a homologação, continuam a conferência final dos dados com a planilha, a revisão em aparelhos físicos e a validação da instalação em outra máquina seguindo o README. Docker, CI/CD e publicação permanecem adiados. O estorno auditável está implementado; taxas e eventos foram acrescentados em 13/09/2026.
 
 ## Resultado da entrega em 08/09/2026
 

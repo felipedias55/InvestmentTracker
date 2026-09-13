@@ -69,8 +69,8 @@ namespace InvestmentTracker.IntegrationTests.Portfolios
             Assert.Equal(20.5678m, summary.Positions[0].CurrentValue);
             Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/api/portfolios/{id}/assets/{position.Id}", dto with { CurrentValue = 30m })).StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/portfolios/2147483647/assets/{position.Id}")).StatusCode);
-            Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/portfolios/{id}/assets/{position.Id}")).StatusCode);
-            Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/portfolios/{id}/assets/{position.Id}")).StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/portfolios/{id}/assets/{position.Id}")).StatusCode);
+            Assert.Single((await client.GetFromJsonAsync<PortfolioSummaryDto>($"/api/portfolios/{id}"))!.Positions);
         }
 
         [Fact]

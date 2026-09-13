@@ -1,7 +1,7 @@
 <header class="page-header">
   <p class="eyebrow">RENDIMENTOS DA CARTEIRA</p><h1>Proventos</h1>
   <p>Registre cada recebimento pelo valor líquido total. O acumulado do ativo será atualizado automaticamente.</p>
-  <a routerLink="/portfolio">Ver carteira</a> · <a routerLink="/history">Evolução da carteira</a>
+  <a routerLink="/movements">Histórico unificado e estornos</a> · <a routerLink="/portfolio">Ver carteira</a> · <a routerLink="/history">Evolução da carteira</a>
 </header>
 <app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
 @if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
@@ -12,6 +12,21 @@
   <section class="panel section-gap"><h2>Total de proventos acumulados</h2>
     <strong>{{ s.totalIncome === null ? 'Conversão indisponível' : (s.totalIncome | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2') }}</strong>
     <p>Inclui o saldo inicial informado na carteira e os novos recebimentos. Valores antigos não são transformados em recebimentos fictícios.</p>
+  </section>
+  <section class="panel section-gap"><h2>Análise dos recebimentos</h2>
+    <div class="toolbar">
+      <div><label for="income-group">Agrupar recebimentos</label><select id="income-group" [value]="analysisMode()" (change)="analysisMode.set($any($event.target).value)"><option value="months">Mês a mês, por ativo</option><option value="years">Ano a ano, por ativo</option><option value="assets">Por ativo · todo o histórico</option></select></div>
+      @if (analysisMode() !== 'assets') { <div><label for="income-year">Ano dos recebimentos</label><select id="income-year" [value]="analysisYear()" (change)="analysisYear.set($any($event.target).value)"><option value="">Todos</option>@for (year of analysisYears(); track year) { <option [value]="year">{{ year }}</option> }</select></div> }
+      <div><label for="income-currency">Moeda dos recebimentos</label><select id="income-currency" [value]="analysisCurrency()" (change)="analysisCurrency.set($any($event.target).value)"><option value="">Todas, separadamente</option>@for (code of analysisCurrencies(); track code) { <option [value]="code">{{ code }}</option> }</select></div>
+    </div>
+    <p class="hint">O filtro por ativo abaixo também se aplica a esta análise. Valores na moeda original, sem somar moedas diferentes. Estornos aparecem na data da correção e podem deixar o mês negativo. O saldo inicial acumulado não faz parte dos recebimentos mensais.</p>
+    <div class="table-scroll"><table><thead><tr><th>Período / ativo</th><th>Recebido</th><th>Estornado</th><th>Líquido após estornos</th></tr></thead><tbody>
+      @for (r of analysisRows(); track r.period + ':' + r.assetId + ':' + r.currencyCode) {
+        <tr><th>{{ r.period }} · {{ r.ticker }}<div aria-hidden="true" style="height: 5px; background: #9d4e5a; max-width: 200px" [style.width.%]="barWidth(r)"></div></th>
+          <td>{{ r.received | currency:r.currencyCode:'code':'1.2-4' }}</td><td>{{ r.reversed | currency:r.currencyCode:'code':'1.2-4' }}</td><td>{{ r.net | currency:r.currencyCode:'code':'1.2-4' }}</td></tr>
+      }
+    </tbody></table></div>
+    @if (!analysisRows().length) { <p class="empty">Nenhum recebimento para estes filtros.</p> }
   </section>
   <div class="workspace section-gap">
     <section class="panel"><h2>Novo recebimento</h2>
@@ -30,7 +45,7 @@
         </select>
         <p class="hint">Ao escolher um saldo, o valor será creditado nele e poderá ser reinvestido. Proventos não são novos aportes. <a routerLink="/external-assets">Cadastrar saldo disponível</a>.</p>
         <label for="income-notes">Observação (opcional)</label><input id="income-notes" formControlName="notes" maxlength="500" placeholder="Ex.: dividendos, JCP ou rendimento de FII" />
-        <p class="hint">Informe apenas recebimentos ainda não incluídos no acumulado. A data não pode ser anterior à última operação, recebimento ou fotografia. Fotografias já registradas permanecem preservadas.</p>
+        <p class="hint">Informe apenas recebimentos ainda não incluídos no acumulado. Para atrasos em períodos fechados, reabra o período em Evolução e fechamentos. Operações posteriores dependentes precisam ser estornadas primeiro. Fotografias afetadas ficam desatualizadas.</p>
         @if (form.touched && form.invalid) { <p class="field-error">Preencha data, ativo e valor no padrão brasileiro, com até quatro casas decimais.</p> }
         <div class="actions"><button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Registrar recebimento' }}</button></div>
       </fieldset></form>

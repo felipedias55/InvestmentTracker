@@ -12,6 +12,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
         public async Task<IReadOnlyList<PortfolioSnapshot>> GetSnapshotsAsync(int portfolioId, CancellationToken cancellationToken)
             => await context.PortfolioSnapshots.AsNoTracking().Where(s => s.PortfolioId == portfolioId).OrderBy(s => s.Month)
                 .Select(s => new PortfolioSnapshot { Id = s.Id, PortfolioId = s.PortfolioId, Month = s.Month,
+                    IsOutdated = s.IsOutdated, IsReopened = s.IsReopened, Revision = s.Revision,
                     SnapshotDate = s.SnapshotDate, CapturedAtUtc = s.CapturedAtUtc, BaseCurrencyCode = s.BaseCurrencyCode,
                     PortfolioValue = s.PortfolioValue, ExternalValue = s.ExternalValue, TotalWealth = s.TotalWealth,
                     TotalIncome = s.TotalIncome, HasStaleRates = s.HasStaleRates, HasFallbackRates = s.HasFallbackRates })
@@ -47,6 +48,10 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
                 if (existing is null) context.PortfolioSnapshots.Add(snapshot);
                 else
                 {
+                    var version = InvestmentTracker.Application.History.Services.HistoryService.Map(existing);
+                    snapshot.PreviousVersionsJson = System.Text.Json.JsonSerializer.Serialize(version.PreviousVersions.Append(version with { PreviousVersions = [] }),
+                        new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+                    snapshot.Revision = existing.Revision + 1;
                     snapshot.Id = existing.Id;
                     context.Entry(existing).CurrentValues.SetValues(snapshot);
                 }
@@ -60,7 +65,21 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
 
         public async Task SaveChangesAsync(CancellationToken cancellationToken)
         {
-            try { await context.SaveChangesAsync(cancellationToken); }
+            try {
+                var added = context.ChangeTracker.Entries<PortfolioCashFlow>().FirstOrDefault(e => e.State == EntityState.Added && e.Entity.MovementId == null && e.Entity.Movement == null);
+                if (added is null) await context.SaveChangesAsync(cancellationToken);
+                else {
+                    await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+                    var flow = added.Entity;
+                    await context.Portfolios.FromSqlInterpolated($"SELECT * FROM Portfolio WITH (UPDLOCK, HOLDLOCK) WHERE Id = {flow.PortfolioId}").AsNoTracking().SingleAsync(cancellationToken);
+                    var code = (await context.Currencies.FindAsync([flow.CurrencyId], cancellationToken))!.Code;
+                    await MovementRecorder.SaveAsync(context, new FinancialMovement { PortfolioId = flow.PortfolioId,
+                        RequestId = Guid.NewGuid(), Date = flow.Date, Kind = "historical", Amount = flow.Amount,
+                        CurrencyCode = code, Description = flow.Notes ?? "Registro histórico sem alteração de saldo",
+                        CreatedAtUtc = flow.CreatedAtUtc }, cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                }
+            }
             catch (DbUpdateConcurrencyException ex)
             { throw new ResourceConflictException("O registro foi alterado ou removido. Atualize a página.", ex); }
             catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 547 or 2601 or 2627 or 1205 })

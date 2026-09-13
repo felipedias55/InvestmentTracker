@@ -13,6 +13,7 @@ namespace InvestmentTracker.Domain.Entities
         public decimal Quantity { get; set; }
         public decimal UnitPrice { get; set; }
         public decimal Amount { get; set; }
+        public decimal Fees { get; set; }
         public decimal RemainingQuantity { get; set; }
         public decimal RemainingCost { get; set; }
         public int? CashAssetId { get; set; }

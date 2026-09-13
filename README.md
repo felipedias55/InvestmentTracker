@@ -146,3 +146,11 @@ Além dos testes Angular, a suíte Playwright agora exercita menu, edição de a
 ## Recebimentos de proventos
 
 Use **Proventos** para registrar ativo, data, valor líquido e destino do recebimento. O acumulado da posição é atualizado automaticamente; um saldo de patrimônio externo pode receber o crédito para reinvestimento, sem gerar aporte. Os acumulados anteriores permanecem como saldo inicial. Veja [regras, histórico e migration](docs/recebimento-de-proventos.md).
+
+## Movimentações e estornos
+
+A tela **Movimentações** reúne compras, vendas, proventos e movimentos de dinheiro. Depósitos e retiradas atualizam saldo e histórico juntos; transferências internas não geram aporte. Ajustes de saldo exigem motivo. O estorno preserva o original e registra os efeitos revertidos, respeitando dependências. Registros antigos sem saldos anteriores permanecem visíveis, com a limitação de estorno indicada. Veja [uso, proteções e atualização](docs/movimentacoes-e-estornos.md).
+
+## Fechamentos, taxas e análise de rendimentos
+
+Reabertura com motivo, fotografias desatualizadas e versões preservadas; taxas em compras/vendas; desdobramento, grupamento e bonificação auditáveis; proventos mensais/anuais por ativo e decomposição da evolução. O menu começa pelo Dashboard e pelos fluxos diários. Veja [uso, cálculos, limitações e atualização](docs/fechamentos-proventos-e-eventos.md). Aplique a migration `ClosingsFeesAndSnapshotVersions` antes de iniciar a versão atualizada.

@@ -1,0 +1,70 @@
+<header class="page-header"><p class="eyebrow">DINHEIRO E AUDITORIA</p><h1>Movimentações</h1>
+  <p>Depósitos, retiradas, transferências, ajustes e operações da carteira em um único histórico.</p>
+  <a routerLink="/trades">Comprar ou vender</a> · <a routerLink="/income">Receber proventos</a> · <a routerLink="/history">Fotografias e evolução</a>
+</header>
+<app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
+@if (error() && !pending()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
+@if (loading()) { <p role="status">Carregando movimentações…</p> }
+@if (id()) { <button (click)="load()" [disabled]="saving() || loading()">Atualizar movimentações</button> }
+@if (summary(); as s) {
+  <div class="workspace section-gap">
+    <section class="panel"><h2>Movimentar saldo</h2>
+      <form [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="saving()">
+        <label for="movement-kind">Tipo de movimentação</label><select id="movement-kind" formControlName="kind" (change)="form.patchValue({ destinationId: 0, baseAmount: '' })">
+          <option value="deposit">Depósito — gerar aporte</option><option value="withdrawal">Retirada — saída da carteira</option>
+          <option value="transfer">Transferência entre saldos</option><option value="adjustment">Ajuste justificado de saldo</option>
+        </select>
+        <label for="movement-date">Data da movimentação</label><input id="movement-date" type="date" formControlName="date" [max]="today" min="1900-01-01" />
+        <label for="movement-cash">Saldo</label><select id="movement-cash" formControlName="cashAssetId" (change)="form.patchValue({ destinationId: 0, baseAmount: '' })">
+          <option [ngValue]="0">Selecione</option>
+          @for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.value | currency: b.currencyCode : 'code' : '1.2-2' }}</option> }
+        </select>
+        @if (form.controls.kind.value === 'transfer') {
+          <label for="movement-destination">Saldo de destino</label><select id="movement-destination" formControlName="destinationId">
+            <option [ngValue]="0">Selecione</option>@for (b of destinations(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }
+          </select><p class="hint">Entre saldos diferentes da mesma carteira e moeda, sem gerar aporte ou retirada.</p>
+        }
+        <label for="movement-amount">{{ form.controls.kind.value === 'adjustment' ? 'Novo saldo total' : 'Valor da movimentação' }} ({{ currency() }})</label>
+        <input id="movement-amount" formControlName="amount" inputmode="decimal" (blur)="formatInput('amount')" />
+        @if (['deposit', 'withdrawal'].includes(form.controls.kind.value) && currency() && currency() !== s.portfolio.baseCurrencyCode) {
+          <label for="movement-base">Equivalente em {{ s.portfolio.baseCurrencyCode }} (opcional para hoje)</label><input id="movement-base" formControlName="baseAmount" inputmode="decimal" (blur)="formatInput('baseAmount')" />
+        }
+        <label for="movement-reason">{{ form.controls.kind.value === 'adjustment' ? 'Motivo do ajuste (obrigatório)' : 'Observação (opcional)' }}</label>
+        <input id="movement-reason" formControlName="reason" maxlength="400" />
+        @if (form.controls.kind.value === 'adjustment') { <p class="hint">Corrige o saldo para o total informado e guarda os valores antes e depois. Não gera aporte. Para entrada ou saída real de dinheiro, use depósito ou retirada.</p> }
+        <p class="hint">Não registre novamente aportes já gerados por compras. <a routerLink="/external-assets">Cadastrar um saldo inicial</a>.</p>
+        @if (form.touched && form.invalid) { <p class="field-error">Preencha data, saldo e valor no padrão brasileiro.</p> }
+        <button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Registrar movimentação' }}</button>
+      </fieldset></form>
+    </section>
+    <section class="panel"><h2>Histórico unificado</h2>
+      <label for="movement-search">Buscar movimentação</label><input id="movement-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" placeholder="Número, ativo, motivo ou tipo" />
+      <p class="hint">Estornos são registrados hoje. O original permanece no histórico. Fotografias anteriores não são recalculadas; atualize explicitamente a do mês corrente se necessário.</p>
+      @for (m of filtered(); track m.id) {
+        <article class="panel section-gap">
+          <h3>#{{ m.id }} · {{ labels[m.kind] || m.kind }}</h3>
+          <p>{{ m.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ m.description }}</p>
+          @if (m.kind !== 'position-adjustment') { <strong>{{ m.amount | currency: m.currencyCode : 'code' : '1.2-4' }}</strong> }
+          @if (m.tradeId) { <p>Operação #{{ m.tradeId }}</p> } @if (m.incomeReceiptId) { <p>Recebimento #{{ m.incomeReceiptId }}</p> }
+          @if (m.reversalOfId) { <p>Estorno do lançamento #{{ m.reversalOfId }}</p> }
+          @if (m.reversedById) { <p><strong>Estornado pelo lançamento #{{ m.reversedById }}</strong></p> }
+          @for (e of m.effects; track $index) { <p>{{ e.name }}: {{ e.beforeValue | currency: e.currencyCode : 'code' : '1.2-4' }} → {{ e.afterValue | currency: e.currencyCode : 'code' : '1.2-4' }}</p>
+            @if (e.isPosition) { <p>Quantidade: {{ formatNumber(e.beforeQuantity) }} → {{ formatNumber(e.afterQuantity) }}</p><p>Custo: {{ e.beforeCost | currency: e.currencyCode : 'code' : '1.2-4' }} → {{ e.afterCost | currency: e.currencyCode : 'code' : '1.2-4' }}</p><p>Proventos: {{ e.beforeIncome | currency: e.currencyCode : 'code' : '1.2-4' }} → {{ e.afterIncome | currency: e.currencyCode : 'code' : '1.2-4' }}</p> }
+          }
+          @if (m.canReverse) { <button (click)="confirm(m)" [disabled]="saving()">Estornar #{{ m.id }}</button> }
+          @else { <p class="hint">{{ m.reversalBlockedReason }}</p> }
+        </article>
+      } @empty { <p>Nenhuma movimentação para este filtro.</p> }
+    </section>
+  </div>
+}
+@if (pending(); as m) {
+  <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar estorno" (closed)="pending.set(null)">
+    <section class="panel"><h2>Estornar lançamento #{{ m.id }}</h2>
+      <p>{{ labels[m.kind] }} · {{ m.description }}. Os efeitos serão revertidos, sem apagar o lançamento original.</p>
+      <label for="reversal-reason">Motivo do estorno</label><input id="reversal-reason" [value]="reverseReason()" (input)="reverseReason.set($any($event.target).value)" maxlength="400" [disabled]="saving()" />
+      <div class="actions"><button class="danger" (click)="reverse()" [disabled]="saving()">Confirmar estorno</button><button (click)="pending.set(null)" [disabled]="saving()">Cancelar</button></div>
+    </section>
+  </app-edit-panel>
+}

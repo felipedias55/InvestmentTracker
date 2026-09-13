@@ -187,4 +187,15 @@ describe('HistoryPage', () => {
     request.flush({ detail: 'Não encontrado.' }, { status: 404, statusText: 'Not Found' });
     expect(fixture.componentInstance.detail()).toBeNull();
   });
+  it('requires a reason for reopening and shows outdated photographs', () => {
+    const fixture = initialize({ ...data, months: [{ ...row, isOutdated: true, isReopened: true, revision: 1 }] });
+    const component = fixture.componentInstance;
+    expect(fixture.nativeElement.textContent).toContain('Reaberta / desatualizada');
+    component.reopenForm.patchValue({ date: '2026-09-01' }); component.reopen(); http.expectNone('/api/portfolios/1/movements');
+    component.reopenForm.patchValue({ reason: 'Lançamento atrasado' }); component.reopen();
+    const request = http.expectOne('/api/portfolios/1/movements'); expect(request.request.body.kind).toBe('reopen');
+    expect(request.request.body.amount).toBe('0'); expect(request.request.body.reason).toBe('Lançamento atrasado');
+    request.flush({}); flush();
+  });
+
 });

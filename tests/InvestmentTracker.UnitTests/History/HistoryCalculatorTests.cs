@@ -5,6 +5,60 @@ namespace InvestmentTracker.UnitTests.History
 {
     public class HistoryCalculatorTests
     {
+        [Fact]
+        public void Evolution_ShouldSeparateRetainedAndDistributedIncomeWithoutDoubleCounting()
+        {
+            var events = new List<InvestmentTracker.Application.Income.IncomeEvent> {
+                new(new DateOnly(2026, 9, 5), "TEST", 1, "BRL", 20, true, false),
+                new(new DateOnly(2026, 9, 6), "TEST", 1, "BRL", 5, false, false) };
+            var rows = HistoryCalculator.Months([Photo(1, 2026, 8, 31, 1000), Photo(2, 2026, 9, 30, 1170)],
+                [Flow(2026, 9, 4, 100)], new DateOnly(2026, 9, 30), "BRL", events);
+            Assert.Equal(20m, rows[1].RetainedIncome); Assert.Equal(5m, rows[1].DistributedIncome);
+            Assert.Equal(50m, rows[1].ValuationAndOtherChanges); Assert.Equal(75m, rows[1].EconomicResult);
+        }
+        [Fact]
+        public void OutdatedSnapshotsAndForeignIncome_ShouldNeverProduceInventedDecomposition()
+        {
+            var previous = Photo(1, 2026, 8, 31, 1000); var current = Photo(2, 2026, 9, 30, 1100);
+            var events = new List<InvestmentTracker.Application.Income.IncomeEvent> { new(new DateOnly(2026, 9, 5), "TEST", 1, "USD", 20, true, false) };
+            var rows = HistoryCalculator.Months([previous, current], [], new DateOnly(2026, 9, 30), "BRL", events);
+            Assert.Null(rows[1].ValuationAndOtherChanges); Assert.Null(rows[1].EconomicResult);
+            current.IsOutdated = true;
+            rows = HistoryCalculator.Months([previous, current], [], new DateOnly(2026, 9, 30), "BRL", events);
+            Assert.Null(rows[1].Change); Assert.True(rows[1].IsOutdated);
+        }
+        [Fact]
+        public void IncomeGrouping_ShouldSeparateAssetsCurrenciesYearsAndCorrectionDates()
+        {
+            var report = InvestmentTracker.Application.Income.IncomeAnalysisService.Calculate([
+                new(new DateOnly(2025, 12, 5), "TEST", 1, "BRL", 10, true, false),
+                new(new DateOnly(2026, 1, 5), "TEST", 1, "BRL", 10, true, true),
+                new(new DateOnly(2026, 1, 5), "OTHER", 2, "USD", 2, false, false),
+                new(new DateOnly(2026, 1, 6), "RENAMED", 1, "BRL", 2, true, false)]);
+            Assert.Equal(3, report.Months.Count); Assert.Equal(3, report.Years.Count);
+            Assert.Equal(-8m, report.Months.Single(x => x.CurrencyCode == "BRL" && x.Period == "2026-01").Net);
+            Assert.Equal(2m, report.Assets.Single(x => x.AssetId == 1).Net);
+            Assert.Equal(2m, report.Assets.Single(x => x.AssetId == 2).Net);
+        }
+        [Fact]
+        public void Reversals_ShouldReduceOriginalFlowTypeInsteadOfCreatingNewContributions()
+        {
+            var original = Flow(2026, 9, 1, 100m, "withdrawal");
+            var reversed = Flow(2026, 9, 2, 100m, "withdrawal"); reversed.IsReversal = true;
+            var row = Assert.Single(HistoryCalculator.Months([], [original, reversed], new DateOnly(2026, 9, 3), "BRL"));
+            Assert.Equal(0m, row.Contributions); Assert.Equal(0m, row.Withdrawals);
+        }
+
+        [Fact]
+        public void PriorMonthReversal_ShouldAppearAsCorrectionInCurrentPeriod()
+        {
+            var original = Flow(2026, 8, 10, 100m);
+            var reversed = Flow(2026, 9, 10, 100m); reversed.IsReversal = true;
+            var rows = HistoryCalculator.Months([Photo(1, 2026, 8, 31, 1100m), Photo(2, 2026, 9, 30, 1000m)],
+                [original, reversed], new DateOnly(2026, 9, 30), "BRL");
+            Assert.Equal(100m, rows[0].Contributions); Assert.Equal(-100m, rows[1].Contributions);
+            Assert.Equal(0m, rows[1].Withdrawals); Assert.Equal(0m, rows[1].ChangeExcludingFlows);
+        }
         private static PortfolioSnapshot Photo(int id, int year, int month, int day, decimal wealth, string currency = "BRL") => new()
         {
             Id = id, Month = new DateOnly(year, month, 1), SnapshotDate = new DateOnly(year, month, day),

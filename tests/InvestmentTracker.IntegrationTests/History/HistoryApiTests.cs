@@ -127,13 +127,20 @@ namespace InvestmentTracker.IntegrationTests.History
             Assert.Equal(30m, history.Months.Last().ChangeExcludingFlows);
             Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync($"/api/portfolios/{other}/history/cash-flows/{flow.Id}", dto)).StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/portfolios/{other}/history/cash-flows/{flow.Id}")).StatusCode);
-            (await client.PutAsJsonAsync(path + $"/cash-flows/{flow.Id}", dto with { Kind = "withdrawal", CurrencyId = brl, Amount = 20m, BaseAmount = null })).EnsureSuccessStatusCode();
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync(path + $"/cash-flows/{flow.Id}", dto with { Kind = "withdrawal" })).StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync(path + $"/cash-flows/{flow.Id}")).StatusCode);
+            (await client.PostAsJsonAsync($"/api/portfolios/{id}/movements/{flow.MovementId}/reversal",
+                new InvestmentTracker.Application.Movements.ReverseMovementDto(Guid.NewGuid(), "Correção histórica"))).EnsureSuccessStatusCode();
+            (await client.PostAsJsonAsync(path + "/cash-flows", new SaveCashFlowDto(new DateOnly(2026, 10, 8), "withdrawal", brl, 20m))).EnsureSuccessStatusCode();
+            history = (await client.GetFromJsonAsync<HistoryDto>(path))!;
+            Assert.Equal(3, history.CashFlows.Count);
+            Assert.Null(history.Months.Last().ChangeExcludingFlows);
+            Assert.True(history.Months.Last().IsOutdated);
+            (await client.PutAsync(path + "/snapshots/current", null)).EnsureSuccessStatusCode();
             history = (await client.GetFromJsonAsync<HistoryDto>(path))!;
             Assert.Equal(100m, history.Months.Last().ChangeExcludingFlows);
             Assert.Equal(230m, history.Months.Last().TotalWealth);
-            (await client.DeleteAsync(path + $"/cash-flows/{flow.Id}")).EnsureSuccessStatusCode();
-            history = (await client.GetFromJsonAsync<HistoryDto>(path))!;
-            Assert.Empty(history.CashFlows); Assert.Equal(80m, history.Months.Last().ChangeExcludingFlows);
+
         }
 
         [Fact]
@@ -153,10 +160,10 @@ namespace InvestmentTracker.IntegrationTests.History
                 (await db.Portfolios.SingleAsync(p => p.Id == id)).BaseCurrencyId = usd;
                 await db.SaveChangesAsync();
             }
-            (await client.PutAsJsonAsync(path + $"/cash-flows/{flow.Id}", dto with { BaseAmount = 55m })).EnsureSuccessStatusCode();
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync(path + $"/cash-flows/{flow.Id}", dto with { BaseAmount = 55m })).StatusCode);
             var result = (await client.GetFromJsonAsync<HistoryDto>(path))!;
             Assert.Equal("BRL", Assert.Single(result.CashFlows).BaseCurrencyCode);
-            Assert.Equal(55m, result.CashFlows[0].BaseAmount);
+            Assert.Null(result.CashFlows[0].BaseAmount);
             Assert.Equal(10.1234m, Assert.Single(result.Months).Contributions);
         }
 

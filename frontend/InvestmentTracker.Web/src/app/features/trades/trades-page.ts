@@ -17,7 +17,7 @@ import { apiError } from '../../core/services/api-error';
 
 export interface Trade {
   id: number; date: string; kind: string; ticker: string; currencyCode: string;
-  quantity: string; unitPrice: string; amount: string; cashAssetName: string | null;
+  quantity: string; unitPrice: string; amount: string; fees?: string; cashAssetName: string | null;
 }
 @Component({
   standalone: true, selector: 'app-trades-page',
@@ -55,13 +55,30 @@ export class TradesPage {
     quantity: ['', [Validators.required, brazilianNumberValidator(13, 6)]],
     unitPrice: ['', [Validators.required, brazilianNumberValidator(15, 4)]],
     cashAssetId: [0],
+    fees: ['0', [Validators.required, brazilianNumberValidator(15, 4)]],
     baseAmount: ['', (control: import('@angular/forms').AbstractControl) => control.value ? brazilianNumberValidator(15, 4)(control) : null],
   });
+  private eventRequestId = createRequestId();
+  readonly eventForm = this.fb.nonNullable.group({ date: [this.today, Validators.required], kind: ['split'],
+    positionId: [0, Validators.min(1)], quantity: ['', [Validators.required, brazilianNumberValidator(13, 6)]],
+    cost: ['0', [Validators.required, brazilianNumberValidator(15, 4)]], reason: ['', [Validators.required, Validators.maxLength(400)]] });
+  saveEvent() {
+    if (this.saving() || this.loading() || !this.summary() || this.eventForm.invalid) { this.eventForm.markAllAsTouched(); return; }
+    const v = this.eventForm.getRawValue(); this.saving.set(true); this.error.set(''); this.success.set('');
+    this.http.post(`/api/portfolios/${this.id()}/movements/corporate-events`, { ...v, requestId: this.eventRequestId,
+      positionId: Number(v.positionId), quantity: parseBrazilianNumber(v.quantity), cost: v.kind === 'bonus' ? parseBrazilianNumber(v.cost) : '0',
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => { this.saving.set(false); this.eventRequestId = createRequestId();
+        this.eventForm.patchValue({ quantity: '', cost: '0', reason: '' }); this.success.set('Evento registrado com auditoria. Atualize a cotação da posição quando disponível.'); this.load(); },
+      error: e => { this.saving.set(false); this.error.set(apiError(e)); },
+    });
+  }
   select(id: number) {
     if (this.saving()) return;
-    this.id.set(id); this.requestId = createRequestId();
+    this.id.set(id); this.requestId = createRequestId(); this.eventRequestId = createRequestId();
+    this.eventForm.reset({ date: this.today, kind: 'split', positionId: 0, quantity: '', cost: '0', reason: '' });
     this.form.reset({ date: this.today, kind: this.route.snapshot.queryParamMap.get('kind') === 'sell' ? 'sell' : 'buy',
-      assetId: Number(this.route.snapshot.queryParamMap.get('assetId')) || 0, quantity: '', unitPrice: '', cashAssetId: 0, baseAmount: '' });
+      assetId: Number(this.route.snapshot.queryParamMap.get('assetId')) || 0, quantity: '', unitPrice: '', fees: '0', cashAssetId: 0, baseAmount: '' });
     this.success.set(''); this.load();
   }
   load() {
@@ -80,12 +97,12 @@ export class TradesPage {
   currency() { return this.currencies().find(c => c.id === this.asset()?.currencyId)?.code ?? ''; }
   cashOptions() { return this.balances().filter(b => b.currencyId === this.asset()?.currencyId); }
   availableQuantity() { return this.summary()?.positions.find(p => p.assetId === Number(this.form.controls.assetId.value))?.quantity ?? '0'; }
-  estimatedTotal() { return Number(parseBrazilianNumber(this.form.controls.quantity.value)) * Number(parseBrazilianNumber(this.form.controls.unitPrice.value)); }
+  estimatedTotal() { return Number(parseBrazilianNumber(this.form.controls.quantity.value)) * Number(parseBrazilianNumber(this.form.controls.unitPrice.value)) + (this.form.controls.kind.value === 'buy' ? 1 : -1) * Number(parseBrazilianNumber(this.form.controls.fees.value)); }
   filteredTrades() {
     const query = this.query().trim().toLocaleLowerCase('pt-BR');
     return this.trades().filter(t => t.ticker.toLocaleLowerCase('pt-BR').includes(query));
   }
-  formatInput(field: 'quantity' | 'unitPrice' | 'baseAmount') {
+  formatInput(field: 'quantity' | 'unitPrice' | 'baseAmount' | 'fees') {
     const control = this.form.controls[field];
     if (control.valid && control.value.trim()) control.setValue(formatBrazilianNumber(parseBrazilianNumber(control.value)));
   }
@@ -95,14 +112,14 @@ export class TradesPage {
     const quantity = parseBrazilianNumber(value.quantity); const price = parseBrazilianNumber(value.unitPrice);
     if (Number(quantity) <= 0 || Number(price) <= 0) { this.error.set('Quantidade e preço devem ser maiores que zero.'); return; }
     const input = { requestId: this.requestId, date: value.date, kind: value.kind, assetId: Number(value.assetId),
-      quantity, unitPrice: price, cashAssetId: Number(value.cashAssetId) || null,
+      quantity, unitPrice: price, fees: parseBrazilianNumber(value.fees), cashAssetId: Number(value.cashAssetId) || null,
       baseAmount: !Number(value.cashAssetId) && value.baseAmount.trim() ? parseBrazilianNumber(value.baseAmount) : null };
     this.saving.set(true); this.error.set(''); this.success.set('');
     this.http.post<Trade>(`/api/portfolios/${this.id()}/trades`, input).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.saving.set(false); this.requestId = createRequestId();
         this.success.set('Operação registrada. Posição e movimentação do dinheiro atualizadas automaticamente. Não registre este aporte ou retirada novamente.');
-        this.form.patchValue({ quantity: '', unitPrice: '', baseAmount: '' }); this.form.markAsUntouched(); this.load();
+        this.form.patchValue({ quantity: '', unitPrice: '', fees: '0', baseAmount: '' }); this.form.markAsUntouched(); this.load();
       },
       error: error => { this.saving.set(false); this.error.set(apiError(error)); },
     });

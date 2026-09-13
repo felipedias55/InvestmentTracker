@@ -1,3 +1,4 @@
+import { createRequestId } from '../../core/request-id';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -104,6 +105,18 @@ export class HistoryPage {
     notes: ['', Validators.maxLength(500)],
   });
 
+  readonly reopenForm = this.fb.group({ date: ['', Validators.required], reason: ['', [Validators.required, Validators.maxLength(400)]] });
+  private reopenId = createRequestId();
+  reopen() {
+    if (this.saving() || this.reopenForm.invalid || !this.portfolioId()) { this.reopenForm.markAllAsTouched(); return; }
+    this.saving.set(true); this.error.set('');
+    const v = this.reopenForm.getRawValue();
+    this.api.reopen(this.portfolioId()!, this.reopenId, v.date, v.reason.trim()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => { this.saving.set(false); this.reopenId = createRequestId(); this.reopenForm.reset();
+        this.success.set('Período reaberto. As fotografias afetadas foram preservadas e marcadas como desatualizadas.'); this.load(); },
+      error: e => { this.saving.set(false); this.error.set(apiError(e)); },
+    });
+  }
   select(id: number) {
     this.portfolioId.set(id);
     this.selectedYear.set(null);

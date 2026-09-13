@@ -51,6 +51,8 @@ namespace InvestmentTracker.Application.ExternalAssets.Services
         {
             var asset = await repository.GetByIdAsync(portfolioId, id, cancellationToken);
             if (asset is null) return false;
+            if (asset.CurrencyId != dto.CurrencyId || asset.Value != dto.Value)
+                throw new ResourceConflictException("Para alterar o saldo use Movimentações. A moeda de um saldo existente não pode ser alterada; crie outro saldo.");
             await ApplyAsync(asset, dto, cancellationToken);
             await repository.SaveChangesAsync(cancellationToken);
             return true;

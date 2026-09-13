@@ -14,5 +14,7 @@ namespace InvestmentTracker.Application.History.Dtos
         string? Notes)
     {
         public int? TradeId { get; init; }
+        public int? MovementId { get; init; }
+        public bool IsReversal { get; init; }
     }
 }

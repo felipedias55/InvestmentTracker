@@ -8,5 +8,11 @@ namespace InvestmentTracker.Application.History.Dtos
         DateOnly SnapshotDate,
         DateTime CapturedAtUtc,
         int PayloadVersion,
-        DashboardDto Dashboard);
+        DashboardDto Dashboard)
+    {
+        public bool IsOutdated { get; init; }
+        public bool IsReopened { get; init; }
+        public int Revision { get; init; } = 1;
+        public IReadOnlyList<SnapshotDetailDto> PreviousVersions { get; init; } = [];
+    }
 }

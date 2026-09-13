@@ -19,6 +19,8 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
             var trade = await db.Set<PortfolioTrade>().Where(x => x.PortfolioId == portfolioId).MaxAsync(x => (DateOnly?)x.Date, ct);
             var income = await db.Set<IncomeReceipt>().Where(x => x.PortfolioId == portfolioId).MaxAsync(x => (DateOnly?)x.Date, ct);
             if (income > trade || trade is null) trade = income;
+            var journal = await db.Set<FinancialMovement>().Where(x => x.PortfolioId == portfolioId).MaxAsync(x => (DateOnly?)x.Date, ct);
+            if (journal > trade || trade is null) trade = journal;
             var snapshot = await db.PortfolioSnapshots.Where(x => x.PortfolioId == portfolioId).MaxAsync(x => (DateOnly?)x.SnapshotDate, ct);
             return trade > snapshot || snapshot is null ? trade : snapshot;
         }
@@ -41,7 +43,12 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
             var existing = await db.Set<PortfolioTrade>().SingleOrDefaultAsync(x => x.PortfolioId == portfolioId && x.RequestId == requestId, ct);
             var trade = await apply(portfolio, existing, ct);
             if (existing is null) db.Set<PortfolioTrade>().Add(trade);
-            await db.SaveChangesAsync(ct);
+            if (existing is null)
+                await MovementRecorder.SaveAsync(db, new FinancialMovement {
+                    PortfolioId = portfolioId, RequestId = requestId, Date = trade.Date,
+                    Kind = trade.Kind, Amount = trade.Amount, CurrencyCode = trade.CurrencyCode,
+                    Description = trade.Ticker, CreatedAtUtc = trade.CreatedAtUtc,
+                    Trade = trade }, ct);
             await transaction.CommitAsync(ct);
             return trade;
             }

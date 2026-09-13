@@ -14,6 +14,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
                 t.HasCheckConstraint("CK_PortfolioCashFlow_Kind", "[Kind] IN ('contribution', 'withdrawal')");
             });
             builder.HasKey(x => x.Id);
+            builder.HasOne(x => x.Movement).WithMany().HasForeignKey(x => x.MovementId).OnDelete(DeleteBehavior.Restrict);
             builder.HasOne(x => x.Trade).WithMany().HasForeignKey(x => x.TradeId).OnDelete(DeleteBehavior.Restrict);
             builder.HasIndex(x => x.TradeId).IsUnique().HasFilter("[TradeId] IS NOT NULL");
             builder.HasIndex(x => new { x.PortfolioId, x.Date });

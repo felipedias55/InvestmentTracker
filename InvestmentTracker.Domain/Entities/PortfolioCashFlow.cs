@@ -3,6 +3,9 @@ namespace InvestmentTracker.Domain.Entities
     public sealed class PortfolioCashFlow
     {
         public int Id { get; set; }
+        public int? MovementId { get; set; }
+        public bool IsReversal { get; set; }
+        public FinancialMovement? Movement { get; set; }
         public int? TradeId { get; set; }
         public PortfolioTrade? Trade { get; set; }
         public int PortfolioId { get; set; }

@@ -188,7 +188,7 @@ namespace InvestmentTracker.IntegrationTests.Trades
                     SnapshotDate = new DateOnly(2026, 8, 31), BaseCurrencyCode = "BRL", DashboardJson = "{}", PayloadVersion = 1 });
                 await db.SaveChangesAsync();
             }
-            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path, Buy(asset) with { Date = new DateOnly(2026, 8, 30) })).StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(path, Buy(asset) with { Date = new DateOnly(2026, 8, 30) })).StatusCode);
             (await client.PostAsJsonAsync(path, Buy(asset, 5m, 30m))).EnsureSuccessStatusCode();
             await using var check = fixture.Database.CreateContext();
             var p = await check.PortfolioAssets.SingleAsync();

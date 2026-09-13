@@ -24,9 +24,11 @@ namespace InvestmentTracker.Application.Trades
             if (dto.Quantity <= 0m || dto.Quantity > 9999999999999.999999m || decimal.Round(dto.Quantity, 6) != dto.Quantity)
                 throw new InputValidationException("Quantidade deve ser positiva e ter até 6 casas decimais.");
             Money(dto.UnitPrice);
+            if (dto.Fees < 0 || dto.Fees > MaxMoney || decimal.Round(dto.Fees, 4) != dto.Fees)
+                throw new InputValidationException("Taxas devem ser não negativas e ter até 4 casas decimais.");
             if (dto.BaseAmount.HasValue) Money(dto.BaseAmount.Value);
             decimal amount;
-            try { amount = decimal.Round(dto.Quantity * dto.UnitPrice, 4, MidpointRounding.AwayFromZero); }
+            try { amount = decimal.Round(dto.Quantity * dto.UnitPrice, 4, MidpointRounding.AwayFromZero) + (dto.Kind == "buy" ? dto.Fees : -dto.Fees); }
             catch (OverflowException) { throw new InputValidationException("O total da operação excede o limite permitido."); }
             Money(amount);
             var saved = await repository.ExecuteAsync(portfolioId, dto.RequestId, async (portfolio, existing, token) =>
@@ -35,13 +37,10 @@ namespace InvestmentTracker.Application.Trades
                 {
                     if (existing.AssetId != dto.AssetId || existing.Date != dto.Date || existing.Kind != dto.Kind ||
                         existing.Quantity != dto.Quantity || existing.UnitPrice != dto.UnitPrice || existing.CashAssetId != dto.CashAssetId ||
-                        existing.RequestedBaseAmount != dto.BaseAmount)
+                        existing.RequestedBaseAmount != dto.BaseAmount || existing.Fees != dto.Fees)
                         throw new ResourceConflictException("Esta solicitação já foi utilizada com outros dados. Atualize a tela.");
                     return existing;
                 }
-                var latest = await repository.LatestDateAsync(portfolioId, token);
-                if (latest.HasValue && dto.Date < latest)
-                    throw new InputValidationException("A operação não pode ser anterior à última operação ou fotografia. Os saldos anteriores já estão consolidados.");
                 var asset = await assets.GetByIdAsync(dto.AssetId, token)
                     ?? throw new InputValidationException("Selecione um ativo existente.");
                 var currency = await currencies.GetByIdAsync(asset.CurrencyId, token)
@@ -65,7 +64,7 @@ namespace InvestmentTracker.Application.Trades
                 position.Quantity = quantity; position.InvestedAmount = cost; position.CurrentValue = value; position.UpdatedOn = Today;
                 var trade = new PortfolioTrade { PortfolioId = portfolioId, AssetId = asset.Id, RequestId = dto.RequestId,
                     Date = dto.Date, Kind = dto.Kind, Ticker = asset.Ticker, CurrencyCode = currency.Code,
-                    Quantity = dto.Quantity, UnitPrice = dto.UnitPrice, Amount = amount, RemainingQuantity = quantity,
+                    Quantity = dto.Quantity, UnitPrice = dto.UnitPrice, Amount = amount, Fees = dto.Fees, RemainingQuantity = quantity,
                     RemainingCost = cost, CashAssetId = dto.CashAssetId, RequestedBaseAmount = dto.BaseAmount,
                     CreatedAtUtc = clock.GetUtcNow().UtcDateTime };
                 if (dto.CashAssetId.HasValue)
@@ -111,6 +110,6 @@ namespace InvestmentTracker.Application.Trades
                 throw new InputValidationException("Informe um valor positivo com até 15 inteiros e 4 casas decimais.");
         }
         private static TradeDto Map(PortfolioTrade t) => new(t.Id, t.Date, t.Kind, t.Ticker, t.CurrencyCode,
-            t.Quantity, t.UnitPrice, t.Amount, t.CashAssetName);
+            t.Quantity, t.UnitPrice, t.Amount, t.CashAssetName, t.Fees);
     }
 }

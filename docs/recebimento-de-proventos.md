@@ -17,7 +17,7 @@ O histórico preserva data, ticker, moeda, valor, destino e observação. Os val
 
 Os recebimentos devem seguir a ordem cronológica: não podem preceder a última compra, venda, recebimento ou fotografia. Datas futuras são recusadas. Fotografias existentes não são recalculadas; uma fotografia do mês corrente pode ser substituída explicitamente após o recebimento.
 
-Recebimentos confirmados não possuem edição ou estorno nesta versão, assim como as compras e vendas. O campo manual de proventos na carteira permanece disponível para saldo inicial e ajustes; não deve ser preenchido novamente com o valor de um recebimento já registrado. Uma posição com recebimentos vinculados não pode ser excluída, preservando o histórico.
+Recebimentos com saldos auditados podem ser estornados em **Movimentações**, preservando o original. Os anteriores à auditoria não têm estorno automático. Veja [regras e limitações](movimentacoes-e-estornos.md). O campo manual de proventos na carteira permanece disponível para saldo inicial e ajustes; não deve ser preenchido novamente com o valor de um recebimento já registrado. Uma posição com recebimentos vinculados não pode ser excluída, preservando o histórico.
 
 ## Arquitetura e instalação
 
@@ -36,3 +36,7 @@ dotnet ef database update --project InvestmentTracker.Infrastructure --startup-p
 ```
 
 Os testes cobrem recebimentos em posição zerada, saldo inicial preservado, crédito opcional, valores inválidos, referências incorretas, idempotência, concorrência e fotografias. A suíte E2E também registra recebimentos em desktop e celular emulado.
+
+## Atualização de 13/09/2026
+
+A análise agora agrupa recebimentos mensais, anuais e por ativo, separando moedas e estornos. Lançamentos atrasados seguem reabertura e dependências, substituindo o bloqueio global pela última data. Fotografias afetadas recebem aviso de desatualização. Veja [regras completas e limitações](fechamentos-proventos-e-eventos.md).

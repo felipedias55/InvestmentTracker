@@ -21,6 +21,7 @@ import { HistoryPeriod } from './history.service';
                 <button
                   type="button"
                   class="bar"
+                  [class.outdated]="row.isOutdated"
                   [style.height.%]="height(row)"
                   (click)="openSnapshot.emit(row.snapshotId!)"
                   [attr.aria-label]="
@@ -38,6 +39,7 @@ import { HistoryPeriod } from './history.service';
               }
             </div>
             <strong>{{ row.period }}</strong>
+            @if (row.isOutdated) { <small>Desatualizada</small> }
             @if (row.totalWealth !== null && row.currencyCode === currency()) {
               <small>{{ row.totalWealth | currency: currency() : 'code' : '1.2-2' }}</small>
             }
@@ -80,6 +82,7 @@ import { HistoryPeriod } from './history.service';
         background: linear-gradient(#c58089, #97515d);
         border-radius: 7px 7px 0 0;
       }
+      .bar.outdated { background: repeating-linear-gradient(45deg, #a7a0a3 0 7px, #ded9db 7px 14px); }
       .bar:hover {
         background: #823f49;
       }

@@ -31,7 +31,26 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
         public void RemovePosition(PortfolioAsset position) => context.PortfolioAssets.Remove(position);
         public async Task SaveChangesAsync(CancellationToken cancellationToken)
         {
-            try { await context.SaveChangesAsync(cancellationToken); }
+            try {
+                context.ChangeTracker.DetectChanges();
+                if (context.ChangeTracker.Entries<PortfolioAsset>().Any(e => e.State == EntityState.Modified && e.Property(x => x.AssetId).IsModified))
+                    throw new ResourceConflictException("Não é possível trocar o ativo de uma posição. Cadastre outra posição.");
+                var changed = context.ChangeTracker.Entries<PortfolioAsset>().FirstOrDefault(e => e.State == EntityState.Modified &&
+                    (e.Property(x => x.Quantity).IsModified || e.Property(x => x.InvestedAmount).IsModified ||
+                     e.Property(x => x.CurrentValue).IsModified || e.Property(x => x.Income).IsModified));
+                if (changed is null) await SnapshotInvalidation.SaveAsync(context, cancellationToken);
+                else {
+                    if (changed.Property(x => x.AssetId).IsModified)
+                        throw new ResourceConflictException("Não é possível trocar o ativo de uma posição. Cadastre outra posição.");
+                    await using var transaction = await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+                    await context.Portfolios.FromSqlInterpolated($"SELECT * FROM Portfolio WITH (UPDLOCK, HOLDLOCK) WHERE Id = {changed.Entity.PortfolioId}").AsNoTracking().SingleAsync(cancellationToken);
+                    var asset = await context.Assets.Include(x => x.Currency).SingleAsync(x => x.Id == changed.Entity.AssetId, cancellationToken);
+                    await MovementRecorder.SaveAsync(context, new FinancialMovement { PortfolioId = changed.Entity.PortfolioId,
+                        RequestId = Guid.NewGuid(), Date = changed.Entity.UpdatedOn, Kind = "position-adjustment", Amount = 0,
+                        CurrencyCode = asset.Currency.Code, Description = $"Atualização manual de {asset.Ticker}", CreatedAtUtc = DateTime.UtcNow }, cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                }
+            }
             catch (DbUpdateConcurrencyException ex)
             { throw new ResourceConflictException("A posição foi alterada ou removida. Atualize a carteira.", ex); }
             catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })

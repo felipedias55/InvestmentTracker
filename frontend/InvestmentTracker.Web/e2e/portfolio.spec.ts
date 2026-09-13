@@ -103,7 +103,7 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   expect((await json(request, path + '/trades'))).toHaveLength(4);
   expect((await json(request, path + '/history')).cashFlows).toHaveLength(2);
 
-  await navigate(page, 'Evolução e aportes');
+  await navigate(page, 'Evolução e fechamentos');
   await choosePortfolio(page, name);
   await page.getByRole('button', { name: 'Registrar fotografia', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar fotografia', exact: true }).click();
@@ -119,8 +119,8 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   await navigate(page, 'Compras e vendas');
   await choosePortfolio(page, name);
   await trade('buy', '1', '40');
-  expect(await json(request, snapshotPath)).toEqual(photo);
-  await navigate(page, 'Evolução e aportes');
+  expect(await json(request, snapshotPath)).toEqual({ ...photo, isOutdated: true });
+  await navigate(page, 'Evolução e fechamentos');
   await choosePortfolio(page, name);
   await page.getByRole('button', { name: 'Atualizar fotografia deste mês' }).click();
   await page.getByRole('button', { name: 'Confirmar fotografia' }).click();
@@ -140,12 +140,106 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   await page.locator('#income-cash').selectOption({ index: 0 });
   await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Atualizar recebimentos' })).toBeEnabled();
-  await expect(page.locator('tbody tr')).toHaveCount(2);
+  await expect(page.locator('section').filter({ has: page.getByRole('heading', { name: 'Histórico de recebimentos', exact: true }) }).locator('tbody tr')).toHaveCount(2);
   expect(Number((await json(request, path)).totalIncome)).toBe(14.34);
   expect(Number((await json(request, path + '/external-assets')).totalValue)).toBe(142.84);
   expect((await json(request, path + '/history')).cashFlows).toEqual(flowsBefore);
-  expect(await json(request, snapshotPath)).toEqual(frozen);
+  expect(await json(request, snapshotPath)).toEqual({ ...frozen, isOutdated: true });
+  await navigate(page, 'Movimentações');
+  await choosePortfolio(page, name);
+  const ledger = await json(request, path + '/movements');
+  const receiptMovement = ledger.find((m: any) => m.kind === 'income' && Number(m.amount) === 2);
+  await page.getByRole('button', { name: `Estornar #${receiptMovement.id}`, exact: true }).click();
+  await page.getByLabel('Motivo do estorno', { exact: true }).fill('Recebimento duplicado no teste');
+  await page.getByRole('button', { name: 'Confirmar estorno', exact: true }).click();
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Estorno registrado' })).toBeVisible();
+  expect(Number((await json(request, path)).totalIncome)).toBe(12.34);
+  expect((await json(request, path + '/income'))).toHaveLength(2);
+  expect(await json(request, snapshotPath)).toEqual({ ...frozen, isOutdated: true });
+  await navigate(page, 'Compras e vendas'); await choosePortfolio(page, name);
+  await page.locator('#trade-fees').fill('1,25');
+  await trade('buy', '1', '10', true);
+  const withFees = await json(request, path);
+  expect(Number(withFees.positions[0].investedAmount)).toBe(259.25);
+  await page.getByText('Registrar desdobramento, grupamento ou bonificação', { exact: true }).click();
+  await page.locator('#event-position').selectOption({ index: 1 });
+  await page.locator('#event-quantity').fill('20');
+  await page.locator('#event-reason').fill('Desdobramento sintético de teste');
+  await page.getByRole('button', { name: 'Confirmar evento', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Evento registrado' })).toBeVisible();
+  expect(Number((await json(request, path)).positions[0].quantity)).toBe(20);
+  expect(Number((await json(request, path)).positions[0].investedAmount)).toBe(259.25);
+  await navigate(page, 'Evolução e fechamentos'); await choosePortfolio(page, name);
+  await page.getByText('Reabrir período para lançamentos atrasados', { exact: true }).click();
+  await page.locator('#reopen-date').fill(photo.snapshotDate);
+  await page.locator('#reopen-reason').fill('Conferência do fechamento');
+  await page.getByRole('button', { name: 'Confirmar reabertura', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Período reaberto' })).toBeVisible();
+  expect((await json(request, snapshotPath)).isReopened).toBe(true);
+  await page.getByRole('button', { name: 'Atualizar fotografia deste mês', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirmar fotografia', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Confirmar fotografia', exact: true })).not.toBeVisible();
+  const revised = await json(request, snapshotPath);
+  expect(revised.revision).toBe(3); expect(revised.previousVersions).toHaveLength(2);
+  expect(revised.isOutdated).toBe(false); expect(revised.previousVersions[0].dashboard).toEqual(photo.dashboard);
+  await navigate(page, 'Proventos'); await choosePortfolio(page, name);
+  await page.locator('#income-group').selectOption('years');
+  const analysis = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Análise dos recebimentos', exact: true }) });
+  await expect(analysis.locator('tbody tr')).toHaveCount(1);
+  await expect(analysis).toContainText('12,34');
   expect(errors).toEqual([]);
+});
+
+test('depósito, retirada, transferência, ajuste e estorno atualizam saldos e trilha', async ({ page, request }, info) => {
+  const name = 'Saldos E2E ' + info.project.name;
+  const created = await request.post('/api/portfolios', { data: { name } }); expect(created.ok()).toBeTruthy();
+  const portfolio = await created.json();
+  const path = `portfolios/${portfolio.id}`;
+  const currencies = await json(request, 'currencies');
+  const currencyId = currencies.find((c: any) => c.code === 'BRL').id;
+  for (const balance of ['Conta A', 'Conta B']) {
+    const response = await request.post('/api/' + path + '/external-assets', { data: { name: balance, currencyId, value: '100' } });
+    expect(response.ok()).toBeTruthy();
+  }
+  await page.goto('/movements'); await choosePortfolio(page, name);
+  const move = async (kind: string, amount: string) => {
+    await page.locator('#movement-kind').selectOption(kind);
+    await page.locator('#movement-cash').selectOption({ index: 1 });
+    if (kind === 'transfer') await page.locator('#movement-destination').selectOption({ index: 1 });
+    await page.locator('#movement-amount').fill(amount);
+    await page.locator('#movement-reason').fill('Conferência de teste');
+    const pending = page.waitForResponse(r => r.url().endsWith('/movements') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Registrar movimentação', exact: true }).click();
+    const response = await pending; expect(response.ok()).toBeTruthy();
+    await expect(page.getByRole('button', { name: 'Atualizar movimentações' })).toBeEnabled();
+    return response.json();
+  };
+  const deposit = await move('deposit', '10,50');
+  const withdrawal = await move('withdrawal', '5'); const transfer = await move('transfer', '20');
+  const adjustment = await move('adjustment', '90');
+  expect(await page.getByRole('button', { name: `Estornar #${deposit.id}`, exact: true }).count()).toBe(0);
+  await page.getByRole('button', { name: `Estornar #${adjustment.id}`, exact: true }).click();
+  await page.getByLabel('Motivo do estorno', { exact: true }).fill('Desfazer ajuste incorreto');
+  await page.getByRole('button', { name: 'Confirmar estorno', exact: true }).click();
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  const balances = await json(request, path + '/external-assets');
+  expect(Number(balances.items.find((b: any) => b.name === 'Conta A').value)).toBe(85.5);
+  expect(Number(balances.items.find((b: any) => b.name === 'Conta B').value)).toBe(120);
+  expect((await json(request, path + '/history')).cashFlows).toHaveLength(2);
+  expect((await json(request, path + '/movements'))).toHaveLength(5);
+  for (const original of [transfer, withdrawal, deposit]) {
+    await page.getByRole('button', { name: `Estornar #${original.id}`, exact: true }).click();
+    await page.getByLabel('Motivo do estorno', { exact: true }).fill('Desfazer lançamento de teste');
+    await page.getByRole('button', { name: 'Confirmar estorno', exact: true }).click();
+    await expect(page.locator('dialog:modal')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Atualizar movimentações' })).toBeEnabled();
+  }
+  const restored = await json(request, path + '/external-assets');
+  expect(restored.items.map((b: any) => Number(b.value))).toEqual([100, 100]);
+  const history = await json(request, path + '/history');
+  expect(Number(history.months[0].contributions)).toBe(0);
+  expect(Number(history.months[0].withdrawals)).toBe(0);
 });
 
 test('menu permanece acessível após rolagem e gráficos mantêm preferências', async ({ page, request }, info) => {

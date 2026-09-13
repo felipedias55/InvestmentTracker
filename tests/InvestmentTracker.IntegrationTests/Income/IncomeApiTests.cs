@@ -125,8 +125,8 @@ namespace InvestmentTracker.IntegrationTests.Income
             var path = $"/api/portfolios/{portfolio}/income";
             var dto = new SaveIncomeDto(Guid.NewGuid(), Today, asset, 10, cash);
             (await client.PostAsJsonAsync(path, dto)).EnsureSuccessStatusCode();
-            Assert.Equal(before, await client.GetStringAsync($"/api/portfolios/{portfolio}/history/snapshots/{id}"));
-            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path, dto with { RequestId = Guid.NewGuid(), Date = Today.AddDays(-1) })).StatusCode);
+            Assert.Equal(before.Replace("\"isOutdated\":false", "\"isOutdated\":true"), await client.GetStringAsync($"/api/portfolios/{portfolio}/history/snapshots/{id}"));
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(path, dto with { RequestId = Guid.NewGuid(), Date = Today.AddDays(-1) })).StatusCode);
         }
 
         [Fact]

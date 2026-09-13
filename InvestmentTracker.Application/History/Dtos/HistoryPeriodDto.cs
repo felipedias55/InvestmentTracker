@@ -19,5 +19,15 @@ namespace InvestmentTracker.Application.History.Dtos
         DateOnly? ComparisonStart,
         string? ComparisonNote,
         bool HasStaleRates,
-        bool HasFallbackRates);
+        bool HasFallbackRates)
+    {
+        [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] public decimal? ReceivedIncome { get; init; }
+        [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] public decimal? RetainedIncome { get; init; }
+        [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] public decimal? DistributedIncome { get; init; }
+        [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] public decimal? ValuationAndOtherChanges { get; init; }
+        [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] public decimal? EconomicResult { get; init; }
+        public bool IsOutdated { get; init; }
+        public bool IsReopened { get; init; }
+        public int? Revision { get; init; }
+    }
 }

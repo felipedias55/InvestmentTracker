@@ -13,11 +13,15 @@ export interface CashFlowInput {
 }
 export interface CashFlow extends CashFlowInput {
   tradeId?: number | null;
+  movementId?: number | null;
+  isReversal?: boolean;
   id: number;
   currencyCode: string;
   baseCurrencyCode: string;
 }
 export interface HistoryPeriod {
+  retainedIncome?: string | null; distributedIncome?: string | null; valuationAndOtherChanges?: string | null; economicResult?: string | null;
+  isOutdated?: boolean; isReopened?: boolean; revision?: number;
   period: string;
   snapshotId: number | null;
   snapshotDate: string | null;
@@ -49,6 +53,8 @@ export interface SnapshotDetail {
   snapshotDate: string;
   capturedAtUtc: string;
   payloadVersion: number;
+  retainedIncome?: string | null; distributedIncome?: string | null; valuationAndOtherChanges?: string | null; economicResult?: string | null;
+  isOutdated?: boolean; isReopened?: boolean; revision?: number; previousVersions?: SnapshotDetail[];
   dashboard: Dashboard;
 }
 @Injectable({ providedIn: 'root' })
@@ -65,6 +71,9 @@ export class HistoryService {
     return replace
       ? this.http.put<SnapshotDetail>(path + '/current', {})
       : this.http.post<SnapshotDetail>(path, {});
+  }
+  reopen(id: number, requestId: string, date: string, reason: string) {
+    return this.http.post(`/api/portfolios/${id}/movements`, { requestId, date, reason, kind: 'reopen', cashAssetId: 0, amount: '0' });
   }
   createFlow(id: number, input: CashFlowInput) {
     return this.http.post<{ id: number }>(`/api/portfolios/${id}/history/cash-flows`, input);

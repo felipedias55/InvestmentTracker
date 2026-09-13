@@ -1,6 +1,6 @@
 <header class="page-header">
   <p class="eyebrow">SEU PATRIMÔNIO</p>
-  <h1>Patrimônio externo</h1>
+  <h1>Patrimônio externo</h1><a routerLink="/movements">Depositar, retirar, transferir ou ajustar saldo</a>
   <p>
     Registre reservas, FGTS e outros valores vinculados à carteira, fora das posições em ativos.
   </p>
@@ -46,7 +46,7 @@
         <label for="external-name">Nome</label
         ><input id="external-name" formControlName="name" maxlength="200" />
         <label for="external-currency">Moeda original</label
-        ><select id="external-currency" formControlName="currencyId">
+        ><select id="external-currency" formControlName="currencyId" [attr.inert]="editingId() !== null ? '' : null" [attr.aria-disabled]="editingId() !== null">
           <option [ngValue]="0">Selecione</option>
           @for (c of currencies(); track c.id) {
             <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
@@ -55,6 +55,7 @@
         <label for="external-value">Valor na moeda selecionada</label
         ><input
           id="external-value"
+          [readOnly]="editingId() !== null"
           formControlName="value"
           inputmode="decimal"
           (blur)="formatValue()"
@@ -62,9 +63,7 @@
         <label for="external-description">Descrição (opcional)</label
         ><input id="external-description" formControlName="description" maxlength="500" />
         <p class="hint">
-          Ao mudar a moeda, informe o valor correspondente. O valor digitado não é convertido
-          automaticamente. Não cadastre novamente valores que já fazem parte das posições da
-          carteira.
+          O valor cadastrado é o saldo inicial. Para entradas, saídas e correções, use Movimentações. A edição altera nome e descrição; saldo e moeda são preservados.
         </p>
         @if (form.touched && form.invalid) {
           <p class="field-error">

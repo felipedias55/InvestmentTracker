@@ -4,7 +4,7 @@
 
 1. Aplique a migration `PortfolioHistory` e reinicie a aplicação.
 2. Confira as posições, proventos e patrimônio externo com seus valores atuais.
-3. Abra **Evolução e aportes**, selecione a carteira e clique em **Registrar fotografia**. Confirme após verificar os saldos.
+3. Abra **Evolução e fechamentos**, selecione a carteira e clique em **Registrar fotografia**. Confirme após verificar os saldos.
 4. Registre os aportes e retiradas reais com data, moeda, valor e observação. Os registros não alteram automaticamente os saldos.
 5. Faça uma fotografia nos meses seguintes. A tela apresentará gráficos e comparação mensal e anual; clique em uma barra ou em **Ver fotografia** para consultar aquela composição.
 
@@ -18,7 +18,7 @@ Se a API estiver em execução no Visual Studio, pare a depuração antes do com
 
 Cada carteira tem no máximo uma fotografia por mês. O mês e a data vêm do servidor no fuso **America/Sao_Paulo**; o instante UTC de captura também é guardado. Não é possível escolher um mês passado para fotografar saldos atuais nem criar fotografias futuras. A primeira fotografia é o ponto de partida real. Meses anteriores não são reconstruídos.
 
-Durante o mês corrente, **Atualizar fotografia deste mês** permite substituir explicitamente a fotografia após confirmação. O ID é mantido; a versão anterior desse mês é substituída. Depois que o mês passa, o sistema não oferece alteração ou remoção daquela fotografia. Não existe fechamento agendado nesta implementação.
+Durante o mês corrente, **Atualizar fotografia deste mês** permite substituir explicitamente a fotografia após confirmação. O ID é mantido; a versão anterior desse mês é preservada para consulta. Depois que o mês passa, seus valores são preservados. A reabertura marca fotografias afetadas como desatualizadas, sem substituir seus valores pelos de hoje. Não existe fechamento agendado nesta implementação.
 
 Uma fotografia preserva:
 
@@ -38,14 +38,14 @@ O fechamento lê os dados e persiste a fotografia numa transação serializável
 
 Aporte significa dinheiro novo entrando na carteira; retirada significa dinheiro saindo. O escopo inclui o patrimônio externo vinculado à carteira. Transferências internas, compra/venda usando dinheiro que já estava na carteira e proventos não devem ser registrados como novos aportes.
 
-Os registros são manuais e independentes do simulador. O simulador sugere uma distribuição; esta tela registra movimentos efetivamente realizados. Registrar, corrigir ou remover um movimento não compra ativos, movimenta saldos ou regrava fotografias.
+Novos depósitos e retiradas são registrados em **Movimentações**, atualizando saldos e histórico juntos. O formulário manual desta tela fica reservado a registros históricos antigos, sem alteração de saldo. Correções usam estorno auditável; os originais são preservados. Veja [movimentações e estornos](movimentacoes-e-estornos.md).
 
 - Data entre 01/01/1900 e hoje, conforme o fuso acima; registros anteriores à primeira fotografia são permitidos quando o usuário conhece os fatos.
 - Valor maior que zero, até 15 inteiros e quatro casas decimais.
 - Moeda existente e observação opcional de até 500 caracteres.
 - Na mesma moeda-base, o valor equivalente é o próprio valor original.
 - Em outra moeda, é possível informar o equivalente efetivo na moeda-base na data do movimento. O sistema **não usa o câmbio de hoje para preencher o passado**. Sem esse dado, o registro original permanece válido, mas comparações dependentes da conversão ficam indisponíveis.
-- A moeda-base usada para registrar o equivalente fica preservada no movimento, mesmo que a carteira troque sua base depois. A edição informa valores nessa mesma base histórica.
+- A moeda-base usada para registrar o equivalente fica preservada no movimento, mesmo que a carteira troque sua base depois. O estorno preserva essa mesma base histórica.
 - Exclusões e correções recalculam os indicadores derivados. As fotografias de saldos permanecem inalteradas.
 
 A moeda original referenciada por movimentos não pode ser excluída ou ter seu código alterado.
@@ -110,3 +110,5 @@ As tabelas têm FKs Restrict, índice único carteira/mês, precisão decimal e 
 Testes unitários cobrem os cálculos mensais/anuais, intervalos de datas, aportes e retiradas, lacunas, moeda-base diferente e equivalente desconhecido. Integração com SQL Server isolado cobre conteúdo congelado, atualização somente do mês corrente, concorrência, escopo entre carteiras, correções de movimentos, fuso e bloqueio de fotografias parciais. Os testes Angular cobrem gráficos, abertura de fotografia, confirmação, edição brasileira, cancelamento de consultas antigas e filtros.
 
 A etapa de publicação e uma suíte de ponta a ponta no navegador continuam adiadas. O usuário pode começar a acompanhar com a primeira fotografia depois de aplicar a migration.
+
+Reabertura, versões e decomposição da evolução: [regras atuais](fechamentos-proventos-e-eventos.md).

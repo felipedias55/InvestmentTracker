@@ -7,13 +7,15 @@ namespace InvestmentTracker.Application.Trades
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] decimal Quantity,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] decimal UnitPrice,
         int? CashAssetId = null,
-        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] decimal? BaseAmount = null);
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] decimal? BaseAmount = null,
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] decimal Fees = 0m);
 
     public sealed record TradeDto(int Id, DateOnly Date, string Kind, string Ticker, string CurrencyCode,
         [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal Quantity,
         [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal UnitPrice,
         [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal Amount,
-        string? CashAssetName);
+        string? CashAssetName,
+        [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal Fees = 0m);
 
     public interface ITradeService
     {

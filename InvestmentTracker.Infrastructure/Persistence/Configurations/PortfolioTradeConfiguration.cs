@@ -9,7 +9,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
         public void Configure(EntityTypeBuilder<PortfolioTrade> b)
         {
             b.ToTable("PortfolioTrade", t => {
-                t.HasCheckConstraint("CK_PortfolioTrade_Values", "[Quantity] > 0 AND [UnitPrice] > 0 AND [Amount] > 0 AND [RemainingQuantity] >= 0 AND [RemainingCost] >= 0");
+                t.HasCheckConstraint("CK_PortfolioTrade_Values", "[Fees] >= 0 AND [Quantity] > 0 AND [UnitPrice] > 0 AND [Amount] > 0 AND [RemainingQuantity] >= 0 AND [RemainingCost] >= 0");
                 t.HasCheckConstraint("CK_PortfolioTrade_Kind", "[Kind] IN ('buy', 'sell')");
             });
             b.HasKey(x => x.Id);
@@ -26,6 +26,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
             b.Property(x => x.RemainingQuantity).HasPrecision(19, 6);
             b.Property(x => x.UnitPrice).HasPrecision(19, 4);
             b.Property(x => x.Amount).HasPrecision(19, 4);
+            b.Property(x => x.Fees).HasPrecision(19, 4);
             b.Property(x => x.RemainingCost).HasPrecision(19, 4);
             b.Property(x => x.RequestedBaseAmount).HasPrecision(19, 4);
         }

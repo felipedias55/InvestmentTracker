@@ -15,6 +15,10 @@ namespace InvestmentTracker.Domain.Entities
         public decimal TotalIncome { get; set; }
         public bool HasStaleRates { get; set; }
         public bool HasFallbackRates { get; set; }
+        public bool IsOutdated { get; set; }
+        public bool IsReopened { get; set; }
+        public int Revision { get; set; } = 1;
+        public string PreviousVersionsJson { get; set; } = "[]";
         public int PayloadVersion { get; set; } = 1;
         public string DashboardJson { get; set; } = string.Empty;
     }

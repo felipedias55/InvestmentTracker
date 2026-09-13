@@ -1,6 +1,6 @@
 <header class="page-header">
   <p class="eyebrow">SUA TRAJETÓRIA</p>
-  <h1>Evolução e aportes</h1><a routerLink="/income">Consultar recebimentos de proventos</a> · <a routerLink="/trades">Consultar compras e vendas →</a>
+  <h1>Evolução e fechamentos</h1><a routerLink="/income">Consultar recebimentos de proventos</a> · <a routerLink="/trades">Consultar compras e vendas →</a>
   <p>
     Compare as fotografias da carteira e acompanhe o dinheiro que entrou e saiu ao longo do tempo.
   </p>
@@ -37,13 +37,23 @@
       {{ currentSnapshot() === null ? 'Registrar fotografia' : 'Atualizar fotografia deste mês' }}
     </button>
   </section>
+  <details class="panel">
+    <summary>Reabrir período para lançamentos atrasados</summary>
+    <p>As fotografias a partir da data informada ficarão desatualizadas. Havendo operações posteriores no mesmo ativo ou saldo, estorne-as da mais recente para a mais antiga e relance em ordem de data. Os estornos continuam visíveis na data em que foram feitos.</p>
+    <p>Uma nova fotografia encerra a reabertura do mês atual. Meses antigos ficam preservados com o aviso; os valores de hoje não representam o passado.</p>
+    <form [formGroup]="reopenForm" (ngSubmit)="reopen()"><fieldset [disabled]="saving()">
+      <label for="reopen-date">Reabrir a partir de</label><input id="reopen-date" type="date" formControlName="date" [max]="h.today" />
+      <label for="reopen-reason">Motivo da reabertura</label><input id="reopen-reason" formControlName="reason" maxlength="400" />
+      <button type="submit" [disabled]="reopenForm.invalid">Confirmar reabertura</button>
+    </fieldset></form>
+  </details>
   @if (captureConfirmation()) {
     <div class="confirmation" role="alert">
       <p>
         {{
           currentSnapshot() === null
             ? 'Registrar a fotografia com os saldos atuais?'
-            : 'Substituir a fotografia deste mês pelos saldos atuais? A versão anterior deste mês será substituída.'
+            : 'Substituir a fotografia deste mês pelos saldos atuais? A versão anterior será preservada para consulta.'
         }}
       </p>
       <p>
@@ -102,6 +112,18 @@
         </select>
       </div>
     </div>
+    <h2 class="section-gap">De onde veio a evolução</h2>
+    <p class="hint">Entre fotografias válidas: variação patrimonial = aportes líquidos + proventos retidos + valorização e outros efeitos. Proventos recebidos fora da carteira são somados apenas ao resultado econômico. O residual inclui câmbio, taxas e ajustes; não representa apenas oscilação de preços.</p>
+    <div class="table-scroll"><table><thead><tr><th>Período</th><th>Aportes líquidos entre fotos</th><th>Proventos retidos</th><th>Proventos fora da carteira</th><th>Valorização e outros efeitos</th><th>Resultado econômico</th></tr></thead><tbody>
+      @for (r of rows(); track r.period) { <tr><th>{{ r.period }}</th>
+        <td>{{ r.netFlowsBetweenSnapshots === null ? '—' : (r.netFlowsBetweenSnapshots | currency:r.currencyCode:'code') }}</td>
+        <td>{{ r.retainedIncome == null ? '—' : (r.retainedIncome | currency:r.currencyCode:'code') }}</td>
+        <td>{{ r.distributedIncome == null ? '—' : (r.distributedIncome | currency:r.currencyCode:'code') }}</td>
+        <td>{{ r.valuationAndOtherChanges == null ? '—' : (r.valuationAndOtherChanges | currency:r.currencyCode:'code') }}</td>
+        <td>{{ r.economicResult == null ? '—' : (r.economicResult | currency:r.currencyCode:'code') }}</td>
+      </tr> }
+    </tbody></table></div>
+    <details><summary>Como interpretar rentabilidade</summary><p>Resultado econômico é um valor monetário, não uma taxa de rentabilidade. TWR exige avaliações em cada fluxo externo; XIRR exige fluxos datados completos, saldo inicial e valor final. Fotografias mensais e saldos iniciais sem histórico não garantem esses dados. Não calculamos percentuais aproximados como se fossem retornos exatos. A decomposição fica indisponível para fotografias desatualizadas, moedas-base diferentes ou proventos estrangeiros sem equivalente histórico.</p></details>
     <h2 class="section-gap">Patrimônio registrado</h2>
     <p class="hint">
       Clique em uma barra para abrir a fotografia. Anos usam a última fotografia disponível, sem
@@ -133,6 +155,7 @@
                 }}<small>{{
                   r.snapshotDate ? (r.snapshotDate | date: 'dd/MM/yyyy' : 'UTC') : 'Sem fotografia'
                 }}</small>
+                @if (r.isOutdated) { <small class="notice">{{ r.isReopened ? 'Reaberta / desatualizada' : 'Desatualizada' }} · versão {{ r.revision }}</small> }
                 @if (r.snapshotId !== null) {
                   <button class="photo-link" (click)="openSnapshot(r.snapshotId)">
                     Ver fotografia
@@ -204,6 +227,15 @@
     <p role="status">Abrindo fotografia…</p>
   }
   @if (detail(); as photo) {
+  @if (photo.isOutdated) { <p class="notice">Fotografia desatualizada: valores preservados para auditoria.</p> }
+  @if (photo.previousVersions?.length) {
+    <details class="panel"><summary>Versões anteriores deste mês</summary>
+      @for (v of photo.previousVersions; track v.revision) {
+        <button (click)="detail.set(v)">Consultar versão {{ v.revision }} · {{ v.capturedAtUtc | date: 'dd/MM/yyyy HH:mm' }}</button>
+      }
+    </details>
+  }
+
     <section class="panel section-gap" id="snapshot-detail">
       <div class="section-title">
         <h2>Fotografia de {{ photo.month | date: 'MM/yyyy' : 'UTC' }}</h2>
@@ -338,7 +370,8 @@
       automaticamente os saldos.
     </p>
     <div class="workspace">
-      <form class="panel" [formGroup]="form" (ngSubmit)="saveFlow()">
+      <section class="panel"><p>Para novos depósitos e retiradas com atualização automática dos saldos, use <a routerLink="/movements">Movimentações</a>.</p><details><summary>Registrar apenas um movimento histórico antigo</summary>
+      <form [formGroup]="form" (ngSubmit)="saveFlow()">
         <fieldset [disabled]="saving()">
           <h3>{{ editingFlow() === null ? 'Registrar movimento' : 'Editar movimento' }}</h3>
           <label for="flow-date">Data</label
@@ -396,7 +429,7 @@
             }
           </div>
         </fieldset>
-      </form>
+      </form></details></section>
       <div class="panel">
         <h3>Movimentos {{ selectedYear() || 'de todos os anos' }}</h3>
         @if (pendingDelete(); as flow) {
@@ -431,7 +464,7 @@
                 <tr>
                   <th scope="row">
                     {{ flow.date | date: 'dd/MM/yyyy' : 'UTC'
-                    }}<small>{{ flow.kind === 'contribution' ? 'Aporte' : 'Retirada' }}</small>
+                    }}<small>{{ flow.isReversal ? 'Estorno de ' : '' }}{{ flow.kind === 'contribution' ? 'Aporte' : 'Retirada' }}</small>
                   </th>
                   <td>{{ flow.amount | currency: flow.currencyCode : 'code' : '1.2-2' }}</td>
                   <td>
@@ -443,7 +476,7 @@
                   </td>
                   <td>{{ flow.notes }}</td>
                   <td>
-                    @if (flow.tradeId) { <a routerLink="/trades">Gerado pela operação #{{ flow.tradeId }}</a> } @else {
+                    @if (flow.movementId) { <a routerLink="/movements">Movimentação #{{ flow.movementId }} — consultar ou estornar</a> } @else if (flow.tradeId) { <a routerLink="/trades">Gerado pela operação #{{ flow.tradeId }}</a> } @else {
                     <div class="row-actions">
                       <button [disabled]="saving()" (click)="editFlow(flow)">Editar</button
                       ><button

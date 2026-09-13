@@ -31,7 +31,7 @@ describe('TradesPage', () => {
   it('submits one operation with exact Brazilian decimals and refreshes the ledger', () => {
     const fixture = initialize(); const component = fixture.componentInstance;
     component.form.patchValue({ assetId: 10, quantity: '2', unitPrice: '10,1234' });
-    fixture.detectChanges(); fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+    fixture.detectChanges(); fixture.nativeElement.querySelector('form:has(#trade-kind)').dispatchEvent(new Event('submit'));
     const request = http.expectOne('/api/portfolios/1/trades');
     expect(request.request.method).toBe('POST');
     expect(request.request.body.quantity).toBe('2'); expect(request.request.body.unitPrice).toBe('10.1234');
@@ -60,4 +60,17 @@ describe('TradesPage', () => {
     expect(request.request.body.kind).toBe('sell'); expect(request.request.body.cashAssetId).toBe(5);
     request.flush({ ...trade, kind: 'sell', cashAssetName: 'Saldo' }); flush();
   });
+  it('sends fees and corporate event quantities as exact decimals', () => {
+    const fixture = initialize(); const component = fixture.componentInstance;
+    component.form.patchValue({ assetId: 10, quantity: '2', unitPrice: '10', fees: '1,2345' }); component.save();
+    const tradeRequest = http.expectOne('/api/portfolios/1/trades');
+    expect(tradeRequest.request.body.fees).toBe('1.2345'); tradeRequest.flush(trade); flush();
+    component.eventForm.patchValue({ positionId: 1, kind: 'bonus', quantity: '0,123456', cost: '2,3456', reason: 'Comunicado' });
+    component.saveEvent(); const event = http.expectOne('/api/portfolios/1/movements/corporate-events');
+    expect(event.request.body.quantity).toBe('0.123456'); expect(event.request.body.cost).toBe('2.3456');
+    const requestId = event.request.body.requestId; event.error(new ProgressEvent('error'));
+    component.saveEvent(); const retry = http.expectOne('/api/portfolios/1/movements/corporate-events');
+    expect(retry.request.body.requestId).toBe(requestId); retry.flush({}); flush();
+  });
+
 });

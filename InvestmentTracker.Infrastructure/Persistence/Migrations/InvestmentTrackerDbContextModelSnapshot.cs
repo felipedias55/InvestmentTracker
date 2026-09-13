@@ -271,6 +271,77 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.FinancialMovement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("IncomeReceiptId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("PortfolioId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestPayload")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ReversalOfId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TradeId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncomeReceiptId")
+                        .IsUnique()
+                        .HasFilter("[IncomeReceiptId] IS NOT NULL");
+
+                    b.HasIndex("ReversalOfId")
+                        .IsUnique()
+                        .HasFilter("[ReversalOfId] IS NOT NULL");
+
+                    b.HasIndex("TradeId")
+                        .IsUnique()
+                        .HasFilter("[TradeId] IS NOT NULL");
+
+                    b.HasIndex("PortfolioId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("FinancialMovement", (string)null);
+                });
+
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.IncomeReceipt", b =>
                 {
                     b.Property<int>("Id")
@@ -339,6 +410,76 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_IncomeReceipt_Amount", "[Amount] > 0");
                         });
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.MovementEffect", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AfterCost")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("AfterIncome")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("AfterQuantity")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("decimal(19,6)");
+
+                    b.Property<decimal>("AfterValue")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("BeforeCost")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("BeforeIncome")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("BeforeQuantity")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("decimal(19,6)");
+
+                    b.Property<decimal>("BeforeValue")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<int?>("CashAssetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CurrencyId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FinancialMovementId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("PositionId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashAssetId");
+
+                    b.HasIndex("CurrencyId");
+
+                    b.HasIndex("FinancialMovementId");
+
+                    b.HasIndex("PositionId");
+
+                    b.ToTable("MovementEffect", (string)null);
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.Portfolio", b =>
@@ -451,10 +592,16 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
+                    b.Property<bool>("IsReversal")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(12)
                         .HasColumnType("nvarchar(12)");
+
+                    b.Property<int?>("MovementId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
@@ -472,6 +619,8 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CurrencyId");
+
+                    b.HasIndex("MovementId");
 
                     b.HasIndex("TradeId")
                         .IsUnique()
@@ -517,6 +666,12 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.Property<bool>("HasStaleRates")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsOutdated")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsReopened")
+                        .HasColumnType("bit");
+
                     b.Property<DateOnly>("Month")
                         .HasColumnType("date");
 
@@ -529,6 +684,13 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("PortfolioValue")
                         .HasPrecision(38, 4)
                         .HasColumnType("decimal(38,4)");
+
+                    b.Property<string>("PreviousVersionsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
 
                     b.Property<DateOnly>("SnapshotDate")
                         .HasColumnType("date");
@@ -589,6 +751,10 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
+                    b.Property<decimal>("Fees")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(4)
@@ -640,7 +806,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_PortfolioTrade_Kind", "[Kind] IN ('buy', 'sell')");
 
-                            t.HasCheckConstraint("CK_PortfolioTrade_Values", "[Quantity] > 0 AND [UnitPrice] > 0 AND [Amount] > 0 AND [RemainingQuantity] >= 0 AND [RemainingCost] >= 0");
+                            t.HasCheckConstraint("CK_PortfolioTrade_Values", "[Fees] >= 0 AND [Quantity] > 0 AND [UnitPrice] > 0 AND [Amount] > 0 AND [RemainingQuantity] >= 0 AND [RemainingCost] >= 0");
                         });
                 });
 
@@ -777,6 +943,36 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.Navigation("Portfolio");
                 });
 
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.FinancialMovement", b =>
+                {
+                    b.HasOne("InvestmentTracker.Domain.Entities.IncomeReceipt", "IncomeReceipt")
+                        .WithMany()
+                        .HasForeignKey("IncomeReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("InvestmentTracker.Domain.Entities.Portfolio", null)
+                        .WithMany()
+                        .HasForeignKey("PortfolioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InvestmentTracker.Domain.Entities.FinancialMovement", "ReversalOf")
+                        .WithMany()
+                        .HasForeignKey("ReversalOfId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("InvestmentTracker.Domain.Entities.PortfolioTrade", "Trade")
+                        .WithMany()
+                        .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("IncomeReceipt");
+
+                    b.Navigation("ReversalOf");
+
+                    b.Navigation("Trade");
+                });
+
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.IncomeReceipt", b =>
                 {
                     b.HasOne("InvestmentTracker.Domain.Entities.Asset", null)
@@ -801,6 +997,31 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         .HasForeignKey("PositionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.MovementEffect", b =>
+                {
+                    b.HasOne("InvestmentTracker.Domain.Entities.ExternalAsset", null)
+                        .WithMany()
+                        .HasForeignKey("CashAssetId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("InvestmentTracker.Domain.Entities.Currency", null)
+                        .WithMany()
+                        .HasForeignKey("CurrencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InvestmentTracker.Domain.Entities.FinancialMovement", null)
+                        .WithMany("Effects")
+                        .HasForeignKey("FinancialMovementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InvestmentTracker.Domain.Entities.PortfolioAsset", null)
+                        .WithMany()
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.Portfolio", b =>
@@ -841,6 +1062,11 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("InvestmentTracker.Domain.Entities.FinancialMovement", "Movement")
+                        .WithMany()
+                        .HasForeignKey("MovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("InvestmentTracker.Domain.Entities.Portfolio", "Portfolio")
                         .WithMany()
                         .HasForeignKey("PortfolioId")
@@ -853,6 +1079,8 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Currency");
+
+                    b.Navigation("Movement");
 
                     b.Navigation("Portfolio");
 
@@ -934,6 +1162,11 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.Currency", b =>
                 {
                     b.Navigation("Assets");
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.FinancialMovement", b =>
+                {
+                    b.Navigation("Effects");
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.Portfolio", b =>
