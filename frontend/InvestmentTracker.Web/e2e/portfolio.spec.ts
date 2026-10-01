@@ -188,6 +188,20 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   const analysis = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Análise dos recebimentos', exact: true }) });
   await expect(analysis.locator('tbody tr')).toHaveCount(1);
   await expect(analysis).toContainText('12,34');
+  const income = (await json(request, path + '/income')).find((r: any) => Number(r.amount) === 12.34);
+  await page.getByRole('button', { name: `Conversão #${income.id}`, exact: true }).click();
+  await page.locator('#conversion-currency').selectOption('USD');
+  await page.locator('#conversion-amount').fill('2,3456');
+  await page.locator('#conversion-reason').fill('Equivalente sintético conferido');
+  await page.getByRole('button', { name: 'Salvar conversão', exact: true }).click();
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Conversão registrada' })).toBeVisible();
+  const converted = (await json(request, path + '/income')).find((r: any) => r.id === income.id);
+  expect(Number(converted.conversions.find((c: any) => c.baseCurrencyCode === 'USD').baseAmount)).toBe(2.3456);
+  expect(Number((await json(request, path)).totalIncome)).toBe(12.34);
+  expect(await json(request, snapshotPath)).toEqual(revised);
+  await page.locator('#income-view').selectOption('base');
+  await expect(analysis).toContainText('12,34');
   expect(errors).toEqual([]);
 });
 
@@ -265,4 +279,45 @@ test('menu permanece acessível após rolagem e gráficos mantêm preferências'
   await expect(page.getByRole('heading', { name: 'Compras e vendas', exact: true })).toBeVisible();
   await expect(page.locator('#trade-quantity')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+});
+
+
+test('carteira vazia, metas de categoria e setor e simulador respeitam percentuais e não alteram saldos', async ({ page, request }, info) => {
+  const name = 'Metas E2E ' + info.project.name;
+  const created = await request.post('/api/portfolios', { data: { name } }); expect(created.ok()).toBeTruthy();
+  const portfolio = await created.json(); const path = `portfolios/${portfolio.id}`;
+  await page.goto('/dashboard'); await choosePortfolio(page, name);
+  expect((await json(request, path)).positions).toHaveLength(0);
+  await navigate(page, 'Metas'); await choosePortfolio(page, name);
+  await page.locator('#target-0').fill('40'); await page.locator('#target-1').fill('59');
+  await page.getByRole('button', { name: 'Salvar conjunto de metas', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible(); expect(await json(request, path + '/category-targets')).toHaveLength(0);
+  await page.locator('#target-1').fill('60');
+  await page.getByRole('button', { name: 'Salvar conjunto de metas', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Metas salvas' })).toBeVisible();
+  const targets = await json(request, path + '/category-targets'); expect(targets).toHaveLength(2);
+  await page.getByRole('button', { name: 'Setores', exact: true }).click();
+  await page.locator('#target-0').fill('100');
+  await page.getByRole('button', { name: 'Salvar conjunto de metas', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Metas salvas' })).toBeVisible();
+  const sectors = await json(request, path + '/sector-targets'); expect(sectors).toHaveLength(1);
+  const currencies = await json(request, 'currencies'); const types = await json(request, 'asset-types'); const countries = await json(request, 'countries');
+  const assetResponse = await request.post('/api/assets', { data: { ticker: info.project.name === 'desktop' ? 'METAD' : 'METAC', name: 'Ativo sintético metas',
+    currencyId: currencies.find((x: any) => x.code === 'BRL').id, assetTypeId: types[0].id, countryId: countries[0].id,
+    assetCategoryId: targets[0].groupId, sectorId: sectors[0].groupId } }); expect(assetResponse.ok(), await assetResponse.text()).toBeTruthy();
+  const asset = await assetResponse.json();
+  const position = await request.post('/api/' + path + '/assets', { data: { assetId: asset.id, quantity: '1', investedAmount: '100', currentValue: '100', income: '0' } }); expect(position.ok()).toBeTruthy();
+  const before = await json(request, path);
+  await navigate(page, 'Simular aporte'); await choosePortfolio(page, name);
+  await page.locator('#contribution-amount').fill('100,01');
+  const pending = page.waitForResponse(r => r.url().endsWith('/contribution-analysis') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
+  const result = await (await pending).json();
+  expect(Number(result.rows.find((r: any) => r.groupId === targets[0].groupId).suggestedContribution)).toBe(0);
+  expect(Number(result.rows.find((r: any) => r.groupId === targets[1].groupId).suggestedContribution)).toBe(100.01);
+  await page.locator('#contribution-dimension').selectOption('sector');
+  const next = page.waitForResponse(r => r.url().endsWith('/contribution-analysis') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
+  expect(Number((await (await next).json()).unallocatedAmount)).toBe(100.01);
+  expect(await json(request, path)).toEqual(before); expect(await json(request, path + '/movements')).toHaveLength(0);
 });

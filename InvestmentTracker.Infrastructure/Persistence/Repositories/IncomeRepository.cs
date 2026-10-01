@@ -10,8 +10,10 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
     public sealed class IncomeRepository(InvestmentTrackerDbContext db) : IIncomeRepository
     {
         public async Task<IReadOnlyList<IncomeReceipt>> ListAsync(int portfolioId, CancellationToken ct)
-            => await db.Set<IncomeReceipt>().AsNoTracking().Where(x => x.PortfolioId == portfolioId)
+            => await db.Set<IncomeReceipt>().AsNoTracking().Include(x => x.Conversions).Where(x => x.PortfolioId == portfolioId)
                 .OrderByDescending(x => x.Date).ThenByDescending(x => x.Id).ToListAsync(ct);
+        public Task<IncomeReceipt?> GetAsync(int portfolioId, int id, CancellationToken ct)
+            => db.Set<IncomeReceipt>().Include(x => x.Conversions).SingleOrDefaultAsync(x => x.PortfolioId == portfolioId && x.Id == id, ct);
         public Task<PortfolioAsset?> PositionAsync(int portfolioId, int assetId, CancellationToken ct)
             => db.PortfolioAssets.SingleOrDefaultAsync(x => x.PortfolioId == portfolioId && x.AssetId == assetId, ct);
         public async Task<DateOnly?> LatestDateAsync(int portfolioId, CancellationToken ct)
@@ -34,7 +36,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
             var portfolio = await db.Portfolios.FromSqlInterpolated($"SELECT * FROM Portfolio WITH (UPDLOCK, HOLDLOCK) WHERE Id = {portfolioId}")
                 .Include(x => x.BaseCurrency).SingleOrDefaultAsync(ct);
             if (portfolio is null) return null;
-            var existing = await db.Set<IncomeReceipt>().SingleOrDefaultAsync(x => x.PortfolioId == portfolioId && x.RequestId == requestId, ct);
+            var existing = await db.Set<IncomeReceipt>().Include(x => x.Conversions).SingleOrDefaultAsync(x => x.PortfolioId == portfolioId && x.RequestId == requestId, ct);
             var trade = await apply(portfolio, existing, ct);
             if (existing is null) db.Set<IncomeReceipt>().Add(trade);
             if (existing is null)

@@ -31,6 +31,12 @@ builder.Services.AddHttpClient<IExchangeRateProvider, FrankfurterClient>(client 
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 
+builder.Services.AddHttpClient<IHistoricalExchangeRateProvider, FrankfurterClient>(client =>
+{
+    client.BaseAddress = new Uri("https://api.frankfurter.dev/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
@@ -51,6 +57,11 @@ if (builder.Configuration.GetValue<bool>("SeedCatalogs"))
     await context.Database.MigrateAsync();
     await CatalogSeed.ApplyAsync(context);
     return;
+}
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    await DatabaseSchemaGuard.EnsureCurrentAsync(scope.ServiceProvider.GetRequiredService<InvestmentTrackerDbContext>());
 }
 
 app.UseExceptionHandler();

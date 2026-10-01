@@ -53,7 +53,7 @@ export class MovementsPage {
   private reverseId = createRequestId();
   readonly labels: Record<string, string> = { buy: 'Compra', sell: 'Venda', income: 'Provento', deposit: 'Depósito',
     withdrawal: 'Retirada', transfer: 'Transferência', adjustment: 'Ajuste de saldo', reversal: 'Estorno',
-    historical: 'Registro histórico', 'position-adjustment': 'Ajuste de posição', opening: 'Saldo inicial', reopen: 'Reabertura de período', split: 'Desdobramento', 'reverse-split': 'Grupamento', bonus: 'Bonificação' };
+    historical: 'Registro histórico', 'position-adjustment': 'Ajuste de posição', 'income-conversion': 'Conversão de provento', opening: 'Saldo inicial', reopen: 'Reabertura de período', split: 'Desdobramento', 'reverse-split': 'Grupamento', bonus: 'Bonificação' };
   readonly form = this.fb.nonNullable.group({
     date: [this.today, Validators.required], kind: ['deposit'], cashAssetId: [0, Validators.min(1)],
     amount: ['', [Validators.required, brazilianNumberValidator(15, 4)]], destinationId: [0],

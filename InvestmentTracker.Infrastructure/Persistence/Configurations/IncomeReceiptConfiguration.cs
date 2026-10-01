@@ -10,6 +10,9 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
         {
             b.ToTable("IncomeReceipt", t => t.HasCheckConstraint("CK_IncomeReceipt_Amount", "[Amount] > 0"));
             b.HasKey(x => x.Id);
+            b.HasMany(x => x.Conversions).WithOne().HasForeignKey(x => x.IncomeReceiptId).OnDelete(DeleteBehavior.Restrict);
+            b.Property(x => x.BaseCurrencyCode).HasMaxLength(3);
+            b.Property(x => x.RequestedBaseAmount).HasPrecision(19, 4);
             b.HasIndex(x => new { x.PortfolioId, x.RequestId }).IsUnique();
             b.HasIndex(x => new { x.PortfolioId, x.Date });
             b.HasOne<Portfolio>().WithMany().HasForeignKey(x => x.PortfolioId).OnDelete(DeleteBehavior.Restrict);

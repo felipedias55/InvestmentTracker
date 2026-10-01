@@ -12,7 +12,7 @@
 dotnet ef database update --project InvestmentTracker.Infrastructure --startup-project InvestmentTracker.Api
 ```
 
-Se a API estiver em execução no Visual Studio, pare a depuração antes do comando para liberar os arquivos de compilação. A implementação foi validada em Release e em bancos de teste isolados; não atualizou o banco pessoal.
+Se a API estiver em execução no Visual Studio, pare a depuração antes do comando para liberar os arquivos de compilação. Use o procedimento de atualização do README; resultados de entregas anteriores abaixo são históricos.
 
 ## Fotografias manuais
 

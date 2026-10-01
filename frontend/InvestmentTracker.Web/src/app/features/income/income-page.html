@@ -11,19 +11,20 @@
 @if (summary(); as s) {
   <section class="panel section-gap"><h2>Total de proventos acumulados</h2>
     <strong>{{ s.totalIncome === null ? 'Conversão indisponível' : (s.totalIncome | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2') }}</strong>
-    <p>Inclui o saldo inicial informado na carteira e os novos recebimentos. Valores antigos não são transformados em recebimentos fictícios.</p>
+    <p>Inclui o saldo inicial informado na carteira e os novos recebimentos, convertidos pelo câmbio atual. A análise abaixo usa os equivalentes históricos de cada recebimento e pode apresentar outro total. Valores antigos não são transformados em recebimentos fictícios.</p>
   </section>
   <section class="panel section-gap"><h2>Análise dos recebimentos</h2>
     <div class="toolbar">
+      <div><label for="income-view">Exibir valores</label><select id="income-view" [value]="valueMode()" (change)="valueMode.set($any($event.target).value)"><option value="original">Moedas originais</option><option value="base">Moeda-base · {{ s.portfolio.baseCurrencyCode }}</option></select></div>
       <div><label for="income-group">Agrupar recebimentos</label><select id="income-group" [value]="analysisMode()" (change)="analysisMode.set($any($event.target).value)"><option value="months">Mês a mês, por ativo</option><option value="years">Ano a ano, por ativo</option><option value="assets">Por ativo · todo o histórico</option></select></div>
       @if (analysisMode() !== 'assets') { <div><label for="income-year">Ano dos recebimentos</label><select id="income-year" [value]="analysisYear()" (change)="analysisYear.set($any($event.target).value)"><option value="">Todos</option>@for (year of analysisYears(); track year) { <option [value]="year">{{ year }}</option> }</select></div> }
-      <div><label for="income-currency">Moeda dos recebimentos</label><select id="income-currency" [value]="analysisCurrency()" (change)="analysisCurrency.set($any($event.target).value)"><option value="">Todas, separadamente</option>@for (code of analysisCurrencies(); track code) { <option [value]="code">{{ code }}</option> }</select></div>
+      @if (valueMode() === 'original') { <div><label for="income-currency">Moeda dos recebimentos</label><select id="income-currency" [value]="analysisCurrency()" (change)="analysisCurrency.set($any($event.target).value)"><option value="">Todas, separadamente</option>@for (code of analysisCurrencies(); track code) { <option [value]="code">{{ code }}</option> }</select></div> }
     </div>
-    <p class="hint">O filtro por ativo abaixo também se aplica a esta análise. Valores na moeda original, sem somar moedas diferentes. Estornos aparecem na data da correção e podem deixar o mês negativo. O saldo inicial acumulado não faz parte dos recebimentos mensais.</p>
+    <p class="hint">O filtro por ativo abaixo também se aplica a esta análise. Na visualização original, moedas diferentes ficam separadas. Na moeda-base, usamos os equivalentes históricos registrados. Totais com conversão faltante aparecem como pendentes. Estornos aparecem na data da correção e podem deixar o mês negativo. O saldo inicial acumulado não faz parte dos recebimentos mensais.</p>
     <div class="table-scroll"><table><thead><tr><th>Período / ativo</th><th>Recebido</th><th>Estornado</th><th>Líquido após estornos</th></tr></thead><tbody>
       @for (r of analysisRows(); track r.period + ':' + r.assetId + ':' + r.currencyCode) {
-        <tr><th>{{ r.period }} · {{ r.ticker }}<div aria-hidden="true" style="height: 5px; background: #9d4e5a; max-width: 200px" [style.width.%]="barWidth(r)"></div></th>
-          <td>{{ r.received | currency:r.currencyCode:'code':'1.2-4' }}</td><td>{{ r.reversed | currency:r.currencyCode:'code':'1.2-4' }}</td><td>{{ r.net | currency:r.currencyCode:'code':'1.2-4' }}</td></tr>
+        <tr><th>{{ r.period }} · {{ r.ticker }}@if (r.net !== null) { <div aria-hidden="true" style="height: 5px; background: #9d4e5a; max-width: 200px" [style.width.%]="barWidth(r)"></div> }</th>
+          <td>{{ r.received === null ? 'Conversão pendente' : (r.received | currency:r.currencyCode:'code':'1.2-4') }}</td><td>{{ r.reversed === null ? '—' : (r.reversed | currency:r.currencyCode:'code':'1.2-4') }}</td><td>{{ r.net === null ? '—' : (r.net | currency:r.currencyCode:'code':'1.2-4') }}</td></tr>
       }
     </tbody></table></div>
     @if (!analysisRows().length) { <p class="empty">Nenhum recebimento para estes filtros.</p> }
@@ -32,13 +33,17 @@
     <section class="panel"><h2>Novo recebimento</h2>
       <form [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="saving()">
         <label for="income-date">Data do recebimento</label><input id="income-date" type="date" formControlName="date" [max]="today" min="1900-01-01" />
-        <label for="income-asset">Ativo</label><select id="income-asset" formControlName="assetId" (change)="form.controls.cashAssetId.setValue(0)">
+        <label for="income-asset">Ativo</label><select id="income-asset" formControlName="assetId" (change)="form.patchValue({ cashAssetId: 0, baseAmount: '' })">
           <option [ngValue]="0">Selecione</option>
           @for (p of positions(); track p.id) { <option [ngValue]="p.assetId">{{ p.ticker }} — {{ p.name }}</option> }
         </select>
         <p class="hint">Inclui posições zeradas, para recebimentos após a venda do ativo.</p>
         <label for="income-amount">Valor líquido total ({{ currency() || 'moeda do ativo' }})</label>
         <input id="income-amount" formControlName="amount" inputmode="decimal" placeholder="Ex.: 123,45" (blur)="formatInput()" />
+        @if (currency() && currency() !== s.portfolio.baseCurrencyCode) {
+          <label for="income-base">Equivalente líquido em {{ s.portfolio.baseCurrencyCode }} (opcional)</label><input id="income-base" formControlName="baseAmount" inputmode="decimal" placeholder="Ex.: 123,45" />
+          <p class="hint">Se informado, preservamos o valor real. Caso contrário, consultamos o câmbio da data do recebimento. Pode ser usada referência anterior de até 7 dias, com data visível. Sem cotação adequada, o recebimento fica com conversão pendente; seus saldos são registrados normalmente.</p>
+        }
         <label for="income-cash">Destino do recebimento</label><select id="income-cash" formControlName="cashAssetId">
           <option [ngValue]="0">Recebido fora dos saldos desta carteira</option>
           @for (b of cashOptions(); track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.value | currency: b.currencyCode : 'code' : '1.2-2' }}</option> }
@@ -52,11 +57,34 @@
     </section>
     <section class="panel"><h2>Histórico de recebimentos</h2>
       <label for="income-search">Filtrar por ativo</label><input id="income-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" />
-      <div class="table-scroll"><table><thead><tr><th>Data / ativo</th><th>Valor líquido</th><th>Destino</th><th>Observação</th></tr></thead><tbody>
-        @for (r of filteredIncomeReceipts(); track r.id) { <tr><th scope="row">{{ r.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ r.ticker }}</th><td>{{ r.amount | currency: r.currencyCode : 'code' : '1.2-4' }}</td><td>{{ r.cashAssetName || 'Fora dos saldos da carteira' }}</td><td>{{ r.notes || '—' }}</td></tr> }
+      <div class="table-scroll"><table><thead><tr><th>Data / ativo</th><th>Valor líquido</th><th>Destino</th><th>Observação</th><th>Equivalente em {{ s.portfolio.baseCurrencyCode }}</th><th>Câmbio histórico</th></tr></thead><tbody>
+        @for (r of filteredIncomeReceipts(); track r.id) { <tr><th scope="row">{{ r.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ r.ticker }}</th><td>{{ r.amount | currency: r.currencyCode : 'code' : '1.2-4' }}</td><td>{{ r.cashAssetName || 'Fora dos saldos da carteira' }}</td><td>{{ r.notes || '—' }}</td>
+          <td>{{ equivalent(r) === null ? 'Conversão pendente' : (equivalent(r) | currency:s.portfolio.baseCurrencyCode:'code':'1.2-4') }}
+            @if (conversionFor(r); as c) { <small>{{ sourceLabel(c.source) }} · referência {{ c.rateDate | date:'dd/MM/yyyy':'UTC' }} · v{{ c.revision }}</small> }
+          </td><td><button (click)="openConversion(r)" [disabled]="saving()">Conversão #{{ r.id }}</button>
+            @if (r.conversions?.length) { <details><summary>Versões da conversão</summary>@for (c of r.conversions; track c.id) {
+              <p>{{ c.baseCurrencyCode }} · v{{ c.revision }} · {{ c.baseAmount | currency:c.baseCurrencyCode:'code':'1.2-4' }} · {{ sourceLabel(c.source) }} · referência {{ c.rateDate | date:'dd/MM/yyyy':'UTC' }}<br />{{ c.reason }}<br />Registrada em {{ c.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</p>
+            }</details> }
+          </td></tr> }
       </tbody></table></div>
       @if (!filteredIncomeReceipts().length) { <p class="empty">Nenhum recebimento para este filtro.</p> }
       <p class="hint">Valores exibidos na moeda original. Os recebimentos confirmados são preservados; confira os dados antes de registrar.</p>
     </section>
   </div>
+}
+
+@if (pendingConversion(); as receipt) {
+  <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Conversão do provento" (closed)="pendingConversion.set(null)">
+    <section class="panel"><h2>Conversão do recebimento #{{ receipt.id }}</h2>
+      <p>{{ receipt.ticker }} · {{ receipt.date | date:'dd/MM/yyyy':'UTC' }} · {{ receipt.amount | currency:receipt.currencyCode:'code':'1.2-4' }}</p>
+      <p>Uma nova versão preserva as anteriores e atualiza as análises, inclusive do estorno. Não altera o valor recebido, o saldo ou o conteúdo das fotografias.</p>
+      <form [formGroup]="conversionForm" (ngSubmit)="saveConversion()"><fieldset [disabled]="saving()">
+        <label for="conversion-currency">Moeda do equivalente</label><select id="conversion-currency" formControlName="baseCurrencyCode">@for (c of currencies(); track c.id) { <option [value]="c.code">{{ c.code }} — {{ c.name }}</option> }</select>
+        <label for="conversion-amount">Equivalente real (opcional)</label><input id="conversion-amount" formControlName="baseAmount" inputmode="decimal" />
+        <p class="hint">Deixe vazio para consultar a referência histórica do Frankfurter. Se não houver cotação adequada, nenhuma versão será gravada.</p>
+        <label for="conversion-reason">Motivo da complementação ou correção</label><input id="conversion-reason" formControlName="reason" maxlength="400" />
+        <button class="primary" type="submit" [disabled]="conversionForm.invalid">Salvar conversão</button>
+      </fieldset></form>
+    </section>
+  </app-edit-panel>
 }

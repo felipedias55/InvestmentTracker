@@ -68,7 +68,9 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
             => await context.Assets.AnyAsync(x => x.CurrencyId == currencyId, cancellationToken)
                 || await context.Portfolios.AnyAsync(x => x.BaseCurrencyId == currencyId, cancellationToken)
                 || await context.ExternalAssets.AnyAsync(x => x.CurrencyId == currencyId, cancellationToken)
-                || await context.PortfolioCashFlows.AnyAsync(x => x.CurrencyId == currencyId, cancellationToken);
+                || await context.PortfolioCashFlows.AnyAsync(x => x.CurrencyId == currencyId, cancellationToken)
+                || await context.Set<IncomeConversion>().AnyAsync(x => context.Currencies.Any(c => c.Id == currencyId && c.Code == x.BaseCurrencyCode), cancellationToken)
+                || await context.Set<IncomeReceipt>().AnyAsync(x => context.Currencies.Any(c => c.Id == currencyId && (c.Code == x.BaseCurrencyCode || c.Code == x.CurrencyCode)), cancellationToken);
 
         public async Task SaveChangesAsync(
             CancellationToken cancellationToken = default)

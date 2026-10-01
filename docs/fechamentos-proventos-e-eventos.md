@@ -57,7 +57,7 @@ Resultado econômico = variação patrimonial − aportes líquidos + proventos 
 
 O intervalo começa depois da data da fotografia anterior e termina na data da atual. Proventos retidos já estão no patrimônio; somá-los novamente duplicaria rendimentos. O residual inclui preços, câmbio, taxas e ajustes manuais, portanto não é uma medição isolada de oscilação de preços. Comparações anuais usam a última fotografia de cada ano, não a soma de saldos mensais. Os recebimentos por ano, por sua vez, abrangem o ano civil.
 
-Não usamos câmbio atual para inventar equivalentes históricos de proventos: a decomposição fica indisponível quando há recebimentos em outra moeda no intervalo. Mudança da moeda-base, fluxo externo sem equivalente ou fotografias desatualizadas também limita as comparações.
+Não usamos câmbio atual para inventar equivalentes históricos de proventos: a decomposição usa os equivalentes históricos registrados e fica indisponível quando faltam conversões para a moeda das fotografias. A complementação auditável está descrita em [recebimentos](recebimento-de-proventos.md). Mudança da moeda-base, fluxo externo sem equivalente ou fotografias desatualizadas também limita as comparações.
 
 **Métricas definidas, ainda sem percentual fictício:** o resultado econômico acima é monetário. TWR exige avaliações nos fluxos externos para neutralizar aportes; XIRR exige uma série completa de fluxos datados, saldo inicial e patrimônio final, além de tratar casos sem solução única. Fotografias mensais e saldos iniciais incompletos não garantem essas condições. Essas taxas não são exibidas como aproximações exatas nesta etapa.
 

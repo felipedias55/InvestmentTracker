@@ -11,7 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace InvestmentTracker.IntegrationTests.AssetTypes
 {
-    public class AssetTypeErrorHandlingTests
+    [Collection(DatabaseCollection.Name)]
+    public class AssetTypeErrorHandlingTests(DatabaseFixture fixture)
     {
         [Theory]
         [InlineData("validation", HttpStatusCode.BadRequest)]
@@ -26,7 +27,7 @@ namespace InvestmentTracker.IntegrationTests.AssetTypes
                 _ => new InvalidOperationException("Internal diagnostic details")
             };
             using var factory = new InvestmentTrackerApiFactory(
-                "Server=unused;Database=unused;Integrated Security=true")
+                fixture.Database.ConnectionString)
                 .WithWebHostBuilder(builder =>
                 {
                     builder.UseEnvironment("Production");

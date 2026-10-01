@@ -101,6 +101,19 @@ namespace InvestmentTracker.IntegrationTests.ExchangeRates
             Assert.Equal("https://api.frankfurter.dev/v2/rate/USD/BRL", handler.RequestedUri!.AbsoluteUri);
         }
 
+        [Fact]
+        public async Task HistoricalClient_ShouldSendDateAndRejectFutureReferenceWithoutUsingLatestEndpoint()
+        {
+            using var handler = new Handler("""{"date":"2026-09-04","base":"USD","quote":"BRL","rate":5.1}""");
+            using var http = new HttpClient(handler) { BaseAddress = new Uri("https://api.frankfurter.dev/") };
+            var client = new FrankfurterClient(http, new Clock());
+            var result = await client.FetchAsync("USD", "BRL", new DateOnly(2026, 9, 6), default);
+            Assert.Equal(new DateOnly(2026, 9, 4), result!.RateDate);
+            Assert.Equal("?date=2026-09-06", handler.RequestedUri!.Query);
+            await Assert.ThrowsAsync<InvalidDataException>(() => client.FetchAsync("USD", "BRL", new DateOnly(2026, 9, 3), default));
+            Assert.Null(await client.FetchAsync("USD", "BRL", new DateOnly(2026, 9, 13), default));
+        }
+
         [Theory]
         [InlineData("""{"date":"2026-09-07","base":"BRL","quote":"USD","rate":5}""")]
         [InlineData("""{"date":"2026-09-07","base":"USD","quote":"BRL","rate":0}""")]

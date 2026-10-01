@@ -33,10 +33,16 @@ namespace InvestmentTracker.IntegrationTests.Infrastructure
                     services.Remove(descriptor);
                 }
 
+                services.AddSingleton<InvestmentTracker.Application.ExchangeRates.Interfaces.IHistoricalExchangeRateProvider, NoHistoricalRates>();
                 services.AddDbContext<InvestmentTrackerDbContext>(
                     options =>
                         options.UseSqlServer(_connectionString));
             });
+        }
+        private sealed class NoHistoricalRates : InvestmentTracker.Application.ExchangeRates.Interfaces.IHistoricalExchangeRateProvider
+        {
+            public Task<InvestmentTracker.Domain.Entities.ExchangeRate?> FetchAsync(string b, string q, DateOnly date, CancellationToken ct)
+                => Task.FromResult<InvestmentTracker.Domain.Entities.ExchangeRate?>(null);
         }
     }
 }

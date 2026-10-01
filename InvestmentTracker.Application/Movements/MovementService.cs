@@ -162,6 +162,7 @@ namespace InvestmentTracker.Application.Movements
         {
             if (reversed) return "Movimentação já estornada.";
             if (m.ReversalOfId.HasValue) return "Um estorno não pode ser estornado. Registre a operação correta novamente.";
+            if (m.Kind == "income-conversion") return "Conversão auditável sem efeito de saldo. Para corrigir, registre uma nova versão em Proventos.";
             if (m.Kind == "reopen") return "Reabertura registrada na auditoria. Uma nova fotografia do mês atual encerra a reabertura desse mês.";
             if (m.Kind == "opening") return "Saldo inicial: use um ajuste justificado.";
             if (m.Effects.Count == 0 && m.Kind != "historical") return "Registro anterior à auditoria de saldos; não há valores anteriores suficientes para estorno automático.";

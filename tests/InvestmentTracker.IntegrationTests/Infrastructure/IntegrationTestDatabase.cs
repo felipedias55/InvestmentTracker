@@ -48,6 +48,7 @@ namespace InvestmentTracker.IntegrationTests.Infrastructure
                 DELETE FROM MovementEffect;
                 DELETE FROM PortfolioCashFlow;
                 DELETE FROM FinancialMovement;
+                DELETE FROM IncomeConversion;
                 DELETE FROM IncomeReceipt;
                 DELETE FROM PortfolioCashFlow;
                 DELETE FROM PortfolioTrade;

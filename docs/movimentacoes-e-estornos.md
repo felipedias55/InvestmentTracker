@@ -44,7 +44,7 @@ Um aporte estornado reduz os aportes; uma retirada estornada reduz as retiradas.
 
 A migration inclui compras, vendas, proventos e movimentos históricos existentes no índice unificado, sem alterar valores da carteira ou inventar saldos anteriores. Compras e proventos anteriores à auditoria **não possuem estorno automático**, pois não há informação suficiente para recuperar os valores exatos. A tela indica essa limitação. Use ajustes justificados quando necessário.
 
-Registros históricos manuais de aporte/retirada podem ser estornados sem alterar saldos, porque nunca os alteraram. O formulário antigo fica recolhido em Evolução e aportes e deve ser usado somente para histórico antigo, já refletido nos saldos. Novos fluxos de dinheiro devem usar Movimentações.
+Registros históricos manuais de aporte/retirada podem ser estornados sem alterar saldos, porque nunca os alteraram. O formulário antigo fica recolhido em Evolução e fechamentos e deve ser usado somente para histórico antigo, já refletido nos saldos. Novos fluxos de dinheiro devem usar Movimentações.
 
 ## Arquitetura e atualização
 
@@ -67,3 +67,5 @@ Os testes incluem conservação de saldo, precisão do custo na venda, dependên
 ## Validação da entrega em 11/09/2026
 
 135 testes unitários C#, 101 de integração, 52 Angular e 6 E2E aprovados; build de produção concluído. Migrations aplicadas à instalação local após backup restaurado e validado. A comparação dos registros antes/depois confirmou preservação de posições, saldos, operações, recebimentos, fluxos originais e fotografias. Nenhuma movimentação de teste foi inserida na carteira real.
+
+Conversões de proventos são registros auditáveis sem alteração de saldo. Para corrigir, registre outra versão em Proventos; não são estornadas como uma operação financeira. Veja [câmbio histórico](recebimento-de-proventos.md).

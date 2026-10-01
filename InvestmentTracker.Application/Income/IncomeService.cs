@@ -7,7 +7,7 @@ using InvestmentTracker.Domain.Entities;
 namespace InvestmentTracker.Application.Income
 {
     public sealed class IncomeService(IIncomeRepository repository, IAssetRepository assets,
-        ICurrencyRepository currencies, IExternalAssetRepository cash, TimeProvider clock) : IIncomeService
+        ICurrencyRepository currencies, IExternalAssetRepository cash, TimeProvider clock, IIncomeConversionService conversions) : IIncomeService
     {
         private const decimal MaxMoney = 999999999999999.9999m;
         private DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(),
@@ -24,14 +24,15 @@ namespace InvestmentTracker.Application.Income
                 throw new InputValidationException("Informe uma data válida, até hoje.");
             if (dto.Amount <= 0 || dto.Amount > MaxMoney || decimal.Round(dto.Amount, 4) != dto.Amount)
                 throw new InputValidationException("Informe o valor líquido positivo, com até 15 inteiros e 4 casas decimais.");
+            IncomeConversionService.ValidateAmount(dto.BaseAmount);
             var notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim();
             if (notes?.Length > 500) throw new InputValidationException("A observação deve ter até 500 caracteres.");
-            var receipt = await repository.ExecuteAsync(portfolioId, dto.RequestId, async (_, existing, token) =>
+            var receipt = await repository.ExecuteAsync(portfolioId, dto.RequestId, async (portfolio, existing, token) =>
             {
                 if (existing is not null)
                 {
                     if (existing.Date != dto.Date || existing.AssetId != dto.AssetId || existing.Amount != dto.Amount ||
-                        existing.CashAssetId != dto.CashAssetId || existing.Notes != notes)
+                        existing.CashAssetId != dto.CashAssetId || existing.Notes != notes || existing.RequestedBaseAmount != dto.BaseAmount)
                         throw new ResourceConflictException("Esta solicitação já foi usada com outros dados. Atualize a página.");
                     return existing;
                 }
@@ -46,7 +47,11 @@ namespace InvestmentTracker.Application.Income
                 var result = new IncomeReceipt { PortfolioId = portfolioId, PositionId = position.Id,
                     AssetId = dto.AssetId, RequestId = dto.RequestId, Date = dto.Date, Amount = dto.Amount,
                     Ticker = asset.Ticker, CurrencyCode = currency.Code, CashAssetId = dto.CashAssetId,
+                    BaseCurrencyCode = portfolio.BaseCurrency.Code, RequestedBaseAmount = dto.BaseAmount,
                     Notes = notes, CreatedAtUtc = clock.GetUtcNow().UtcDateTime };
+                var conversion = await conversions.BuildAsync(result, portfolio.BaseCurrency.Code, dto.BaseAmount,
+                    dto.RequestId, 1, "Conversão no registro do recebimento", token);
+                if (conversion is not null) result.Conversions.Add(conversion);
                 if (dto.CashAssetId.HasValue)
                 {
                     var balance = await cash.GetByIdAsync(portfolioId, dto.CashAssetId.Value, token);
@@ -64,6 +69,7 @@ namespace InvestmentTracker.Application.Income
             }, ct);
             return receipt is null ? null : Map(receipt);
         }
-        private static IncomeDto Map(IncomeReceipt r) => new(r.Id, r.Date, r.Ticker, r.CurrencyCode, r.Amount, r.CashAssetName, r.Notes);
+        public static IncomeDto Map(IncomeReceipt r) => new(r.Id, r.Date, r.Ticker, r.CurrencyCode, r.Amount, r.CashAssetName, r.Notes)
+            { BaseCurrencyCode = r.BaseCurrencyCode, Conversions = r.Conversions.OrderByDescending(c => c.Revision).ThenBy(c => c.BaseCurrencyCode).Select(IncomeConversionService.Map).ToList() };
     }
 }

@@ -11,6 +11,9 @@ namespace InvestmentTracker.Domain.Entities
         public string Ticker { get; set; } = string.Empty;
         public string CurrencyCode { get; set; } = string.Empty;
         public decimal Amount { get; set; }
+        public string? BaseCurrencyCode { get; set; }
+        public decimal? RequestedBaseAmount { get; set; }
+        public List<IncomeConversion> Conversions { get; set; } = [];
         public int? CashAssetId { get; set; }
         public string? CashAssetName { get; set; }
         public string? Notes { get; set; }

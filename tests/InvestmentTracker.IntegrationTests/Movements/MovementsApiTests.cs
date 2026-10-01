@@ -160,7 +160,10 @@ namespace InvestmentTracker.IntegrationTests.Movements
                     VALUES ({portfolio}, {asset}, {trade.RequestId}, {Today}, 'buy', 'LEGACY', 'BRL', 1, 20, 20, 1, 20, {DateTime.UtcNow});
                     """);
                 trade.Id = await db.Database.SqlQuery<int>($"SELECT Id AS Value FROM PortfolioTrade WHERE RequestId = {trade.RequestId}").SingleAsync();
-                db.Add(income); await db.SaveChangesAsync();
+                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO IncomeReceipt (PortfolioId, PositionId, AssetId, RequestId, Date, Ticker, CurrencyCode, Amount, CreatedAtUtc)
+                    VALUES ({portfolio}, {income.PositionId}, {asset}, {income.RequestId}, {Today}, 'LEGACY', 'BRL', 5, {DateTime.UtcNow});
+                    """);
                 await db.Database.ExecuteSqlInterpolatedAsync($"""
                     INSERT INTO PortfolioCashFlow (PortfolioId, TradeId, Date, Kind, CurrencyId, Amount, BaseCurrencyCode, BaseAmount, CreatedAtUtc, UpdatedAtUtc)
                     VALUES ({portfolio}, {trade.Id}, {Today}, 'contribution', {currency.Id}, 20, 'BRL', 20, {DateTime.UtcNow}, {DateTime.UtcNow});

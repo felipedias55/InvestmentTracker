@@ -57,12 +57,12 @@ namespace InvestmentTracker.Application.History.Services
             if (change.HasValue && income is not null && previous is not null && snapshot is not null)
             {
                 var intervalIncome = income.Where(x => x.Date > previous.SnapshotDate && x.Date <= snapshot.SnapshotDate).ToList();
-                if (intervalIncome.All(x => x.CurrencyCode == currency))
+                if (intervalIncome.All(x => x.InCurrency(currency).HasValue))
                 {
-                    retained = intervalIncome.Where(x => x.Retained).Sum(x => x.IsReversal ? -x.Amount : x.Amount);
-                    distributed = intervalIncome.Where(x => !x.Retained).Sum(x => x.IsReversal ? -x.Amount : x.Amount);
+                    retained = intervalIncome.Where(x => x.Retained).Sum(x => x.IsReversal ? -x.InCurrency(currency)!.Value : x.InCurrency(currency)!.Value);
+                    distributed = intervalIncome.Where(x => !x.Retained).Sum(x => x.IsReversal ? -x.InCurrency(currency)!.Value : x.InCurrency(currency)!.Value);
                 }
-                else note = "Proventos em outra moeda: decomposição indisponível sem câmbio histórico do recebimento.";
+                else note = "Há proventos sem equivalente histórico na moeda desta fotografia. Complemente a conversão em Proventos.";
             }
             return new HistoryPeriodDto(period, snapshot?.Id, snapshot?.SnapshotDate, currency,
                 snapshot?.PortfolioValue, snapshot?.ExternalValue, snapshot?.TotalWealth, snapshot?.TotalIncome,

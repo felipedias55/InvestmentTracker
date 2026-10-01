@@ -1,3 +1,4 @@
+import { EditPanel } from '../../shared/edit-panel';
 import { createRequestId } from '../../core/request-id';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
@@ -15,15 +16,17 @@ import { ExternalAssetsService, ExternalAsset } from '../external-assets/externa
 import { brazilianNumberValidator, parseBrazilianNumber, formatBrazilianNumber } from '../../core/brazilian-number';
 import { apiError } from '../../core/services/api-error';
 
-export interface IncomeTotal { period: string; ticker: string; assetId: number; currencyCode: string; received: string; reversed: string; net: string; }
-export interface IncomeAnalysis { months: IncomeTotal[]; years: IncomeTotal[]; assets: IncomeTotal[]; }
+export interface IncomeTotal { period: string; ticker: string; assetId: number; currencyCode: string; received: string | null; reversed: string | null; net: string | null; missingConversions?: number; }
+export interface IncomeAnalysis { months: IncomeTotal[]; years: IncomeTotal[]; assets: IncomeTotal[]; baseCurrencyCode?: string; convertedMonths?: IncomeTotal[]; convertedYears?: IncomeTotal[]; convertedAssets?: IncomeTotal[]; }
+export interface IncomeConversion { id: number; revision: number; baseCurrencyCode: string; baseAmount: string; rate: string | null; rateDate: string; source: string; reason: string; createdAtUtc: string; }
 export interface IncomeReceipt {
   id: number; date: string; ticker: string; currencyCode: string;
+  baseCurrencyCode?: string | null; conversions?: IncomeConversion[];
   amount: string; cashAssetName: string | null; notes: string | null;
 }
 @Component({
   standalone: true, selector: 'app-income-page',
-  imports: [PortfolioPicker, ReactiveFormsModule, CurrencyPipe, DatePipe, RouterLink],
+  imports: [EditPanel, PortfolioPicker, ReactiveFormsModule, CurrencyPipe, DatePipe, RouterLink],
   templateUrl: './income-page.html',
 })
 export class IncomePage {
@@ -52,9 +55,13 @@ export class IncomePage {
   readonly analysisMode = signal<'months' | 'years' | 'assets'>('months');
   readonly analysisYear = signal('');
   readonly analysisCurrency = signal('');
+  readonly valueMode = signal<'original' | 'base'>('original');
   analysisRows() {
-    return this.analysis()[this.analysisMode()].filter(r => r.ticker.toLocaleLowerCase('pt-BR').includes(this.query().trim().toLocaleLowerCase('pt-BR'))
-      && (!this.analysisCurrency() || r.currencyCode === this.analysisCurrency())
+    const data = this.analysis();
+    const rows = this.valueMode() === 'original' ? data[this.analysisMode()] :
+      (this.analysisMode() === 'months' ? data.convertedMonths : this.analysisMode() === 'years' ? data.convertedYears : data.convertedAssets) ?? [];
+    return rows.filter(r => r.ticker.toLocaleLowerCase('pt-BR').includes(this.query().trim().toLocaleLowerCase('pt-BR'))
+      && (this.valueMode() === 'base' || !this.analysisCurrency() || r.currencyCode === this.analysisCurrency())
       && (this.analysisMode() === 'assets' || !this.analysisYear() || r.period.startsWith(this.analysisYear())));
   }
   analysisYears() { return [...new Set(this.analysis().years.map(x => x.period))]; }
@@ -68,14 +75,44 @@ export class IncomePage {
   readonly form = this.fb.nonNullable.group({
     date: [this.today, Validators.required], assetId: [0, Validators.min(1)],
     amount: ['', [Validators.required, brazilianNumberValidator(15, 4)]],
+    baseAmount: ['', (c: import('@angular/forms').AbstractControl) => c.value ? brazilianNumberValidator(15, 4)(c) : null],
     cashAssetId: [0], notes: ['', Validators.maxLength(500)],
   });
+  readonly pendingConversion = signal<IncomeReceipt | null>(null);
+  private conversionRequestId = createRequestId();
+  readonly conversionForm = this.fb.nonNullable.group({ baseCurrencyCode: ['', Validators.required],
+    baseAmount: ['', (c: import('@angular/forms').AbstractControl) => c.value ? brazilianNumberValidator(15, 4)(c) : null],
+    reason: ['', [Validators.required, Validators.maxLength(400)]] });
+  conversionFor(receipt: IncomeReceipt, code = this.summary()?.portfolio.baseCurrencyCode) {
+    return receipt.conversions?.filter(c => c.baseCurrencyCode === code).sort((a, b) => b.revision - a.revision)[0];
+  }
+  equivalent(receipt: IncomeReceipt) { return receipt.currencyCode === this.summary()?.portfolio.baseCurrencyCode ? receipt.amount : this.conversionFor(receipt)?.baseAmount ?? null; }
+  sourceLabel(source: string) { return source === 'same-currency' ? 'Mesma moeda' : source === 'manual' ? 'Informado' : source; }
+  openConversion(receipt: IncomeReceipt) {
+    this.pendingConversion.set(receipt); this.conversionRequestId = createRequestId(); this.error.set('');
+    this.conversionForm.reset({ baseCurrencyCode: this.summary()?.portfolio.baseCurrencyCode ?? '', baseAmount: '', reason: '' });
+  }
+  saveConversion() {
+    const receipt = this.pendingConversion();
+    if (!receipt || this.saving() || this.conversionForm.invalid) { this.conversionForm.markAllAsTouched(); return; }
+    const v = this.conversionForm.getRawValue(); this.saving.set(true); this.error.set('');
+    this.http.post<IncomeReceipt>(`/api/portfolios/${this.id()}/income/${receipt.id}/conversions`, {
+      requestId: this.conversionRequestId, baseCurrencyCode: v.baseCurrencyCode,
+      expectedRevision: this.conversionFor(receipt, v.baseCurrencyCode)?.revision ?? 0,
+      baseAmount: v.baseAmount.trim() ? parseBrazilianNumber(v.baseAmount) : null, reason: v.reason.trim(),
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => { this.saving.set(false); this.pendingConversion.set(null); this.conversionRequestId = createRequestId();
+        this.success.set('Conversão registrada com auditoria. Os saldos e as fotografias foram preservados.'); this.load(); },
+      error: e => { this.saving.set(false); this.error.set(apiError(e)); },
+    });
+  }
   select(id: number) {
     if (this.saving()) return;
+    this.pendingConversion.set(null);
     this.analysisYear.set(''); this.analysisCurrency.set('');
     this.id.set(id); this.requestId = createRequestId();
     this.form.reset({ date: this.today, assetId: Number(this.route.snapshot.queryParamMap.get('assetId')) || 0,
-      amount: '', cashAssetId: 0, notes: '' });
+      amount: '', baseAmount: '', cashAssetId: 0, notes: '' });
     this.success.set(''); this.load();
   }
   load() {
@@ -109,13 +146,13 @@ export class IncomePage {
     const amount = parseBrazilianNumber(value.amount);
     if (Number(amount) <= 0) { this.error.set('O valor deve ser maior que zero.'); return; }
     const input = { requestId: this.requestId, date: value.date, assetId: Number(value.assetId),
-      amount, cashAssetId: Number(value.cashAssetId) || null, notes: value.notes.trim() || null };
+      amount, baseAmount: this.currency() !== this.summary()?.portfolio.baseCurrencyCode && value.baseAmount.trim() ? parseBrazilianNumber(value.baseAmount) : null, cashAssetId: Number(value.cashAssetId) || null, notes: value.notes.trim() || null };
     this.saving.set(true); this.error.set(''); this.success.set('');
     this.http.post<IncomeReceipt>(`/api/portfolios/${this.id()}/income`, input).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.saving.set(false); this.requestId = createRequestId();
         this.success.set('Recebimento registrado. Proventos acumulados e saldo de destino atualizados. Nenhum aporte foi gerado.');
-        this.form.patchValue({ amount: '', notes: '' }); this.form.markAsUntouched(); this.load();
+        this.form.patchValue({ amount: '', baseAmount: '', notes: '' }); this.form.markAsUntouched(); this.load();
       },
       error: error => { this.saving.set(false); this.error.set(apiError(error)); },
     });

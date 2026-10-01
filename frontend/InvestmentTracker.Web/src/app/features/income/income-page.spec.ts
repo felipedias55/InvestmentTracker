@@ -73,4 +73,33 @@ describe('IncomePage', () => {
     component.analysisCurrency.set('USD'); expect(component.analysisRows()).toEqual([usd]);
   });
 
+  it('records the manual historical equivalent with exact Brazilian precision', () => {
+    const fixture = initialize(); const component = fixture.componentInstance;
+    component.assets.set([{ ...asset, currencyId: 2 }]);
+    component.currencies.set([{ id: 1, code: 'BRL', name: 'Real' }, { id: 2, code: 'USD', name: 'Dólar' }]);
+    component.form.patchValue({ assetId: 10, amount: '10', baseAmount: '51,2345' }); component.save();
+    const request = http.expectOne('/api/portfolios/1/income'); expect(request.request.body.baseAmount).toBe('51.2345');
+    request.flush(trade); flush();
+  });
+  it('preserves revision and request ID when supplementing a receipt after a network failure', () => {
+    const fixture = initialize(); const component = fixture.componentInstance;
+    component.openConversion({ id: 7, date: '2026-09-01', ticker: 'TEST', currencyCode: 'USD', amount: '10', cashAssetName: null, notes: null,
+      conversions: [{ id: 1, revision: 2, baseCurrencyCode: 'BRL', baseAmount: '50', rate: '5', rateDate: '2026-09-01', source: 'manual', reason: 'Extrato', createdAtUtc: '' }] });
+    component.conversionForm.patchValue({ baseAmount: '52,1234', reason: 'Retificação' }); component.saveConversion();
+    const first = http.expectOne('/api/portfolios/1/income/7/conversions');
+    expect(first.request.body.expectedRevision).toBe(2); expect(first.request.body.baseAmount).toBe('52.1234');
+    const requestId = first.request.body.requestId; first.error(new ProgressEvent('error'));
+    component.saveConversion(); const retry = http.expectOne('/api/portfolios/1/income/7/conversions');
+    expect(retry.request.body.requestId).toBe(requestId); retry.flush({}); flush();
+    expect(component.pendingConversion()).toBeNull();
+  });
+  it('shows pending converted totals instead of a misleading partial sum', () => {
+    const fixture = initialize(); const component = fixture.componentInstance;
+    component.analysis.set({ months: [], years: [], assets: [], baseCurrencyCode: 'BRL',
+      convertedMonths: [{ period: '2026-09', ticker: 'TEST', assetId: 1, currencyCode: 'BRL', received: null, reversed: null, net: null, missingConversions: 1 }] });
+    component.valueMode.set('base'); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Conversão pendente');
+    expect(component.analysisRows()[0].net).toBeNull();
+  });
+
 });
