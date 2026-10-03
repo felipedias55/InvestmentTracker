@@ -61,7 +61,7 @@ Variação sem movimentos = variação − movimento líquido
 
 Exemplo: patrimônio passa de 1.000 para 1.300, com aporte de 100 e retirada de 50 entre as fotografias. A variação bruta é 300; a variação descontando os movimentos é 250.
 
-Esse indicador **não é rentabilidade percentual** nem cálculo de TWR/XIRR. Pode refletir oscilação dos ativos, câmbio, atualização manual de saldos, proventos refletidos no patrimônio e movimentos não registrados. Os proventos acumulados são mostrados separadamente e não são adicionados novamente ao patrimônio.
+Esse indicador **não é rentabilidade percentual** nem cálculo de TWR/XIRR. Pode refletir oscilação dos ativos, câmbio, atualização manual de saldos, proventos refletidos no patrimônio e movimentos não registrados. Os proventos acumulados são mostrados separadamente e não são adicionados novamente ao patrimônio. A tabela separada de [rentabilidade](metricas-de-rentabilidade.md) apresenta Dietz estimado e XIRR anualizada, com datas e limites explícitos.
 
 ### Datas e limites da comparação
 

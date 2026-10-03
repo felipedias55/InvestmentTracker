@@ -161,6 +161,7 @@ namespace InvestmentTracker.Application.Movements
         private async Task<string?> BlockedAsync(FinancialMovement m, bool reversed, CancellationToken ct)
         {
             if (reversed) return "Movimentação já estornada.";
+            if (m.Kind == "correction") return "Lote de correção auditável. Para nova correção, selecione o lançamento substituto.";
             if (m.ReversalOfId.HasValue) return "Um estorno não pode ser estornado. Registre a operação correta novamente.";
             if (m.Kind == "income-conversion") return "Conversão auditável sem efeito de saldo. Para corrigir, registre uma nova versão em Proventos.";
             if (m.Kind == "reopen") return "Reabertura registrada na auditoria. Uma nova fotografia do mês atual encerra a reabertura desse mês.";
@@ -192,7 +193,8 @@ namespace InvestmentTracker.Application.Movements
                 effects.Add(new(e.Name, (await currencies.GetByIdAsync(e.CurrencyId, ct))?.Code ?? "", e.BeforeValue, e.AfterValue,
                     e.PositionId.HasValue, e.BeforeQuantity, e.AfterQuantity, e.BeforeCost, e.AfterCost, e.BeforeIncome, e.AfterIncome));
             return new(m.Id, m.Date, m.Kind, m.Description, m.CurrencyCode, m.Amount, m.TradeId, m.IncomeReceiptId,
-                m.ReversalOfId, reversedBy, blocked is null, blocked, m.CreatedAtUtc, effects);
+                m.ReversalOfId, reversedBy, blocked is null, blocked, m.CreatedAtUtc, effects)
+                { CorrectionId = m.CorrectionId, ReplacesMovementId = m.ReplacesMovementId };
         }
         private static void SameRequest(FinancialMovement m, string payload)
         { if (m.RequestPayload != payload) throw new ResourceConflictException("Solicitação já utilizada com outros dados. Atualize a página."); }

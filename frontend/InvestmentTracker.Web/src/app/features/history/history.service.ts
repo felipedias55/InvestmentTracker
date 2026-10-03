@@ -20,6 +20,7 @@ export interface CashFlow extends CashFlowInput {
   baseCurrencyCode: string;
 }
 export interface HistoryPeriod {
+  returns?: { modifiedDietz: string | null; xirr: string | null; note: string | null };
   retainedIncome?: string | null; distributedIncome?: string | null; valuationAndOtherChanges?: string | null; economicResult?: string | null;
   isOutdated?: boolean; isReopened?: boolean; revision?: number;
   period: string;

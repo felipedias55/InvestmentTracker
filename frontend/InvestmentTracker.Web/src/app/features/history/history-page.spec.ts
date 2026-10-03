@@ -75,6 +75,19 @@ describe('HistoryPage', () => {
     fixture.detectChanges();
     return fixture;
   }
+  it('renders estimated and annualized returns in Brazilian format and explains unavailable rates', () => {
+    const fixture = initialize({ ...data, months: [
+      { ...row, returns: { modifiedDietz: '0.08', xirr: '0.1', note: 'Intervalo inferior a um ano.' } },
+      { ...row, period: '2026-08', returns: { modifiedDietz: null, xirr: null, note: 'Fotografia desatualizada.' } },
+    ] });
+    const table = fixture.nativeElement.querySelector('table[aria-label="Rentabilidade entre fotografias"]');
+    expect(table.textContent).toContain('8,00%');
+    expect(table.textContent).toContain('10,00%');
+    expect(table.textContent).toContain('Fotografia desatualizada.');
+    expect(table.textContent).toContain('—');
+    expect(table.textContent).toContain('31/08/2026');
+    expect(table.textContent).toContain('08/09/2026');
+  });
   it('renders Brazilian totals, switches to annual rows and opens the frozen photograph', () => {
     const fixture = initialize();
     expect(fixture.nativeElement.textContent).toContain('1.234,50');

@@ -21,6 +21,7 @@ namespace InvestmentTracker.Application.History.Dtos
         bool HasStaleRates,
         bool HasFallbackRates)
     {
+        public ReturnMetricsDto? Returns { get; init; }
         [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] public decimal? ReceivedIncome { get; init; }
         [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] public decimal? RetainedIncome { get; init; }
         [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] public decimal? DistributedIncome { get; init; }

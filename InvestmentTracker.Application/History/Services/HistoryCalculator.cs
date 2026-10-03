@@ -68,7 +68,8 @@ namespace InvestmentTracker.Application.History.Services
                 snapshot?.PortfolioValue, snapshot?.ExternalValue, snapshot?.TotalWealth, snapshot?.TotalIncome,
                 contributions, withdrawals, change, netFlows, change - netFlows,
                 previous?.SnapshotDate, note, snapshot?.HasStaleRates ?? false, snapshot?.HasFallbackRates ?? false)
-                { IsOutdated = snapshot?.IsOutdated ?? false, IsReopened = snapshot?.IsReopened ?? false, Revision = snapshot?.Revision, ReceivedIncome = retained + distributed, RetainedIncome = retained,
+                { Returns = ReturnCalculator.Calculate(previous, snapshot, allFlows, income),
+                    IsOutdated = snapshot?.IsOutdated ?? false, IsReopened = snapshot?.IsReopened ?? false, Revision = snapshot?.Revision, ReceivedIncome = retained + distributed, RetainedIncome = retained,
                     DistributedIncome = distributed, ValuationAndOtherChanges = change - netFlows - retained, EconomicResult = change - netFlows + distributed };
         }
 

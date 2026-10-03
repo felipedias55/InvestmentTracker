@@ -14,6 +14,35 @@ namespace InvestmentTracker.IntegrationTests.History
     [Collection(DatabaseCollection.Name)]
     public class HistoryApiTests(DatabaseFixture fixture)
     {
+        [Fact]
+        public async Task History_ReturnsMetricsFromPersistedSnapshotsAndSuspendsOutdatedComparison()
+        {
+            var (id, _, _, _, _) = await SeedAsync();
+            await using (var db = fixture.Database.CreateContext())
+            {
+                db.PortfolioSnapshots.AddRange(
+                    new PortfolioSnapshot { PortfolioId = id, Month = new(2024, 12, 1), SnapshotDate = new(2024, 12, 31),
+                        BaseCurrencyCode = "BRL", TotalWealth = 1000, PortfolioValue = 1000, DashboardJson = "{}" },
+                    new PortfolioSnapshot { PortfolioId = id, Month = new(2025, 12, 1), SnapshotDate = new(2025, 12, 31),
+                        BaseCurrencyCode = "BRL", TotalWealth = 1100, PortfolioValue = 1100, DashboardJson = "{}" });
+                await db.SaveChangesAsync();
+            }
+            using var client = fixture.ApiFactory.CreateClient();
+            var history = (await client.GetFromJsonAsync<HistoryDto>($"/api/portfolios/{id}/history"))!;
+            var metrics = history.Years.Single(x => x.Period == "2025").Returns!;
+            Assert.Equal(0.1m, metrics.ModifiedDietz);
+            Assert.InRange(metrics.Xirr!.Value, 0.09999999m, 0.10000001m);
+            Assert.Null(history.Months.Single(x => x.Period == "2025-12").Returns!.ModifiedDietz);
+            await using (var db = fixture.Database.CreateContext())
+            {
+                (await db.PortfolioSnapshots.SingleAsync(x => x.Month.Year == 2025)).IsOutdated = true;
+                await db.SaveChangesAsync();
+            }
+            history = (await client.GetFromJsonAsync<HistoryDto>($"/api/portfolios/{id}/history"))!;
+            Assert.Null(history.Years.Single(x => x.Period == "2025").Returns!.Xirr);
+            Assert.Contains("desatualizada", history.Years.Single(x => x.Period == "2025").Returns!.Note);
+        }
+
         private sealed class NoRates : IExchangeRateProvider
         {
             public Task<ExchangeRate?> FetchAsync(string b, string q, CancellationToken ct) => Task.FromResult<ExchangeRate?>(null);

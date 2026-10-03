@@ -1,10 +1,35 @@
 ﻿param(
-    [Parameter(Mandatory = $true)][string]$ConnectionString,
-    [Parameter(Mandatory = $true)][string]$BackupDirectory
+    [string]$ConnectionString,
+    [string]$BackupDirectory
 )
 # The directory is on the SQL Server host and must already exist.
 # Only the newly generated validation database may be removed by this script.
 $ErrorActionPreference = 'Stop'
+$projectRoot = Split-Path $PSScriptRoot -Parent
+if (-not $PSBoundParameters.ContainsKey('ConnectionString')) {
+    [xml]$project = Get-Content -LiteralPath (Join-Path $projectRoot 'InvestmentTracker.Api/InvestmentTracker.Api.csproj') -Raw
+    $secretsId = [string]($project.Project.PropertyGroup.UserSecretsId | Where-Object { $_ } | Select-Object -First 1)
+    if ([string]::IsNullOrWhiteSpace($secretsId) -or [string]::IsNullOrWhiteSpace($env:APPDATA)) {
+        throw 'Não foi possível localizar os User Secrets no Windows. Informe -ConnectionString explicitamente.'
+    }
+    $secretsPath = Join-Path $env:APPDATA "Microsoft/UserSecrets/$secretsId/secrets.json"
+    if (-not (Test-Path -LiteralPath $secretsPath -PathType Leaf)) {
+        throw 'User Secrets não encontrados. Configure ConnectionStrings:InvestmentTracker para InvestmentTracker.Api.'
+    }
+    try { $secrets = Get-Content -LiteralPath $secretsPath -Raw | ConvertFrom-Json }
+    catch { throw 'Não foi possível ler o JSON dos User Secrets. Confira sua configuração local.' }
+    $ConnectionString = $secrets.'ConnectionStrings:InvestmentTracker'
+    if ([string]::IsNullOrWhiteSpace($ConnectionString) -and $secrets.ConnectionStrings) {
+        $ConnectionString = $secrets.ConnectionStrings.InvestmentTracker
+    }
+}
+if ([string]::IsNullOrWhiteSpace($ConnectionString)) {
+    throw 'A conexão está vazia. Configure ConnectionStrings:InvestmentTracker ou informe -ConnectionString.'
+}
+if ([string]::IsNullOrWhiteSpace($BackupDirectory)) {
+    $BackupDirectory = Join-Path $projectRoot 'backups'
+    New-Item -ItemType Directory -Force -Path $BackupDirectory | Out-Null
+}
 $builder = [System.Data.SqlClient.SqlConnectionStringBuilder]::new($ConnectionString)
 $sourceDatabase = $builder.InitialCatalog
 if ([string]::IsNullOrWhiteSpace($sourceDatabase) -or $sourceDatabase -in @('master', 'model', 'msdb', 'tempdb')) {

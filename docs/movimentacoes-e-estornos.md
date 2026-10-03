@@ -25,7 +25,7 @@ O cadastro de patrimônio externo informa o **saldo inicial**. A edição poster
 
 O original permanece imutável, identificado como estornado. O histórico exibe saldos antes/depois e, para posições, quantidade, custo e proventos. O estorno tem identificador próprio, motivo e data/hora de registro. Sem autenticação, não há identificação de um usuário individual responsável.
 
-O estorno é registrado na data atual de São Paulo. Não reabre nem recalcula fotografias anteriores. Se a fotografia do mês corrente precisar refletir a correção, substitua-a explicitamente após conferir os valores.
+O estorno comum é registrado na data atual de São Paulo. Não reabre nem recalcula fotografias anteriores. Se a fotografia do mês corrente precisar refletir a correção, substitua-a explicitamente após conferir os valores. O [lote de correção retroativa](correcoes-atrasadas.md) tem fluxo próprio: simula, confirma e anula os originais nas suas datas efetivas, com vínculos auditáveis e reabertura dos períodos afetados. A data/hora de gravação identifica quando o lote foi aplicado.
 
 Um aporte estornado reduz os aportes; uma retirada estornada reduz as retiradas. Isso não cria dinheiro novo na categoria oposta. Quando o original pertence a outro mês, a correção aparece no mês do estorno e o total líquido daquela categoria pode ficar negativo. A moeda e o equivalente originais são preservados. As comparações históricas continuam sendo variação patrimonial descontada dos fluxos, não rentabilidade percentual.
 

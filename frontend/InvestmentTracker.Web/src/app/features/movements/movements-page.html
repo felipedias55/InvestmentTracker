@@ -2,12 +2,17 @@
   <p>Depósitos, retiradas, transferências, ajustes e operações da carteira em um único histórico.</p>
   <a routerLink="/trades">Comprar ou vender</a> · <a routerLink="/income">Receber proventos</a> · <a routerLink="/history">Fotografias e evolução</a>
 </header>
-<app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
+<app-portfolio-picker [disabled]="saving() || executionOpen()" (selectedId)="select($event)" />
 @if (error() && !pending()) { <p class="notice error" role="alert">{{ error() }}</p> }
 @if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
 @if (loading()) { <p role="status">Carregando movimentações…</p> }
 @if (id()) { <button (click)="load()" [disabled]="saving() || loading()">Atualizar movimentações</button> }
 @if (summary(); as s) {
+  <section class="panel section-gap"><h2>Correções atrasadas</h2>
+    <p>Antes de lançar uma operação esquecida, consulte quais movimentos e fechamentos podem ser afetados. Para corrigir um registro existente, use o botão de análise no histórico.</p>
+    <button [disabled]="saving() || loading()" (click)="openPreview()">Analisar lançamento atrasado</button>
+    <button [disabled]="saving() || loading()" (click)="openExecution()">Registrar operação atrasada</button>
+  </section>
   <div class="workspace section-gap">
     <section class="panel"><h2>Movimentar saldo</h2>
       <form [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="saving()">
@@ -45,7 +50,9 @@
         <article class="panel section-gap">
           <h3>#{{ m.id }} · {{ labels[m.kind] || m.kind }}</h3>
           <p>{{ m.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ m.description }}</p>
-          @if (m.kind !== 'position-adjustment') { <strong>{{ m.amount | currency: m.currencyCode : 'code' : '1.2-4' }}</strong> }
+          @if (m.kind !== 'position-adjustment' && m.kind !== 'correction') { <strong>{{ m.amount | currency: m.currencyCode : 'code' : '1.2-4' }}</strong> }
+          @if (m.correctionId) { <p>Parte da correção #{{ m.correctionId }}</p> }
+          @if (m.replacesMovementId) { <p>Substitui o lançamento #{{ m.replacesMovementId }}</p> }
           @if (m.tradeId) { <p>Operação #{{ m.tradeId }}</p> } @if (m.incomeReceiptId) { <p>Recebimento #{{ m.incomeReceiptId }}</p> }
           @if (m.reversalOfId) { <p>Estorno do lançamento #{{ m.reversalOfId }}</p> }
           @if (m.reversedById) { <p><strong>Estornado pelo lançamento #{{ m.reversedById }}</strong></p> }
@@ -54,10 +61,46 @@
           }
           @if (m.canReverse) { <button (click)="confirm(m)" [disabled]="saving()">Estornar #{{ m.id }}</button> }
           @else { <p class="hint">{{ m.reversalBlockedReason }}</p> }
+          @if (m.kind !== 'income-conversion' && m.kind !== 'reopen' && m.kind !== 'correction') { <button (click)="openPreview(m)" [disabled]="saving()">Analisar correção #{{ m.id }}</button> }
+          @if (canCorrect(m)) { <button (click)="openExecution(m)" [disabled]="saving()">Corrigir #{{ m.id }}</button> }
         </article>
       } @empty { <p>Nenhuma movimentação para este filtro.</p> }
     </section>
   </div>
+}
+@if (previewOpen()) {
+  <app-edit-panel [editing]="true" [error]="previewError()" title="Impactos de uma correção atrasada" (closed)="closePreview()">
+    <section class="panel">
+      @if (previewSource(); as source) { <h2>Correção do lançamento #{{ source.id }}</h2><p>{{ labels[source.kind] || source.kind }} · {{ source.description }}</p> }
+      @else { <h2>Lançamento ainda não registrado</h2> }
+      <p>Esta consulta não altera saldos, não reabre períodos e não executa estornos.</p>
+      <form [formGroup]="previewForm" (ngSubmit)="analyzeCorrection()">
+        <label for="correction-date">Data pretendida para a operação</label><input id="correction-date" type="date" formControlName="date" min="1900-01-01" [max]="today" />
+        <p class="hint">Em correções existentes, a análise começa na mais antiga entre a data original e a informada. As referências originais já estão incluídas; selecione referências adicionais se elas também mudarem.</p>
+        <label for="correction-position">Posição envolvida (se houver)</label><select id="correction-position" formControlName="positionId"><option [ngValue]="0">Nenhuma adicional</option>@for (p of summary()?.positions ?? []; track p.id) { <option [ngValue]="p.id">{{ p.ticker }}</option> }</select>
+        <label for="correction-cash">Saldo envolvido (se houver)</label><select id="correction-cash" formControlName="cashAssetId"><option [ngValue]="0">Nenhum adicional</option>@for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }</select>
+        <label for="correction-destination">Outro saldo envolvido (transferências)</label><select id="correction-destination" formControlName="destinationId"><option [ngValue]="0">Nenhum adicional</option>@for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }</select>
+        @if (previewForm.touched && previewForm.invalid) { <p class="field-error">Informe a data da operação.</p> }
+        <button class="primary" type="submit" [disabled]="previewLoading()">{{ previewLoading() ? 'Analisando…' : 'Consultar impactos' }}</button>
+      </form>
+      @if (previewLoading()) { <p role="status">Consultando dependências…</p> }
+      @if (preview(); as result) {
+        <h3>Impactos a partir de {{ result.fromDate | date: 'dd/MM/yyyy' : 'UTC' }}</h3>
+        @for (warning of result.warnings; track warning) { <p class="notice">{{ warning }}</p> }
+        <h3>Movimentos para conferência · {{ result.movements.length }}</h3>
+        @for (m of result.movements; track m.id) { <article class="panel section-gap"><strong>#{{ m.id }} · {{ labels[m.kind] || m.kind }}</strong><p>{{ m.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ m.description }}</p><p>{{ dependencyLabels[m.dependency] }}{{ m.isReversed ? ' · Já estornado' : '' }}</p></article> }
+        @empty { <p>Nenhuma dependência encontrada nas referências consultadas. Isso não valida os valores do novo lançamento.</p> }
+        @if (result.reviewOrder.length) { <p>Ordem sugerida de conferência das dependências: {{ result.reviewOrder.join(' → ') }}. Não é uma autorização de estorno automático.</p> }
+        <h3>Fotografias para revisão · {{ result.snapshots.length }}</h3>
+        @for (photo of result.snapshots; track photo.id) { <p>{{ photo.month | date: 'MM/yyyy' : 'UTC' }} · Versão {{ photo.revision }} · {{ photo.requiresReopening ? 'Período fechado: avaliar reabertura' : photo.isReopened ? 'Já reaberto' : 'Conferir fotografia do mesmo dia' }}{{ photo.isOutdated ? ' · Já desatualizada' : '' }}</p> }
+        @empty { <p>Nenhuma fotografia no período afetado.</p> }
+        <p class="hint">Para informar os valores e simular o recálculo, feche esta consulta e use Corrigir no lançamento ou Registrar operação atrasada.</p>
+      }
+    </section>
+  </app-edit-panel>
+}
+@if (executionOpen() && id() && summary()) {
+  <app-correction-panel [portfolioId]="id()!" [movementId]="executionSourceId()" [balances]="balances()" [baseCurrency]="summary()!.portfolio.baseCurrencyCode" (closed)="executionOpen.set(false)" (completed)="corrected($event)" />
 }
 @if (pending(); as m) {
   <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar estorno" (closed)="pending.set(null)">

@@ -48,4 +48,31 @@ describe('MovementsPage', () => {
     expect(c.reverseReason()).toBe('Depósito duplicado');
     expect(c.error()).toContain('dependentes');
   });
+  it('previews an existing correction without sending a reversal and discards stale results when the date changes', () => {
+    const fixture = initialize(); const c = fixture.componentInstance;
+    c.openPreview({ id: 9, kind: 'buy', date: '2026-09-01', description: 'Compra' } as Movement);
+    c.analyzeCorrection();
+    const request = http.expectOne('/api/portfolios/1/movements/correction-preview');
+    expect(request.request.body).toEqual({ date: '2026-09-01', movementId: 9, positionId: null, cashAssetId: null, destinationId: null });
+    request.flush({ fromDate: '2026-09-01', movementId: 9,
+      movements: [{ id: 10, date: '2026-09-02', kind: 'sell', description: 'Venda', dependency: 'indirect', isReversed: false }],
+      snapshots: [{ id: 2, month: '2026-09-01', revision: 1, requiresReopening: true }], reviewOrder: [10, 9], warnings: ['Consulta sem gravação.'] });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Dependência indireta');
+    expect(fixture.nativeElement.textContent).toContain('Período fechado');
+    expect(fixture.nativeElement.textContent).toContain('Consulta sem gravação.');
+    c.previewForm.patchValue({ date: '2026-09-02' });
+    expect(c.preview()).toBeNull();
+    http.expectNone('/api/portfolios/1/movements/9/reversal');
+  });
+  it('requires references for a late entry and cancels requests when the preview is closed', () => {
+    const c = initialize().componentInstance; c.openPreview(); c.analyzeCorrection();
+    http.expectNone('/api/portfolios/1/movements/correction-preview');
+    expect(c.previewError()).toContain('Selecione');
+    c.previewForm.patchValue({ cashAssetId: 5, destinationId: 6 }); c.analyzeCorrection();
+    const request = http.expectOne('/api/portfolios/1/movements/correction-preview');
+    expect(request.request.body.cashAssetId).toBe(5); expect(request.request.body.destinationId).toBe(6);
+    c.closePreview(); expect(request.cancelled).toBe(true); expect(c.previewLoading()).toBe(false);
+    expect(c.preview()).toBeNull(); expect(c.previewOpen()).toBe(false);
+  });
 });

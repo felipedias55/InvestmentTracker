@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace InvestmentTracker.IntegrationTests.Movements
 {
@@ -22,6 +23,15 @@ namespace InvestmentTracker.IntegrationTests.Movements
     public class MovementsApiTests(DatabaseFixture fixture)
     {
         private static readonly DateOnly Today = new(2026, 9, 8);
+        private sealed class FailCorrection : SaveChangesInterceptor
+        {
+            public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken ct = default)
+            {
+                if (eventData.Context!.ChangeTracker.Entries<FinancialMovement>().Any(e => e.State == EntityState.Added && e.Entity.CorrectionId.HasValue))
+                    throw new InvalidOperationException("Falha sintética após gravar cabeçalho do lote.");
+                return ValueTask.FromResult(result);
+            }
+        }
         private sealed class Clock : TimeProvider
         {
             public override DateTimeOffset GetUtcNow() => new(2026, 9, 8, 15, 0, 0, TimeSpan.Zero);
@@ -56,6 +66,134 @@ namespace InvestmentTracker.IntegrationTests.Movements
             var response = await client.PostAsJsonAsync(path, dto);
             Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
             return (await response.Content.ReadFromJsonAsync<MovementDto>())!;
+        }
+        [Fact]
+        public async Task Correction_FailureAfterFirstWrite_ShouldRollBackHeaderAndBalances()
+        {
+            var (portfolio, _, cash) = await Seed();
+            using var client = fixture.ApiFactory.WithWebHostBuilder(b => b.ConfigureTestServices(s => {
+                s.AddSingleton<TimeProvider, Clock>(); s.AddDbContext<InvestmentTrackerDbContext>(o => o.AddInterceptors(new FailCorrection()));
+            })).CreateClient();
+            var path = $"/api/portfolios/{portfolio}/movements";
+            var input = new CorrectionInput(null, "Depósito atrasado", new("deposit", Today.AddDays(-1), CashAssetId: cash, Amount: 10));
+            var response = await client.PostAsJsonAsync(path + "/correction-simulation", input); response.EnsureSuccessStatusCode();
+            var preview = (await response.Content.ReadFromJsonAsync<CorrectionSimulationDto>())!; Assert.True(preview.CanApply);
+            var applied = await client.PostAsJsonAsync(path + "/corrections", new ApplyCorrectionDto(Guid.NewGuid(), preview.Token, input));
+            Assert.Equal(HttpStatusCode.InternalServerError, applied.StatusCode);
+            await using var db = fixture.Database.CreateContext(); Assert.Equal(1000, (await db.ExternalAssets.SingleAsync()).Value);
+            Assert.Empty(await db.Set<FinancialMovement>().ToListAsync()); Assert.Empty(await db.PortfolioCashFlows.ToListAsync());
+        }
+        [Fact]
+        public async Task ConcurrentCorrections_ShouldApplyOnlyOnePreview()
+        {
+            var (portfolio, _, cash) = await Seed(); using var client = Client();
+            var path = $"/api/portfolios/{portfolio}/movements";
+            var input = new CorrectionInput(null, "Depósito atrasado", new("deposit", Today.AddDays(-1), CashAssetId: cash, Amount: 10));
+            var response = await client.PostAsJsonAsync(path + "/correction-simulation", input);
+            var preview = (await response.Content.ReadFromJsonAsync<CorrectionSimulationDto>())!; Assert.True(preview.CanApply);
+            var results = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => client.PostAsJsonAsync(path + "/corrections", new ApplyCorrectionDto(Guid.NewGuid(), preview.Token, input))));
+            Assert.Single(results, r => r.StatusCode == HttpStatusCode.OK); Assert.Single(results, r => r.StatusCode == HttpStatusCode.Conflict);
+            await using var db = fixture.Database.CreateContext(); Assert.Equal(1010, (await db.ExternalAssets.SingleAsync()).Value);
+            Assert.Equal(2, await db.Set<FinancialMovement>().CountAsync()); Assert.Single(await db.PortfolioCashFlows.ToListAsync());
+        }
+        [Fact]
+        public async Task Correction_ShouldApplyWholeChainPreservePhotosAndRetryWithoutDuplicates()
+        {
+            var (portfolio, asset, cash) = await Seed(); using var client = Client(); var path = $"/api/portfolios/{portfolio}";
+            (await client.PostAsJsonAsync(path + "/trades", new SaveTradeDto(Guid.NewGuid(), Today.AddDays(-2), "buy", asset, 10, 10, cash))).EnsureSuccessStatusCode();
+            (await client.PostAsJsonAsync(path + "/trades", new SaveTradeDto(Guid.NewGuid(), Today.AddDays(-1), "sell", asset, 4, 20, cash))).EnsureSuccessStatusCode();
+            (await client.PostAsync(path + "/history/snapshots", null)).EnsureSuccessStatusCode();
+            var original = (await client.GetFromJsonAsync<List<MovementDto>>(path + "/movements"))!.Single(x => x.Kind == "buy");
+            string frozen; await using (var db = fixture.Database.CreateContext()) frozen = (await db.PortfolioSnapshots.SingleAsync()).DashboardJson;
+            var input = new CorrectionInput(original.Id, "Quantidade informada incorretamente", new("buy", Today.AddDays(-2), asset, cash, Quantity: 12, UnitPrice: 10));
+            var simulation = await client.PostAsJsonAsync(path + "/movements/correction-simulation", input); simulation.EnsureSuccessStatusCode();
+            var preview = (await simulation.Content.ReadFromJsonAsync<CorrectionSimulationDto>())!;
+            Assert.True(preview.CanApply, string.Join(";", preview.Blockers));
+            Assert.Equal(2, (await client.GetFromJsonAsync<List<MovementDto>>(path + "/movements"))!.Count);
+            var dto = new ApplyCorrectionDto(Guid.NewGuid(), preview.Token, input);
+            var applied = await client.PostAsJsonAsync(path + "/movements/corrections", dto); applied.EnsureSuccessStatusCode();
+            var result = (await applied.Content.ReadFromJsonAsync<CorrectionSimulationDto>())!;
+            var retry = await client.PostAsJsonAsync(path + "/movements/corrections", dto); retry.EnsureSuccessStatusCode();
+            Assert.Equal(result.CorrectionId, (await retry.Content.ReadFromJsonAsync<CorrectionSimulationDto>())!.CorrectionId);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(path + "/movements/corrections", dto with { Input = input with { Reason = "Outro motivo" } })).StatusCode);
+            await using (var db = fixture.Database.CreateContext())
+            {
+                var p = await db.PortfolioAssets.SingleAsync(); Assert.Equal(8, p.Quantity); Assert.Equal(80, p.InvestedAmount); Assert.Equal(160, p.CurrentValue); Assert.Equal(15, p.Income);
+                Assert.Equal(960, (await db.ExternalAssets.SingleAsync()).Value);
+                Assert.Equal(7, await db.Set<FinancialMovement>().CountAsync());
+                Assert.Equal(2, await db.Set<FinancialMovement>().CountAsync(m => m.ReplacesMovementId != null));
+                var photo = await db.PortfolioSnapshots.SingleAsync(); Assert.Equal(frozen, photo.DashboardJson); Assert.True(photo.IsOutdated); Assert.True(photo.IsReopened);
+                Assert.Equal(1, photo.Revision); Assert.Equal("[]", photo.PreviousVersionsJson);
+            }
+            var latest = (await client.GetFromJsonAsync<List<MovementDto>>(path + "/movements"))!.Single(x => x.Kind == "sell" && x.CorrectionId == result.CorrectionId);
+            Assert.True(latest.CanReverse); // Replay registration order still supports ordinary dependency checks.
+        }
+        [Fact]
+        public async Task Correction_ShouldRejectStalePreviewAndInvalidReplayWithoutWrites()
+        {
+            var (portfolio, asset, cash) = await Seed(); using var client = Client(); var path = $"/api/portfolios/{portfolio}";
+            (await client.PostAsJsonAsync(path + "/trades", new SaveTradeDto(Guid.NewGuid(), Today.AddDays(-2), "buy", asset, 10, 10, cash))).EnsureSuccessStatusCode();
+            (await client.PostAsJsonAsync(path + "/trades", new SaveTradeDto(Guid.NewGuid(), Today.AddDays(-1), "sell", asset, 4, 20, cash))).EnsureSuccessStatusCode();
+            var original = (await client.GetFromJsonAsync<List<MovementDto>>(path + "/movements"))!.Single(x => x.Kind == "buy");
+            var input = new CorrectionInput(original.Id, "Conferência", new("buy", Today.AddDays(-2), asset, cash, Quantity: 2, UnitPrice: 10));
+            var invalid = await client.PostAsJsonAsync(path + "/movements/correction-simulation", input); invalid.EnsureSuccessStatusCode();
+            var blocked = (await invalid.Content.ReadFromJsonAsync<CorrectionSimulationDto>())!; Assert.False(blocked.CanApply);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(path + "/movements/corrections", new ApplyCorrectionDto(Guid.NewGuid(), blocked.Token, input))).StatusCode);
+            input = input with { Operation = input.Operation with { Quantity = 12 } };
+            var simulation = await client.PostAsJsonAsync(path + "/movements/correction-simulation", input);
+            var preview = (await simulation.Content.ReadFromJsonAsync<CorrectionSimulationDto>())!;
+            await Post(client, path + "/movements", new SaveMovementDto(Guid.NewGuid(), Today, "deposit", cash, 10));
+            var before = await client.GetStringAsync(path + "/movements");
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(path + "/movements/corrections", new ApplyCorrectionDto(Guid.NewGuid(), preview.Token, input))).StatusCode);
+            Assert.Equal(before, await client.GetStringAsync(path + "/movements"));
+            await using var db = fixture.Database.CreateContext(); Assert.Equal(6, (await db.PortfolioAssets.SingleAsync()).Quantity); Assert.Equal(990, (await db.ExternalAssets.SingleAsync()).Value);
+        }
+        [Fact]
+        public async Task LateIncomeAndPurchase_ShouldPreserveHistoricalFlowsAndIncomeConversions()
+        {
+            var (portfolio, asset, _) = await Seed(); using var client = Client(); var path = $"/api/portfolios/{portfolio}";
+            (await client.PostAsJsonAsync(path + "/trades", new SaveTradeDto(Guid.NewGuid(), Today.AddDays(-2), "buy", asset, 10, 10))).EnsureSuccessStatusCode();
+            (await client.PostAsJsonAsync(path + "/income", new SaveIncomeDto(Guid.NewGuid(), Today.AddDays(-1), asset, 5))).EnsureSuccessStatusCode();
+            var input = new CorrectionInput(null, "Compra anterior esquecida", new("buy", Today.AddDays(-3), asset, Quantity: 2, UnitPrice: 10));
+            var response = await client.PostAsJsonAsync(path + "/movements/correction-simulation", input);
+            var preview = (await response.Content.ReadFromJsonAsync<CorrectionSimulationDto>())!; Assert.True(preview.CanApply);
+            (await client.PostAsJsonAsync(path + "/movements/corrections", new ApplyCorrectionDto(Guid.NewGuid(), preview.Token, input))).EnsureSuccessStatusCode();
+            await using var db = fixture.Database.CreateContext();
+            Assert.Equal(12, (await db.PortfolioAssets.SingleAsync()).Quantity); Assert.Equal(20, (await db.PortfolioAssets.SingleAsync()).Income);
+            var flows = await db.PortfolioCashFlows.ToListAsync(); Assert.Equal(120, flows.Sum(f => (f.IsReversal ? -1 : 1) * f.Amount));
+            Assert.Equal(2, await db.Set<IncomeReceipt>().CountAsync()); Assert.Equal(2, await db.Set<IncomeConversion>().CountAsync());
+            var analysis = (await client.GetFromJsonAsync<IncomeAnalysisDto>(path + "/income/analysis"))!;
+            Assert.Equal(5, analysis.ConvertedMonths.Sum(x => x.Net));
+        }
+        [Fact]
+        public async Task CorrectionPreview_ShouldBeReadOnlyAndValidatePortfolioReferences()
+        {
+            var (portfolio, asset, cash) = await Seed(); using var client = Client();
+            var path = $"/api/portfolios/{portfolio}";
+            (await client.PostAsJsonAsync(path + "/trades", new SaveTradeDto(Guid.NewGuid(), Today, "buy", asset, 1, 10, cash))).EnsureSuccessStatusCode();
+            (await client.PostAsync(path + "/history/snapshots", null)).EnsureSuccessStatusCode();
+            var before = await client.GetStringAsync(path + "/movements");
+            var source = (await client.GetFromJsonAsync<List<MovementDto>>(path + "/movements"))!.Single();
+            var input = new CorrectionPreviewRequest(Today.AddDays(-1), source.Id);
+            var response = await client.PostAsJsonAsync(path + "/movements/correction-preview", input);
+            response.EnsureSuccessStatusCode();
+            var preview = (await response.Content.ReadFromJsonAsync<CorrectionPreviewDto>())!;
+            Assert.Equal(source.Id, Assert.Single(preview.Movements).Id);
+            Assert.True(Assert.Single(preview.Snapshots).RequiresReopening);
+            Assert.Equal(before, await client.GetStringAsync(path + "/movements"));
+            await using var db = fixture.Database.CreateContext();
+            Assert.Equal(990m, (await db.ExternalAssets.SingleAsync()).Value);
+            Assert.Equal(1m, (await db.PortfolioAssets.SingleAsync()).Quantity);
+            var photo = await db.PortfolioSnapshots.SingleAsync(); Assert.False(photo.IsOutdated); Assert.False(photo.IsReopened);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path + "/movements/correction-preview", input with { CashAssetId = int.MaxValue })).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path + "/movements/correction-preview", input with { PositionId = int.MaxValue })).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path + "/movements/correction-preview", input with { DestinationId = int.MaxValue })).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path + "/movements/correction-preview", new CorrectionPreviewRequest(Today))).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path + "/movements/correction-preview", input with { Date = Today.AddDays(1) })).StatusCode);
+            var other = new Portfolio { Name = "Outra carteira", BaseCurrencyId = (await db.Portfolios.SingleAsync()).BaseCurrencyId };
+            db.Portfolios.Add(other); await db.SaveChangesAsync();
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/api/portfolios/{other.Id}/movements/correction-preview", input)).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync("/api/portfolios/2147483647/movements/correction-preview", input)).StatusCode);
         }
         [Fact]
         public async Task FeesAndCorporateEvents_ShouldPreserveCostAndReverseExactBalances()

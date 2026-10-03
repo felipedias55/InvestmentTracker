@@ -1,6 +1,6 @@
 import { createRequestId } from '../../core/request-id';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -27,6 +27,7 @@ import {
     AllocationTable,
     ReactiveFormsModule,
     CurrencyPipe,
+    PercentPipe,
     DatePipe,
     RouterLink,
   ],

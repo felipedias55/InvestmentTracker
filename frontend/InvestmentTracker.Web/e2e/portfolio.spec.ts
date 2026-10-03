@@ -45,8 +45,10 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   // Editing a record must open at its current scroll position, including on mobile.
   await page.getByLabel('Buscar cadastro').fill(ticker);
   await page.getByRole('button', { name: 'Editar ' + ticker, exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Editar ativo' })).toBeVisible();
-  await page.getByLabel('Nome', { exact: true }).fill('Ativo revisado ' + suffix);
+  await expect(page.locator('dialog:modal')).toBeVisible();
+  await page.locator('dialog:modal').getByLabel('Nome', { exact: true }).fill('Ativo revisado ' + suffix);
+  await expect(page.getByLabel('Ticker', { exact: true })).toHaveValue(ticker);
+  await expect(page.getByLabel('Nome', { exact: true })).toHaveValue('Ativo revisado ' + suffix);
   await page.getByRole('button', { name: 'Salvar ativo', exact: true }).click();
   await expect(page.locator('dialog:modal')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Novo ativo', exact: true })).toBeVisible();
@@ -108,6 +110,10 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   await page.getByRole('button', { name: 'Registrar fotografia', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar fotografia', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Atualizar fotografia deste mês' })).toBeVisible();
+  const returnsTable = page.getByRole('table', { name: 'Rentabilidade entre fotografias' });
+  await expect(returnsTable).toBeVisible();
+  await expect(returnsTable).toContainText('São necessárias duas fotografias para comparar.');
+  await expect(returnsTable).toContainText('—');
   history = await json(request, path + '/history');
   const snapshotId = history.months.find((m: any) => m.snapshotId).snapshotId;
   const snapshotPath = path + '/history/snapshots/' + snapshotId;
@@ -242,6 +248,16 @@ test('depósito, retirada, transferência, ajuste e estorno atualizam saldos e t
   expect(Number(balances.items.find((b: any) => b.name === 'Conta B').value)).toBe(120);
   expect((await json(request, path + '/history')).cashFlows).toHaveLength(2);
   expect((await json(request, path + '/movements'))).toHaveLength(5);
+  const beforePreview = await json(request, path + '/movements');
+  await page.getByRole('button', { name: `Analisar correção #${deposit.id}`, exact: true }).click();
+  await page.getByRole('button', { name: 'Consultar impactos', exact: true }).click();
+  const preview = page.locator('dialog:modal');
+  await expect(preview).toContainText('Há estornos na cadeia');
+  await expect(preview).toContainText('Já estornado');
+  await expect(preview).toContainText('Ordem sugerida de conferência');
+  await preview.getByRole('button', { name: 'Fechar edição' }).click();
+  expect(await json(request, path + '/movements')).toEqual(beforePreview);
+  expect(await json(request, path + '/external-assets')).toEqual(balances);
   for (const original of [transfer, withdrawal, deposit]) {
     await page.getByRole('button', { name: `Estornar #${original.id}`, exact: true }).click();
     await page.getByLabel('Motivo do estorno', { exact: true }).fill('Desfazer lançamento de teste');
@@ -281,6 +297,58 @@ test('menu permanece acessível após rolagem e gráficos mantêm preferências'
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
 
+test('correção confirmada recalcula compra e venda e lançamento atrasado preserva a fotografia', async ({ page, request }, info) => {
+  const name = 'Correção E2E ' + info.project.name;
+  const created = await request.post('/api/portfolios', { data: { name } }); expect(created.ok()).toBeTruthy();
+  const portfolio = await created.json(); const path = `portfolios/${portfolio.id}`;
+  const [currencies, types, countries, categories, sectors] = await Promise.all(['currencies', 'asset-types', 'countries', 'asset-categories', 'sectors'].map(p => json(request, p)));
+  const currencyId = currencies.find((x: any) => x.code === 'BRL').id;
+  const assetResponse = await request.post('/api/assets', { data: { ticker: info.project.name === 'desktop' ? 'FIXD' : 'FIXC', name: 'Ativo de correção', currencyId,
+    assetTypeId: types[0].id, countryId: countries[0].id, assetCategoryId: categories[0].id, sectorId: sectors[0].id } }); expect(assetResponse.ok()).toBeTruthy();
+  const asset = await assetResponse.json();
+  const cashResponse = await request.post('/api/' + path + '/external-assets', { data: { name: 'Caixa correção', currencyId, value: '1000' } }); expect(cashResponse.ok()).toBeTruthy();
+  const cash = await cashResponse.json();
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const day = (offset: number) => { const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
+  for (const trade of [{ kind: 'buy', quantity: '10', unitPrice: '10', date: day(-2) }, { kind: 'sell', quantity: '4', unitPrice: '20', date: day(-1) }]) {
+    const response = await request.post('/api/' + path + '/trades', { data: { ...trade, assetId: asset.id, cashAssetId: cash.id, requestId: crypto.randomUUID() } }); expect(response.ok(), await response.text()).toBeTruthy();
+  }
+  const photoResponse = await request.post('/api/' + path + '/history/snapshots'); expect(photoResponse.ok()).toBeTruthy();
+  const photo = await photoResponse.json(); const snapshotPath = path + '/history/snapshots/' + photo.id;
+  const buy = (await json(request, path + '/movements')).find((m: any) => m.kind === 'buy');
+  await page.goto('/movements'); await choosePortfolio(page, name);
+  await page.getByRole('button', { name: `Corrigir #${buy.id}`, exact: true }).click();
+  await expect(page.locator('dialog:modal')).toBeVisible();
+  await expect(page.locator('#correction-op-quantity')).toHaveValue(/^10(?:,0+)?$/);
+  await page.locator('#correction-op-quantity').fill('12');
+  await page.locator('#correction-op-reason').fill('Conferência de quantidade no extrato');
+  await page.getByRole('button', { name: 'Simular correção', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Resultado da simulação' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Confirmar correção', exact: true })).toBeDisabled();
+  expect(Number((await json(request, path)).positions[0].quantity)).toBe(6);
+  await page.getByRole('checkbox', { name: 'Conferi os valores, os relançamentos e os fechamentos afetados.' }).check();
+  await page.getByRole('button', { name: 'Confirmar correção', exact: true }).click();
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  const corrected = await json(request, path); expect(Number(corrected.positions[0].quantity)).toBe(8); expect(Number(corrected.positions[0].investedAmount)).toBe(80);
+  expect(Number((await json(request, path + '/external-assets')).items[0].value)).toBe(960);
+  const revisedPhoto = await json(request, snapshotPath); expect(revisedPhoto.dashboard).toEqual(photo.dashboard);
+  expect(revisedPhoto.isOutdated).toBe(true); expect(revisedPhoto.isReopened).toBe(true);
+  await page.getByRole('button', { name: 'Registrar operação atrasada', exact: true }).click();
+  await expect(page.locator('dialog:modal')).toBeVisible();
+  await page.locator('#correction-op-kind').selectOption('deposit');
+  await page.locator('#correction-op-cash').selectOption({ label: 'Caixa correção · BRL' });
+  await page.locator('#correction-op-date').fill(day(-3)); await page.locator('#correction-op-amount').fill('10');
+  await page.locator('#correction-op-reason').fill('Depósito esquecido');
+  await page.getByRole('button', { name: 'Simular correção', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Resultado da simulação' })).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Conferi os valores, os relançamentos e os fechamentos afetados.' }).check();
+  await page.getByRole('button', { name: 'Confirmar correção', exact: true }).click();
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  expect(Number((await json(request, path + '/external-assets')).items[0].value)).toBe(970);
+  expect(Number((await json(request, path)).positions[0].quantity)).toBe(8);
+  expect((await json(request, snapshotPath)).dashboard).toEqual(photo.dashboard);
+});
+
 
 test('carteira vazia, metas de categoria e setor e simulador respeitam percentuais e não alteram saldos', async ({ page, request }, info) => {
   const name = 'Metas E2E ' + info.project.name;
@@ -297,7 +365,9 @@ test('carteira vazia, metas de categoria e setor e simulador respeitam percentua
   await expect(page.getByRole('status').filter({ hasText: 'Metas salvas' })).toBeVisible();
   const targets = await json(request, path + '/category-targets'); expect(targets).toHaveLength(2);
   await page.getByRole('button', { name: 'Setores', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Metas por setor', exact: true })).toBeVisible();
   await page.locator('#target-0').fill('100');
+  await expect(page.getByText('Total: 100,0000%', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Salvar conjunto de metas', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Metas salvas' })).toBeVisible();
   const sectors = await json(request, path + '/sector-targets'); expect(sectors).toHaveLength(1);

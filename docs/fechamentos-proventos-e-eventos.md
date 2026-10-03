@@ -6,9 +6,9 @@ Em **Evolução e fechamentos**, abra “Reabrir período para lançamentos atra
 
 Uma operação com data anterior a uma fotografia fechada exige reabertura. O bloqueio não depende mais da última data de qualquer operação da carteira: operações em posições e saldos independentes podem ter datas diferentes. A validação ocorre dentro da mesma transação que grava os efeitos e mantém o bloqueio por carteira.
 
-Se existem operações posteriores ativas na mesma posição ou saldo, é necessário estorná-las da mais recente para a mais antiga, registrar o lançamento atrasado e registrar novamente as posteriores na ordem correta. O sistema não aplica uma compra antiga por cima do custo médio de vendas posteriores. Registros antigos sem efeitos auditados bloqueiam conservadoramente o lançamento atrasado; seus saldos anteriores não são inventados. Lançamentos na mesma data seguem a ordem de registro.
+Se existem operações posteriores ativas na mesma posição ou saldo, use a [simulação de correções atrasadas](correcoes-atrasadas.md) para os tipos suportados. Ela desfaz e reaplica a cadeia após confirmação, com auditoria e reabertura dos períodos afetados. Casos sem dados suficientes ou com eventos não suportados continuam exigindo conferência manual. O sistema não aplica uma compra antiga por cima do custo médio de vendas posteriores; seus saldos anteriores não são inventados.
 
-**O estorno mantém sua data de execução**, inclusive quando serve para reorganizar lançamentos atrasados. Portanto, as séries de aportes e recebimentos conservam o histórico de correções: o mês de um relançamento pode ter valores brutos duplicados, compensados pelo estorno no mês da correção. Elas não devem ser interpretadas como uma reconstituição contábil retroativa. A trilha mostra o original, seu estorno e a nova operação.
+**O estorno comum mantém sua data de execução.** No lote de correção retroativa, o estorno tem a data efetiva do original, enquanto a data de gravação registra quando foi executado. O substituto recebe a data correta e a série líquida reflete a correção no período apropriado. Totais brutos continuam exibindo originais e relançamentos, compensados pelos estornos. A trilha preserva o original, seu estorno e o substituto.
 
 Operações, estornos, registros históricos ou alterações de saldos posteriores à captura, com data efetiva abrangida pela fotografia, sinalizam que ela está desatualizada. Aportes históricos não alteram saldos, mas podem invalidar comparações. Inserir/remover saldos iniciais também invalida fotografias afetadas. Atualizações de preços de dias posteriores não tornam desatualizada uma fotografia antiga que representava corretamente seu próprio dia.
 
@@ -59,7 +59,7 @@ O intervalo começa depois da data da fotografia anterior e termina na data da a
 
 Não usamos câmbio atual para inventar equivalentes históricos de proventos: a decomposição usa os equivalentes históricos registrados e fica indisponível quando faltam conversões para a moeda das fotografias. A complementação auditável está descrita em [recebimentos](recebimento-de-proventos.md). Mudança da moeda-base, fluxo externo sem equivalente ou fotografias desatualizadas também limita as comparações.
 
-**Métricas definidas, ainda sem percentual fictício:** o resultado econômico acima é monetário. TWR exige avaliações nos fluxos externos para neutralizar aportes; XIRR exige uma série completa de fluxos datados, saldo inicial e patrimônio final, além de tratar casos sem solução única. Fotografias mensais e saldos iniciais incompletos não garantem essas condições. Essas taxas não são exibidas como aproximações exatas nesta etapa.
+**Métricas percentuais:** o resultado econômico acima continua monetário. A tabela de rentabilidade exibe Dietz estimado e XIRR anualizada entre fotografias válidas, com os fluxos datados registrados. Dados incompletos podem distorcer as taxas; casos sem garantia de raiz única não exibem XIRR. TWR exato continua dependendo de avaliações em cada fluxo externo. Consulte [fórmulas, convenções e limites](metricas-de-rentabilidade.md).
 
 ## Arquitetura e atualização
 

@@ -24,7 +24,11 @@ namespace InvestmentTracker.Application.Movements
     public sealed record MovementDto(int Id, DateOnly Date, string Kind, string Description, string CurrencyCode,
         [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal Amount,
         int? TradeId, int? IncomeReceiptId, int? ReversalOfId, int? ReversedById,
-        bool CanReverse, string? ReversalBlockedReason, DateTime CreatedAtUtc, IReadOnlyList<MovementEffectDto> Effects);
+        bool CanReverse, string? ReversalBlockedReason, DateTime CreatedAtUtc, IReadOnlyList<MovementEffectDto> Effects)
+    {
+        public int? CorrectionId { get; init; }
+        public int? ReplacesMovementId { get; init; }
+    }
     public interface IMovementService
     {
         Task<IReadOnlyList<MovementDto>> ListAsync(int portfolioId, CancellationToken ct);

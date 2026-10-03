@@ -16,6 +16,8 @@ namespace InvestmentTracker.Domain.Entities
         public int? IncomeReceiptId { get; set; }
         public IncomeReceipt? IncomeReceipt { get; set; }
         public int? ReversalOfId { get; set; }
+        public int? CorrectionId { get; set; }
+        public int? ReplacesMovementId { get; set; }
         public FinancialMovement? ReversalOf { get; set; }
         public string? RequestPayload { get; set; }
         public List<MovementEffect> Effects { get; set; } = [];

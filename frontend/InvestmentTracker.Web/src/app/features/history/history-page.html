@@ -123,7 +123,24 @@
         <td>{{ r.economicResult == null ? '—' : (r.economicResult | currency:r.currencyCode:'code') }}</td>
       </tr> }
     </tbody></table></div>
-    <details><summary>Como interpretar rentabilidade</summary><p>Resultado econômico é um valor monetário, não uma taxa de rentabilidade. TWR exige avaliações em cada fluxo externo; XIRR exige fluxos datados completos, saldo inicial e valor final. Fotografias mensais e saldos iniciais sem histórico não garantem esses dados. Não calculamos percentuais aproximados como se fossem retornos exatos. A decomposição fica indisponível para fotografias desatualizadas, moedas-base diferentes ou proventos estrangeiros sem equivalente histórico. Complemente os equivalentes em Proventos; as comparações usam a última versão auditada para a moeda de cada fotografia.</p></details>
+    <h2 class="section-gap">Rentabilidade entre fotografias</h2>
+    <p class="hint">O cálculo começa no patrimônio da fotografia inicial, incluindo o patrimônio externo. Depende de todos os aportes, retiradas e proventos do intervalo estarem registrados. Ajustes manuais de saldo sem aporte são tratados como resultado. Não representa a rentabilidade desde a primeira compra.</p>
+    <div class="table-scroll"><table aria-label="Rentabilidade entre fotografias">
+      <thead><tr><th scope="col">Período / intervalo real</th><th scope="col">Moeda</th><th scope="col">Dietz estimado no intervalo</th><th scope="col">XIRR anualizada</th><th scope="col">Observações</th></tr></thead>
+      <tbody>@for (r of rows(); track r.period) {
+        <tr><th scope="row">{{ r.period }}
+          @if (r.comparisonStart && r.snapshotDate) { <small>{{ r.comparisonStart | date:'dd/MM/yyyy':'UTC' }} a {{ r.snapshotDate | date:'dd/MM/yyyy':'UTC' }}</small> }
+        </th><td>{{ r.currencyCode }}</td>
+        <td>{{ r.returns?.modifiedDietz == null ? '—' : (r.returns!.modifiedDietz | percent:'1.2-2':'pt-BR') }}</td>
+        <td>{{ r.returns?.xirr == null ? '—' : (r.returns!.xirr | percent:'1.2-2':'pt-BR') }}</td>
+        <td>{{ r.returns?.note ?? 'Calculado sobre os registros disponíveis.' }}</td></tr>
+      }</tbody>
+    </table></div>
+    <details><summary>Como interpretar rentabilidade</summary>
+      <p>Dietz estima o retorno do intervalo ponderando o dinheiro pelo número de dias que permaneceu na carteira. XIRR mede o retorno anualizado dos fluxos datados, usando anos de 365 dias. Uma XIRR de um intervalo curto pode ser muito elevada; não é previsão nem o ganho daquele mês. O agrupamento anual usa as datas reais das fotografias, que podem não coincidir com o ano calendário.</p>
+      <p>Proventos retidos já estão no patrimônio. Os recebidos fora da carteira são considerados uma distribuição ao investidor. Custos, câmbio e ajustes de valores afetam o resultado. O cálculo considera os fluxos após a data inicial até a data final, inclusive, com convenção de fim do dia. Valores e equivalentes devem estar completos; lançamentos omitidos podem distorcer as taxas.</p>
+      <p>TWR exato exige avaliações em cada fluxo externo e ainda não está disponível. Dietz é uma estimativa, especialmente sensível a aportes elevados e grandes oscilações. XIRR fica indisponível quando os fluxos alternam sinais mais de uma vez, pois a taxa pode não ser única, ou quando não há solução no intervalo numérico suportado. Fotografias reabertas, desatualizadas ou com moedas diferentes suspendem as métricas. Conversões históricas faltantes devem ser complementadas em Proventos ou nos movimentos.</p>
+    </details>
     <h2 class="section-gap">Patrimônio registrado</h2>
     <p class="hint">
       Clique em uma barra para abrir a fotografia. Anos usam a última fotografia disponível, sem

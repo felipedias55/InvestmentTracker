@@ -1,0 +1,60 @@
+<app-edit-panel [editing]="true" [busy]="applying()" [error]="error()" title="Aplicar correção atrasada" (closed)="closed.emit()">
+  <section class="panel">
+    <h2>{{ movementId === null ? 'Registrar operação atrasada' : 'Corrigir lançamento #' + movementId }}</h2>
+    <p>Informe os dados corretos e simule. Nada será gravado antes da confirmação.</p>
+    @if (loading()) { <p role="status">Carregando referências…</p> }
+    @else {
+      <form [formGroup]="form" (ngSubmit)="simulate()"><fieldset [disabled]="applying()">
+        <label for="correction-op-kind">Tipo da operação</label><select id="correction-op-kind" formControlName="kind">
+          <option value="buy">Compra</option><option value="sell">Venda</option><option value="income">Recebimento de proventos</option>
+          <option value="deposit">Depósito</option><option value="withdrawal">Retirada</option><option value="transfer">Transferência</option><option value="adjustment">Ajuste de saldo total</option>
+        </select>
+        <label for="correction-op-date">Data correta</label><input id="correction-op-date" type="date" formControlName="date" min="1900-01-01" [max]="today" />
+        @if (usesAsset()) {
+          <label for="correction-op-asset">Ativo</label><select id="correction-op-asset" formControlName="assetId"><option [ngValue]="0">Selecione</option>@for (a of assets(); track a.id) { <option [ngValue]="a.id">{{ a.ticker }} — {{ a.name }}</option> }</select>
+        }
+        <label for="correction-op-cash">Saldo de patrimônio externo</label><select id="correction-op-cash" formControlName="cashAssetId">
+          <option [ngValue]="0">{{ usesAsset() ? 'Sem saldo interno: dinheiro novo / saída da carteira / provento fora do saldo' : 'Selecione' }}</option>
+          @for (b of balances; track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.currencyCode }}</option> }
+        </select>
+        @if (form.controls.kind.value === 'transfer') {
+          <label for="correction-op-destination">Saldo de destino</label><select id="correction-op-destination" formControlName="destinationId"><option [ngValue]="0">Selecione</option>@for (b of balances; track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.currencyCode }}</option> }</select>
+        }
+        @if (isTrade()) {
+          <label for="correction-op-quantity">Quantidade</label><input id="correction-op-quantity" formControlName="quantity" inputmode="decimal" />
+          <label for="correction-op-price">Preço por unidade na moeda do ativo</label><input id="correction-op-price" formControlName="unitPrice" inputmode="decimal" />
+          <label for="correction-op-fees">Taxas totais na moeda do ativo</label><input id="correction-op-fees" formControlName="fees" inputmode="decimal" />
+        } @else {
+          <label for="correction-op-amount">{{ form.controls.kind.value === 'adjustment' ? 'Novo saldo total' : 'Valor da operação' }} na moeda original</label><input id="correction-op-amount" formControlName="amount" inputmode="decimal" />
+        }
+        @if (needsEquivalent()) {
+          <label for="correction-op-base">Equivalente histórico em {{ baseCurrency }}</label><input id="correction-op-base" formControlName="baseAmount" inputmode="decimal" />
+          <p class="hint">Obrigatório para moeda estrangeira. Na mesma moeda, deixe vazio ou informe o total. Confira o equivalente se alterar data ou valor; não será usado câmbio atual.</p>
+        }
+        <label for="correction-op-reason">Motivo da correção</label><input id="correction-op-reason" formControlName="reason" maxlength="400" />
+        @if (form.touched && form.invalid) { <p class="field-error">Informe a data e o motivo.</p> }
+        <button class="primary" type="submit" [disabled]="simulating()">{{ simulating() ? 'Simulando…' : 'Simular correção' }}</button>
+      </fieldset></form>
+      @if (result(); as r) {
+        @for (blocker of r.blockers; track blocker) { <p class="notice error" role="alert">{{ blocker }}</p> }
+        @if (r.canApply) {
+          <h3>Resultado da simulação</h3><p>{{ r.replacedMovementIds.length }} lançamentos serão estornados e substituídos. Período afetado desde {{ r.fromDate | date: 'dd/MM/yyyy' : 'UTC' }}.</p>
+          @for (b of r.balances; track $index) {
+            <article class="panel section-gap"><strong>{{ b.name }} · {{ b.currencyCode }}</strong>
+              <p>Valor: {{ b.beforeValue | currency: b.currencyCode : 'code' : '1.2-4' }} → {{ b.afterValue | currency: b.currencyCode : 'code' : '1.2-4' }}</p>
+              @if (b.isPosition) {
+                <p>Quantidade: {{ format(b.beforeQuantity) }} → {{ format(b.afterQuantity) }}</p>
+                <p>Custo: {{ b.beforeCost | currency: b.currencyCode : 'code' : '1.2-4' }} → {{ b.afterCost | currency: b.currencyCode : 'code' : '1.2-4' }}</p>
+                <p>Proventos: {{ b.beforeIncome | currency: b.currencyCode : 'code' : '1.2-4' }} → {{ b.afterIncome | currency: b.currencyCode : 'code' : '1.2-4' }}</p>
+              }
+            </article>
+          }
+          @for (photo of r.snapshots; track photo.id) { <p>Fotografia {{ photo.month | date: 'MM/yyyy' : 'UTC' }}, versão {{ photo.revision }}: período será reaberto e a fotografia sinalizada para revisão.</p> }
+          @for (warning of r.warnings; track warning) { <p class="notice">{{ warning }}</p> }
+          <label><input type="checkbox" [checked]="accepted()" [disabled]="applying()" (change)="accepted.set($any($event.target).checked)" /> Conferi os valores, os relançamentos e os fechamentos afetados.</label>
+          <button class="primary" [disabled]="!accepted() || applying()" (click)="apply()">{{ applying() ? 'Aplicando…' : 'Confirmar correção' }}</button>
+        }
+      }
+    }
+  </section>
+</app-edit-panel>

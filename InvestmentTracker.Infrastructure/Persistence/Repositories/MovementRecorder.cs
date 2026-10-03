@@ -33,7 +33,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
                     var positionIds = positions.Select(x => x.Entry.Entity.Id).Where(x => x != 0).ToArray();
                     var cashIds = balances.Select(x => x.Entry.Entity.Id).Where(x => x != 0).ToArray();
                     var dependent = await db.Set<FinancialMovement>().AnyAsync(x => x.PortfolioId == movement.PortfolioId && x.Date > movement.Date
-                        && x.ReversalOfId == null && x.Kind != "reopen" && x.Kind != "historical" && x.Kind != "income-conversion"
+                        && x.ReversalOfId == null && x.Kind != "reopen" && x.Kind != "historical" && x.Kind != "income-conversion" && x.Kind != "correction"
                         && !db.Set<FinancialMovement>().Any(r => r.ReversalOfId == x.Id)
                         && (!x.Effects.Any() || x.Effects.Any(e => (e.PositionId.HasValue && positionIds.Contains(e.PositionId.Value))
                             || (e.CashAssetId.HasValue && cashIds.Contains(e.CashAssetId.Value)))), ct);

@@ -17,6 +17,8 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
             b.HasOne(x => x.Trade).WithMany().HasForeignKey(x => x.TradeId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne(x => x.IncomeReceipt).WithMany().HasForeignKey(x => x.IncomeReceiptId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne(x => x.ReversalOf).WithMany().HasForeignKey(x => x.ReversalOfId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<FinancialMovement>().WithMany().HasForeignKey(x => x.CorrectionId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<FinancialMovement>().WithMany().HasForeignKey(x => x.ReplacesMovementId).OnDelete(DeleteBehavior.Restrict);
             b.HasMany(x => x.Effects).WithOne().HasForeignKey(x => x.FinancialMovementId).OnDelete(DeleteBehavior.Restrict);
             b.Property(x => x.Kind).HasMaxLength(32); b.Property(x => x.Description).HasMaxLength(500);
             b.Property(x => x.CurrencyCode).HasMaxLength(3); b.Property(x => x.Amount).HasPrecision(19, 4);

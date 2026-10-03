@@ -10,6 +10,8 @@ Aplicação pessoal de investimentos em .NET 10, SQL Server e Angular. Abra `Inv
 - Metas por categoria e setor somando 100%; simulador de aportes sem alteração dos saldos.
 - Compras/vendas com taxas, reinvestimento, proventos e movimentos de dinheiro, com atualização automática dos saldos.
 - Histórico unificado, estorno auditável, desdobramento, grupamento e bonificação.
+- Prévia de dependências e fotografias afetadas por correções ou lançamentos atrasados, sem alterar saldos.
+- Simulação e aplicação atômica de correções retroativas em operações suportadas, com estornos e substitutos auditáveis.
 - Fotografias mensais versionadas, comparação mensal/anual e reabertura controlada.
 - Proventos mensais/anuais por ativo, nas moedas originais ou na moeda-base, com conversão histórica e correções auditáveis.
 
@@ -105,9 +107,9 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 ## Limitações e próximas etapas
 
 - Fotografias passadas desatualizadas não são reconstruídas com valores de hoje. Versões sobrescritas antes da implementação do versionamento não podem ser recuperadas pelo sistema.
-- Lançamentos atrasados com dependências ainda exigem estorno e relançamento ordenado; a automação guiada não faz parte desta entrega.
+- Lançamentos atrasados e correções contam com diagnóstico, simulação financeira e aplicação em lote. Cadeias com eventos societários, ajustes de posição ou auditoria insuficiente continuam exigindo conferência manual.
 - Conversão histórica desconhecida não vira zero nem usa câmbio atual. Mudança de moeda-base pode exigir outro equivalente, sem apagar o anterior.
-- O resultado econômico é monetário; TWR/XIRR dependem de histórico suficiente e não são calculados.
+- Evolução exibe Dietz estimado no intervalo e XIRR anualizada com limites explícitos e bloqueios por dados insuficientes. TWR exato continua pendente de avaliações a cada fluxo externo.
 - Cotações automáticas dos ativos, ideias/reflexões, backup agendado, Docker, CI/CD e publicação continuam pendentes. O backup manual com validação de restauração já existe.
 - Autenticação/autorização devem anteceder a exposição pública. O uso atual é local/privado.
 
@@ -116,6 +118,8 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - [Cadastros](docs/cadastros.md), [carteira e câmbio](docs/carteira-e-cambio.md).
 - [Metas, dashboard e aportes](docs/metas-dashboard-aportes.md).
 - [Compras e vendas](docs/compras-e-vendas.md), [movimentações e estornos](docs/movimentacoes-e-estornos.md).
+- [Correções atrasadas: diagnóstico, simulação e aplicação](docs/correcoes-atrasadas.md).
 - [Fechamentos, evolução e eventos](docs/fechamentos-proventos-e-eventos.md), [histórico](docs/historico-da-carteira.md).
+- [Métricas de rentabilidade: Dietz e XIRR](docs/metricas-de-rentabilidade.md).
 - [Recebimentos e câmbio histórico](docs/recebimento-de-proventos.md).
 - [Datas e backup](docs/datas-e-backup.md), [revisão funcional](docs/revisao-funcional.md).
