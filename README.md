@@ -117,9 +117,12 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 
 - [Cadastros](docs/cadastros.md), [carteira e câmbio](docs/carteira-e-cambio.md).
 - [Metas, dashboard e aportes](docs/metas-dashboard-aportes.md).
+- [Simulador de aportes: como são escolhidos setor, categoria e moeda](docs/simulador-de-aportes.md).
 - [Compras e vendas](docs/compras-e-vendas.md), [movimentações e estornos](docs/movimentacoes-e-estornos.md).
 - [Correções atrasadas: diagnóstico, simulação e aplicação](docs/correcoes-atrasadas.md).
 - [Fechamentos, evolução e eventos](docs/fechamentos-proventos-e-eventos.md), [histórico](docs/historico-da-carteira.md).
 - [Métricas de rentabilidade: Dietz e XIRR](docs/metricas-de-rentabilidade.md).
+- [Apresentação, gráficos e testes visuais](docs/apresentacao-e-graficos.md).
+- [Atualização manual de cotações em lote](docs/cotacoes-manuais-em-lote.md).
 - [Recebimentos e câmbio histórico](docs/recebimento-de-proventos.md).
 - [Datas e backup](docs/datas-e-backup.md), [revisão funcional](docs/revisao-funcional.md).

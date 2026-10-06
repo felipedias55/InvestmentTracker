@@ -1,6 +1,7 @@
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { createRequestId } from '../../core/request-id';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -21,7 +22,7 @@ export interface Trade {
 }
 @Component({
   standalone: true, selector: 'app-trades-page',
-  imports: [PortfolioPicker, ReactiveFormsModule, CurrencyPipe, DatePipe, RouterLink],
+  imports: [CurrencyPipe, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink],
   templateUrl: './trades-page.html',
 })
 export class TradesPage {

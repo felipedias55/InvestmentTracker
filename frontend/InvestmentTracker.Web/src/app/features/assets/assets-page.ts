@@ -57,7 +57,6 @@ export class AssetsPage implements OnInit {
   }
   load() {
     this.loading.set(true);
-    this.ready.set(false);
     this.error.set('');
     forkJoin({
       assets: this.service.list(),

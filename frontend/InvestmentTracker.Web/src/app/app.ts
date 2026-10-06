@@ -1,11 +1,13 @@
 import { afterNextRender, Component, ElementRef, HostListener, Injector, ViewChild, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { catalogs } from './features/catalogs/catalog.models';
+import { ValuePrivacy } from './core/value-privacy';
 @Component({
   selector: 'app-root', standalone: true, templateUrl: './app.html', styleUrl: './app.css',
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
 })
 export class App {
+  readonly privacy = inject(ValuePrivacy);
   private readonly injector = inject(Injector);
   readonly catalogs = catalogs;
   readonly mobile = signal(window.innerWidth <= 900);

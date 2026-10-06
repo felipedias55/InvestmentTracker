@@ -1,8 +1,9 @@
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { EditPanel } from '../../shared/edit-panel';
 import { CorrectionPanel } from './correction-panel';
 import { createRequestId } from '../../core/request-id';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -31,7 +32,7 @@ export interface CorrectionPreview {
 }
 @Component({
   standalone: true, selector: 'app-movements-page',
-  imports: [CorrectionPanel, EditPanel, PortfolioPicker, ReactiveFormsModule, CurrencyPipe, DatePipe, RouterLink],
+  imports: [CurrencyPipe, CorrectionPanel, EditPanel, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink],
   templateUrl: './movements-page.html',
 })
 export class MovementsPage {

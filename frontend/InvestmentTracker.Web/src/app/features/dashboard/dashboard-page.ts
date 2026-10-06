@@ -1,5 +1,6 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
@@ -11,20 +12,30 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-dashboard-page',
-  imports: [PortfolioPicker, AllocationTable, CurrencyPipe, DatePipe, RouterLink],
+  imports: [CurrencyPipe, PortfolioPicker, AllocationTable, DatePipe, RouterLink],
   templateUrl: './dashboard-page.html',
   styles: [
     `
       .totals {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 16px;
         margin-top: 24px;
       }
       .totals strong {
-        font-size: 24px;
+        font-size: 22px;
         overflow-wrap: anywhere;
       }
+      .totals .wealth-card { background: var(--gold-metal); color: #30270f; grid-column: span 2; }
+      .wealth-card h2, .wealth-card .hint { color: #514017; }
+      .wealth-card strong { font-size: clamp(28px, 4vw, 38px); }
+      .overview-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
+      .overview-actions a { text-decoration: none; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: white; }
+      .quality-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 18px; }
+      .quality-strip div { padding: 16px; background: #fff; border: 1px solid var(--border); border-radius: 12px; }
+      .quality-strip strong { display: block; margin-bottom: 6px; } .quality-strip span { color: var(--muted); font-size: 12px; }
+      .chart-heading select { width: auto; max-width: 180px; } .chart-heading label { margin: 0; }
+      @media(max-width: 600px) { .totals { grid-template-columns: 1fr; } .totals .wealth-card { grid-column: auto; } }
     `,
   ],
 })
@@ -42,12 +53,20 @@ export class DashboardPage {
   readonly order = signal<ChartId[]>(['categories', 'sectors', 'countries']);
   readonly collapsed = signal<ChartId[]>([]);
   readonly announcement = signal('');
+  readonly chartTypes = signal<Record<ChartId, 'bars' | 'donut'>>({ categories: 'donut', sectors: 'bars', countries: 'donut' });
+  readonly oldestUpdate = computed(() => this.data()?.summary.positions.map(p => p.updatedOn).filter((x): x is string => !!x).sort()[0] ?? null);
+  readonly missingDates = computed(() => this.data()?.summary.positions.filter(p => !p.updatedOn).length ?? 0);
+  setChartType(id: ChartId, type: string) {
+    if (type !== 'bars' && type !== 'donut') return;
+    this.chartTypes.update(types => ({ ...types, [id]: type })); this.saveLayout();
+  }
   readonly titles = { categories: 'Distribuição por categoria', sectors: 'Distribuição por setor', countries: 'Distribuição por país' };
   private storageKey() { return `investment-tracker.dashboard.v1.${this.portfolioId()}`; }
   private saveLayout() {
-    try { localStorage.setItem(this.storageKey(), JSON.stringify({ order: this.order(), collapsed: this.collapsed() })); } catch { /* Preferences remain available for this session. */ }
+    try { localStorage.setItem(this.storageKey(), JSON.stringify({ order: this.order(), collapsed: this.collapsed(), types: this.chartTypes() })); } catch { /* Preferences remain available for this session. */ }
   }
   resetLayout() {
+    this.chartTypes.set({ categories: 'donut', sectors: 'bars', countries: 'donut' });
     this.order.set(['categories', 'sectors', 'countries']);
     this.collapsed.set([]);
     this.saveLayout();
@@ -84,8 +103,12 @@ export class DashboardPage {
     this.order.set(defaults);
     this.collapsed.set([]);
     try {
+      this.chartTypes.set({ categories: 'donut', sectors: 'bars', countries: 'donut' });
       const stored = JSON.parse(localStorage.getItem(this.storageKey()) ?? 'null');
       if (stored && Array.isArray(stored.order) && Array.isArray(stored.collapsed)) {
+        for (const id of defaults) {
+          if (stored.types?.[id] === 'bars' || stored.types?.[id] === 'donut') this.chartTypes.update(types => ({ ...types, [id]: stored.types[id] }));
+        }
         const valid = (value: unknown): value is ChartId => defaults.includes(value as ChartId);
         const order: ChartId[] = [...new Set<ChartId>(stored.order.filter(valid))];
         this.order.set([...order, ...defaults.filter(id => !order.includes(id))]);

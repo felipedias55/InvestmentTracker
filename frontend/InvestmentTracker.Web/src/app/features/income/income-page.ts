@@ -1,7 +1,9 @@
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { EditPanel } from '../../shared/edit-panel';
 import { createRequestId } from '../../core/request-id';
-import { Component, DestroyRef, inject, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { MoneyChart, MoneyPoint } from '../../shared/money-chart';
+import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -26,7 +28,7 @@ export interface IncomeReceipt {
 }
 @Component({
   standalone: true, selector: 'app-income-page',
-  imports: [EditPanel, PortfolioPicker, ReactiveFormsModule, CurrencyPipe, DatePipe, RouterLink],
+  imports: [CurrencyPipe, EditPanel, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink, MoneyChart],
   templateUrl: './income-page.html',
 })
 export class IncomePage {
@@ -56,6 +58,23 @@ export class IncomePage {
   readonly analysisYear = signal('');
   readonly analysisCurrency = signal('');
   readonly valueMode = signal<'original' | 'base'>('original');
+  readonly chartGroups = computed(() => {
+    const currencies = new Map<string, Map<string, MoneyPoint>>();
+    for (const row of this.analysisRows()) {
+      const groups = currencies.get(row.currencyCode) ?? new Map<string, MoneyPoint>();
+      const key = this.analysisMode() === 'assets' ? String(row.assetId) : row.period;
+      const previous = groups.get(key);
+      groups.set(key, { label: this.analysisMode() === 'assets' ? row.ticker : row.period,
+        value: row.net === null || previous?.value === null ? null : (previous?.value ?? 0) + Number(row.net) });
+      currencies.set(row.currencyCode, groups);
+    }
+    return [...currencies].sort(([a], [b]) => a.localeCompare(b)).map(([currency, groups]) => {
+      const points = [...groups.values()].sort((a, b) => this.analysisMode() === 'assets'
+        ? (b.value ?? -Infinity) - (a.value ?? -Infinity) || a.label.localeCompare(b.label)
+        : a.label.localeCompare(b.label));
+      return { currency, points, total: points.some(p => p.value === null) ? null : points.reduce((sum, p) => sum + p.value!, 0) };
+    });
+  });
   analysisRows() {
     const data = this.analysis();
     const rows = this.valueMode() === 'original' ? data[this.analysisMode()] :

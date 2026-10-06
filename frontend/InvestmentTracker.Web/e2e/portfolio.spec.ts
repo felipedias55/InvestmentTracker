@@ -1,5 +1,37 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
+test('cotações em lote revisam valores e preservam filtros e posições não preenchidas', async ({ page, request }, info) => {
+  const created = await request.post('/api/portfolios', { data: { name: 'Cotações ' + info.project.name } }); expect(created.ok()).toBeTruthy();
+  const portfolio = await created.json(); const path = `portfolios/${portfolio.id}`;
+  const [currencies, types, countries, categories, sectors] = await Promise.all(['currencies', 'asset-types', 'countries', 'asset-categories', 'sectors'].map(p => json(request, p)));
+  for (let i = 0; i < 2; i++) {
+    const assetResponse = await request.post('/api/assets', { data: { ticker: `BATCH${info.project.name === 'desktop' ? 'D' : 'C'}${i}`, name: 'Ativo sintético de cotação', currencyId: currencies.find((c: any) => c.code === 'BRL').id,
+      assetTypeId: types[0].id, countryId: countries[0].id, assetCategoryId: categories[0].id, sectorId: sectors[0].id } }); expect(assetResponse.ok()).toBeTruthy();
+    const asset = await assetResponse.json();
+    const response = await request.post('/api/' + path + '/assets', { data: { assetId: asset.id, quantity: '1.123456', investedAmount: '15', currentValue: '20', income: '3' } }); expect(response.ok()).toBeTruthy();
+  }
+  const before = await json(request, path); const first = before.positions[0];
+  await page.goto('/portfolio'); await page.locator('#portfolio-select').selectOption(String(portfolio.id));
+  await expect(page.getByRole('button', { name: 'Recarregar dados', exact: true })).toBeEnabled();
+  await page.locator('#position-search').fill('BATCH');
+  await page.getByRole('button', { name: 'Atualizar cotações em lote', exact: true }).click();
+  const modal = page.locator('dialog:modal'); await expect(modal).toBeVisible();
+  await modal.locator('#quote-' + first.id).fill('30,1234');
+  await modal.getByRole('button', { name: 'Revisar 1 cotações', exact: true }).click();
+  await expect(modal).toContainText('33,8423');
+  await expect(modal.locator('input')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('quote-batch.png') });
+  await modal.getByRole('button', { name: 'Confirmar atualização do lote', exact: true }).click();
+  await expect(modal).toHaveCount(0);
+  await expect(page.locator('#position-search')).toHaveValue('BATCH');
+  const after = await json(request, path);
+  expect(Number(after.positions[0].currentValue)).toBe(33.8423);
+  expect(Number(after.positions[1].currentValue)).toBe(20);
+  for (const p of after.positions) { expect(Number(p.quantity)).toBe(1.123456); expect(Number(p.investedAmount)).toBe(15); expect(Number(p.income)).toBe(3); }
+  const history = await json(request, path + '/history'); expect(history.cashFlows).toHaveLength(0);
+  expect((await json(request, path + '/movements')).filter((m: any) => m.kind === 'position-adjustment')).toHaveLength(1);
+});
+
 async function json(request: APIRequestContext, path: string) {
   const response = await request.get('/api/' + path);
   expect(response.ok(), await response.text()).toBeTruthy();
@@ -192,7 +224,7 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   await navigate(page, 'Proventos'); await choosePortfolio(page, name);
   await page.locator('#income-group').selectOption('years');
   const analysis = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Análise dos recebimentos', exact: true }) });
-  await expect(analysis.locator('tbody tr')).toHaveCount(1);
+  await expect(analysis.locator('table[aria-label="Detalhamento dos recebimentos"] tbody tr')).toHaveCount(1);
   await expect(analysis).toContainText('12,34');
   const income = (await json(request, path + '/income')).find((r: any) => Number(r.amount) === 12.34);
   await page.getByRole('button', { name: `Conversão #${income.id}`, exact: true }).click();
@@ -380,14 +412,12 @@ test('carteira vazia, metas de categoria e setor e simulador respeitam percentua
   const before = await json(request, path);
   await navigate(page, 'Simular aporte'); await choosePortfolio(page, name);
   await page.locator('#contribution-amount').fill('100,01');
-  const pending = page.waitForResponse(r => r.url().endsWith('/contribution-analysis') && r.request().method() === 'POST');
+  const pending = page.waitForResponse(r => r.url().endsWith('/contribution-analysis') && r.request().postDataJSON()?.dimension === 'category');
+  const sectorPending = page.waitForResponse(r => r.url().endsWith('/contribution-analysis') && r.request().postDataJSON()?.dimension === 'sector');
   await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
   const result = await (await pending).json();
   expect(Number(result.rows.find((r: any) => r.groupId === targets[0].groupId).suggestedContribution)).toBe(0);
   expect(Number(result.rows.find((r: any) => r.groupId === targets[1].groupId).suggestedContribution)).toBe(100.01);
-  await page.locator('#contribution-dimension').selectOption('sector');
-  const next = page.waitForResponse(r => r.url().endsWith('/contribution-analysis') && r.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
-  expect(Number((await (await next).json()).unallocatedAmount)).toBe(100.01);
+  expect(Number((await (await sectorPending).json()).unallocatedAmount)).toBe(100.01);
   expect(await json(request, path)).toEqual(before); expect(await json(request, path + '/movements')).toHaveLength(0);
 });

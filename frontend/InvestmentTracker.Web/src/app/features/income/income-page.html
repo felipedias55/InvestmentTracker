@@ -10,8 +10,8 @@
 @if (id()) { <button [disabled]="loading() || saving()" (click)="load()">Atualizar recebimentos</button> }
 @if (summary(); as s) {
   <section class="panel section-gap"><h2>Total de proventos acumulados</h2>
-    <strong>{{ s.totalIncome === null ? 'Conversão indisponível' : (s.totalIncome | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2') }}</strong>
-    <p>Inclui o saldo inicial informado na carteira e os novos recebimentos, convertidos pelo câmbio atual. A análise abaixo usa os equivalentes históricos de cada recebimento e pode apresentar outro total. Valores antigos não são transformados em recebimentos fictícios.</p>
+    <strong class="metric-value">{{ s.totalIncome === null ? 'Conversão indisponível' : (s.totalIncome | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2') }}</strong>
+    <details><summary>O que está incluído neste total?</summary><p>Inclui o saldo inicial informado na carteira e os novos recebimentos, convertidos pelo câmbio atual. A análise abaixo usa os equivalentes históricos de cada recebimento e pode apresentar outro total. Valores antigos não são transformados em recebimentos fictícios.</p></details>
   </section>
   <section class="panel section-gap"><h2>Análise dos recebimentos</h2>
     <div class="toolbar">
@@ -20,13 +20,27 @@
       @if (analysisMode() !== 'assets') { <div><label for="income-year">Ano dos recebimentos</label><select id="income-year" [value]="analysisYear()" (change)="analysisYear.set($any($event.target).value)"><option value="">Todos</option>@for (year of analysisYears(); track year) { <option [value]="year">{{ year }}</option> }</select></div> }
       @if (valueMode() === 'original') { <div><label for="income-currency">Moeda dos recebimentos</label><select id="income-currency" [value]="analysisCurrency()" (change)="analysisCurrency.set($any($event.target).value)"><option value="">Todas, separadamente</option>@for (code of analysisCurrencies(); track code) { <option [value]="code">{{ code }}</option> }</select></div> }
     </div>
-    <p class="hint">O filtro por ativo abaixo também se aplica a esta análise. Na visualização original, moedas diferentes ficam separadas. Na moeda-base, usamos os equivalentes históricos registrados. Totais com conversão faltante aparecem como pendentes. Estornos aparecem na data da correção e podem deixar o mês negativo. O saldo inicial acumulado não faz parte dos recebimentos mensais.</p>
-    <div class="table-scroll"><table><thead><tr><th>Período / ativo</th><th>Recebido</th><th>Estornado</th><th>Líquido após estornos</th></tr></thead><tbody>
+    <label for="income-analysis-search">Filtrar análise por ativo</label><input id="income-analysis-search" type="search" placeholder="Ex.: código do ativo" [value]="query()" (input)="query.set($any($event.target).value)" />
+    <details><summary>Moedas, estornos e diferenças entre totais</summary><p class="hint">O filtro por ativo também se aplica ao histórico abaixo. Na visualização original, moedas diferentes ficam separadas. Na moeda-base, usamos os equivalentes históricos registrados. Totais com conversão faltante aparecem como pendentes. Estornos aparecem na data da correção e podem deixar o mês negativo. O saldo inicial acumulado não faz parte dos recebimentos mensais.</p></details>
+    <div class="analysis-grid">
+      @for (group of chartGroups(); track group.currency) {
+        <section class="analysis-card">
+          <p class="eyebrow">RECEBIMENTOS FILTRADOS · {{ group.currency }}</p>
+          <strong class="metric-value">{{ group.total === null ? 'Conversão pendente' : (group.total | currency:group.currency:'code') }}</strong>
+          <p class="hint">Líquido após estornos · {{ analysisMode() === 'assets' ? 'Todo o histórico por ativo' : analysisYear() || 'Todos os anos' }}</p>
+          <app-money-chart [points]="group.points" [currency]="group.currency" [title]="analysisMode() === 'assets' ? 'Proventos por ativo' : 'Proventos por período'" [kind]="analysisMode() === 'assets' ? 'bars' : 'columns'" />
+        </section>
+      }
+    </div>
+    <p class="hint">Cada moeda tem sua própria escala. Períodos sem recebimentos registrados não são desenhados. Valores negativos aparecem abaixo de zero nas colunas.</p>
+    <details><summary>Detalhamento por período e ativo</summary>
+    <div class="table-scroll"><table aria-label="Detalhamento dos recebimentos"><thead><tr><th>Período / ativo</th><th>Recebido</th><th>Estornado</th><th>Líquido após estornos</th></tr></thead><tbody>
       @for (r of analysisRows(); track r.period + ':' + r.assetId + ':' + r.currencyCode) {
-        <tr><th>{{ r.period }} · {{ r.ticker }}@if (r.net !== null) { <div aria-hidden="true" style="height: 5px; background: #9d4e5a; max-width: 200px" [style.width.%]="barWidth(r)"></div> }</th>
+        <tr><th>{{ r.period }} · {{ r.ticker }}</th>
           <td>{{ r.received === null ? 'Conversão pendente' : (r.received | currency:r.currencyCode:'code':'1.2-4') }}</td><td>{{ r.reversed === null ? '—' : (r.reversed | currency:r.currencyCode:'code':'1.2-4') }}</td><td>{{ r.net === null ? '—' : (r.net | currency:r.currencyCode:'code':'1.2-4') }}</td></tr>
       }
     </tbody></table></div>
+    </details>
     @if (!analysisRows().length) { <p class="empty">Nenhum recebimento para estes filtros.</p> }
   </section>
   <div class="workspace section-gap">

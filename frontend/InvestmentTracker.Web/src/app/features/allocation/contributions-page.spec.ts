@@ -51,7 +51,7 @@ describe('ContributionsPage', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Valor sem distribuição');
     expect(fixture.nativeElement.textContent).toContain('1.234,50');
-    fixture.componentInstance.form.controls.dimension.setValue('sector');
+    fixture.componentInstance.form.controls.amount.setValue('200');
     expect(fixture.componentInstance.result()).toBeNull();
     http.expectNone((r) => r.method === 'PUT' || r.method === 'DELETE');
   });
@@ -62,6 +62,37 @@ describe('ContributionsPage', () => {
       fixture.componentInstance.simulate();
       http.expectNone('/api/portfolios/1/contribution-analysis');
     }
+  });
+  it('shows both analyses and clears visual marks without writing data', () => {
+    const fixture = initialize();
+    fixture.componentInstance.dashboard.set({ ...testDashboard, allocation: { ...testDashboard.allocation, sectorTargetsConfigured: true } });
+    fixture.componentInstance.form.controls.amount.setValue('100');
+    fixture.componentInstance.simulate();
+    const requests = http.match('/api/portfolios/1/contribution-analysis');
+    expect(requests.map(r => r.request.body.dimension)).toEqual(['category', 'sector']);
+    requests.forEach(r => r.flush({ ...result, dimension: r.request.body.dimension }));
+    expect(fixture.componentInstance.analyses()).toHaveLength(2);
+    fixture.componentInstance.toggle('joint:1-2');
+    expect(fixture.componentInstance.checked().has('joint:1-2')).toBe(true);
+    fixture.componentInstance.form.controls.amount.setValue('200');
+    expect(fixture.componentInstance.checked().size).toBe(0);
+    expect(fixture.componentInstance.plan()).toBeNull();
+    http.expectNone(r => r.method === 'PUT' || r.method === 'DELETE');
+  });
+  it('preserves a successful dimension when the other fails and cancels obsolete simulations', () => {
+    const fixture = initialize();
+    fixture.componentInstance.dashboard.set({ ...testDashboard, allocation: { ...testDashboard.allocation, sectorTargetsConfigured: true } });
+    fixture.componentInstance.simulate();
+    const requests = http.match('/api/portfolios/1/contribution-analysis');
+    requests[0].flush(result);
+    requests[1].flush({ detail: 'Falha de setor' }, { status: 409, statusText: 'Conflict' });
+    expect(fixture.componentInstance.analyses()).toHaveLength(1);
+    expect(fixture.componentInstance.plan()).toBeNull();
+    fixture.componentInstance.simulate();
+    const obsolete = http.match('/api/portfolios/1/contribution-analysis');
+    fixture.componentInstance.form.controls.amount.setValue('200');
+    expect(obsolete.every(r => r.cancelled)).toBe(true);
+    expect(fixture.componentInstance.saving()).toBe(false);
   });
   it('preserves input on unavailable currency errors and shows fallback warnings', () => {
     const fixture = initialize();

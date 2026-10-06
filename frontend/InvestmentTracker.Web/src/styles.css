@@ -1,9 +1,12 @@
  :root {
-  --accent: #9d4e5a;
-  --accent-soft: #f5e7ea;
-  --ink: #352d33;
-  --muted: #71636b;
-  --border: #e6dce0;
+  --accent: #b99a48;
+  --accent-text: #795600;
+  --gold-metal: linear-gradient(125deg, #b69a55 0%, #d0bb80 50%, #bfa361 100%);
+  --silver-metal: linear-gradient(125deg, #c3c7cd, #dfe2e6 50%, #cbd0d6);
+  --accent-soft: #e8eaed;
+  --ink: #292c31;
+  --muted: #626871;
+  --border: #d9dde2;
   color-scheme: light;
 }
 * {
@@ -11,7 +14,7 @@
 }
 body {
   margin: 0;
-  background: #f7f4f3;
+  background: #f5f6f7;
   color: var(--ink);
   font-family:
     Segoe UI,
@@ -41,13 +44,13 @@ button:disabled {
   cursor: default;
 }
 a {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 3px solid #b56872;
+  outline: 3px solid #a17b25;
   outline-offset: 3px;
 }
 .page-header {
@@ -67,7 +70,7 @@ select:focus-visible {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 2px;
-  color: var(--accent) !important;
+  color: var(--accent-text) !important;
 }
 .workspace {
   display: grid;
@@ -109,14 +112,14 @@ input,
 select {
   display: block;
   width: 100%;
-  border: 1px solid #cdbfc3;
+  border: 1px solid #b9bfc7;
   border-radius: 7px;
   padding: 11px 12px;
   color: var(--ink);
   background: #fff;
 }
 input::placeholder {
-  color: #85767c;
+  color: #707781;
 }
 .actions {
   display: flex;
@@ -125,12 +128,11 @@ input::placeholder {
   margin-top: 22px;
 }
 .primary {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  background: var(--gold-metal); color: #30270f;
+  border-color: var(--accent-text);
 }
 .primary:hover {
-  background: #823f49;
+  background: linear-gradient(125deg, #c1a66a, #d8c58f, #c8af76);
 }
 .danger {
   background: #9e3730;
@@ -186,7 +188,7 @@ th {
 }
 td {
   padding: 15px 10px;
-  border-bottom: 1px solid #f2ecee;
+  border-bottom: 1px solid #eceef1;
   overflow-wrap: anywhere;
 }
 .row-actions {
@@ -326,8 +328,8 @@ dd {
 .chart-heading h2 { font-size: 19px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
-.totals .panel { box-shadow: 0 4px 16px #352d3305; }
-.totals .panel:first-child { border-top: 3px solid var(--accent); background: #fffafb; }
+.totals .panel { box-shadow: 0 4px 16px #292c3105; }
+.totals .panel:first-child { border-top: 3px solid var(--accent); background: #f8f9fa; }
 .totals h2 { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
 @media (max-width: 1100px) { .filter-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 600px) { .filter-grid { grid-template-columns: 1fr; } .chart-controls button { min-height: 40px; } }
@@ -336,3 +338,9 @@ html { scroll-padding-top: 80px; }
 body:has(.mobile-menu-open) { overflow: hidden; }
 
 body:has(dialog:modal) { overflow: hidden; }
+.analysis-grid { display: grid; gap: 20px; margin: 24px 0; }
+.analysis-card { padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: #f8f9fa; min-width: 0; }
+.metric-value { display: block; font-size: clamp(24px, 4vw, 32px); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+details > summary { cursor: pointer; padding: 8px 0; }
+svg text { font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .analysis-card { padding: 12px; } }

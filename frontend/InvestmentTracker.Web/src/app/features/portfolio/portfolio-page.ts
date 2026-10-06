@@ -1,12 +1,14 @@
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { EditPanel } from '../../shared/edit-panel';
+import { QuoteBatchPanel } from './quote-batch-panel';
 import {
   brazilianNumberValidator,
   formatBrazilianNumber,
   parseBrazilianNumber,
 } from '../../core/brazilian-number';
 import { PortfolioSelection } from '../../shared/portfolio-picker';
-import { Component, DestroyRef, inject, signal, OnInit } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { Component, DestroyRef, computed, inject, signal, OnInit } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -20,7 +22,7 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-portfolio-page',
-  imports: [EditPanel, ReactiveFormsModule, CurrencyPipe, DatePipe, RouterLink],
+  imports: [CurrencyPipe, EditPanel, QuoteBatchPanel, ReactiveFormsModule, DatePipe, RouterLink],
   templateUrl: './portfolio-page.html',
   styleUrl: './portfolio-page.css',
 })
@@ -46,6 +48,49 @@ export class PortfolioPage implements OnInit {
   readonly editingPortfolio = signal<number | null>(null);
   readonly editingPosition = signal<number | null>(null);
   readonly pendingDelete = signal<Position | null>(null);
+  readonly batchPositions = signal<Position[] | null>(null);
+  openQuotes() { this.batchPositions.set([...this.filteredPositions()]); }
+  quotesSaved(count: number) {
+    this.batchPositions.set(null); this.success.set(`${count} cotações atualizadas. Quantidades, custos e proventos preservados.`);
+    this.select(this.selectedId()!);
+  }
+  readonly query = signal('');
+  readonly category = signal('');
+  readonly sector = signal('');
+  readonly currency = signal('');
+  readonly updatedBefore = signal('');
+  readonly sort = signal('ticker');
+  readonly lastSaved = signal<number | null>(null);
+  readonly categories = computed(() => this.options('assetCategoryName'));
+  readonly sectors = computed(() => this.options('sectorName'));
+  readonly positionCurrencies = computed(() => this.options('currencyCode'));
+  readonly filteredPositions = computed(() => {
+    const query = this.normalize(this.query().trim());
+    return (this.summary()?.positions ?? []).filter(p =>
+      (!query || this.normalize(`${p.ticker} ${p.name}`).includes(query)) &&
+      (!this.category() || p.assetCategoryName === this.category()) &&
+      (!this.sector() || p.sectorName === this.sector()) &&
+      (!this.currency() || p.currencyCode === this.currency()) &&
+      (!this.updatedBefore() || !p.updatedOn || p.updatedOn < this.updatedBefore())
+    ).sort((a, b) => {
+      const tie = a.ticker.localeCompare(b.ticker, 'pt-BR');
+      if (this.sort() === 'oldest') return (a.updatedOn ?? '').localeCompare(b.updatedOn ?? '') || tie;
+      if (this.sort() === 'value') {
+        if (a.baseCurrentValue == null) return b.baseCurrentValue == null ? tie : 1;
+        if (b.baseCurrentValue == null) return -1;
+        return Number(b.baseCurrentValue) - Number(a.baseCurrentValue) || tie;
+      }
+      return tie;
+    });
+  });
+  private normalize(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR'); }
+  private options(key: 'assetCategoryName' | 'sectorName' | 'currencyCode') {
+    return [...new Set((this.summary()?.positions ?? []).map(p => p[key]).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }
+  clearFilters() {
+    this.query.set(''); this.category.set(''); this.sector.set(''); this.currency.set('');
+    this.updatedBefore.set(''); this.sort.set('ticker');
+  }
   private defaultCode = 'BRL';
   readonly portfolioForm = this.fb.nonNullable.group({
     name: [
@@ -109,9 +154,10 @@ export class PortfolioPage implements OnInit {
   }
   select(id: number) {
     this.summaryRequest?.unsubscribe();
+    const changed = this.summary()?.portfolio.id !== id;
     this.selectedId.set(id);
     this.selection.id.set(id);
-    this.summary.set(null);
+    if (changed) { this.summary.set(null); this.clearFilters(); this.lastSaved.set(null); }
     this.cancelPosition();
     this.pendingDelete.set(null);
     this.showPortfolioForm.set(false);
@@ -232,6 +278,7 @@ export class PortfolioPage implements OnInit {
       .subscribe({
         next: () => {
           this.success.set('Posição salva na moeda original do ativo.');
+          this.lastSaved.set(positionId);
           this.select(id);
         },
         error: (error) => this.error.set(apiError(error)),

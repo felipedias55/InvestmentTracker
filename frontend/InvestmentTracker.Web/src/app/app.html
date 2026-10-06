@@ -2,9 +2,10 @@
 <header class="app-toolbar">
   <button #menuButton class="menu-toggle" [attr.aria-label]="menuOpen() ? 'Recolher menu' : 'Abrir menu'" type="button" (click)="toggleMenu()" aria-controls="app-navigation" [attr.aria-expanded]="menuOpen()"><span aria-hidden="true">☰</span></button>
   <a class="brand" routerLink="/dashboard" (click)="navigate($event)"
-      ><span class="brand-icon" aria-hidden="true">↗</span
+      ><img class="brand-icon" src="fd-logo.png" alt="FD" width="44" height="44"
       ><span>Investment <br /><strong>Tracker</strong></span></a
     >
+  <button class="privacy-toggle" type="button" (click)="privacy.toggle()" [attr.aria-pressed]="privacy.hidden()" [attr.aria-label]="privacy.hidden() ? 'Mostrar valores' : 'Ocultar valores'">{{ privacy.hidden() ? 'Mostrar valores' : 'Ocultar valores' }}</button>
 </header>
 @if (mobile() && menuOpen()) { <div class="menu-backdrop" (click)="closeMenu()" aria-hidden="true"></div> }
 <div class="app-shell" [class.menu-open]="menuOpen()" [class.mobile-menu-open]="mobile() && menuOpen()">

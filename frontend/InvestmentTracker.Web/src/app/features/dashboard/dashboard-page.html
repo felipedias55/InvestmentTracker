@@ -28,13 +28,14 @@
     <p class="notice" role="status">Há cotações de dias anteriores. Confira as datas abaixo.</p>
   }
   <div class="totals">
-    <section class="panel">
+    <section class="panel wealth-card">
       <h2>Patrimônio total</h2>
       <strong>{{
         d.totalWealth === null
           ? 'Indisponível'
           : (d.totalWealth | currency: d.summary.portfolio.baseCurrencyCode : 'code' : '1.2-2')
       }}</strong>
+      <p class="hint">Ativos + patrimônio externo · {{ d.summary.portfolio.baseCurrencyCode }}</p>
     </section>
     <section class="panel">
       <h2>Patrimônio externo</h2>
@@ -78,6 +79,12 @@
       <h2>Posições cadastradas</h2>
       <strong>{{ d.summary.positions.length }}</strong>
     </section>
+  </div>
+  <div class="overview-actions" aria-label="Ações da carteira"><a routerLink="/portfolio">Atualizar posições →</a><a routerLink="/contributions">Simular aporte →</a><a routerLink="/income">Registrar proventos →</a><a routerLink="/history">Ver evolução →</a></div>
+  <div class="quality-strip" aria-label="Referências dos dados">
+    <div><strong>Atualização mais antiga</strong><span>{{ oldestUpdate() ? (oldestUpdate() | date:'dd/MM/yyyy':'UTC') : 'Sem data registrada' }} · posições da carteira</span>@if (missingDates()) { <span> · {{ missingDates() }} sem data</span> }</div>
+    <div><strong>Referência de câmbio</strong><span>{{ !d.summary.conversionAvailable ? 'Conversão incompleta' : d.summary.hasFallbackRates ? 'Última referência armazenada' : d.summary.hasStaleRates ? 'Referência de dia anterior' : 'Conversão disponível' }}</span></div>
+    <div><strong>Metas de alocação</strong><span>{{ d.allocation.categoryTargetsConfigured && d.allocation.sectorTargetsConfigured ? 'Categoria e setor configurados' : 'Há metas a configurar' }}</span><a routerLink="/allocation"> Revisar</a></div>
   </div>
   <p class="hint">
     Valores na moeda-base {{ d.summary.portfolio.baseCurrencyCode }}. Patrimônio total = ativos da
@@ -125,6 +132,7 @@
       <div class="section-title chart-heading">
         <h2>{{ titles[id] }}</h2>
         <div class="chart-controls">
+          <label [for]="'chart-type-' + id"><span class="sr-only">Formato de {{ titles[id] }}</span><select [id]="'chart-type-' + id" [value]="chartTypes()[id]" (change)="setChartType(id, $any($event.target).value)"><option value="donut">Distribuição · rosca</option><option value="bars">{{ id === 'countries' ? 'Comparar · barras' : 'Atual × meta · barras' }}</option></select></label>
           <button (click)="moveChart(id, -1)" [disabled]="first" [attr.aria-label]="'Mover ' + titles[id] + ' para cima'">↑</button>
           <button (click)="moveChart(id, 1)" [disabled]="last" [attr.aria-label]="'Mover ' + titles[id] + ' para baixo'">↓</button>
           <button (click)="toggleChart(id)" [attr.aria-expanded]="!collapsed().includes(id)" [attr.aria-controls]="'chart-' + id">{{ collapsed().includes(id) ? 'Expandir' : 'Recolher' }}</button>
@@ -135,7 +143,7 @@
         @if (d.allocation[id].length && !filteredRows(id).length) {
           <p class="empty">Nenhum grupo corresponde aos filtros.</p>
         } @else {
-          <app-allocation-table [title]="titles[id]" [rows]="filteredRows(id)" [currency]="d.summary.portfolio.baseCurrencyCode" [showTargets]="id !== 'countries'" [visual]="true" />
+          <app-allocation-table [title]="titles[id]" [rows]="filteredRows(id)" [currency]="d.summary.portfolio.baseCurrencyCode" [showTargets]="id !== 'countries'" [visual]="true" [chartType]="chartTypes()[id]" />
         }
       </div>
     </section>

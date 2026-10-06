@@ -45,6 +45,7 @@ namespace InvestmentTracker.Application
 
             services.TryAddSingleton(new PortfolioDefaults());
             services.AddScoped<IPortfolioService, PortfolioService>();
+            services.AddScoped<InvestmentTracker.Application.Portfolios.QuoteBatchService>();
 
             services.AddScoped<IAllocationService, AllocationService>();
             services.AddScoped<IExternalAssetService, ExternalAssetService>();

@@ -91,7 +91,7 @@ describe('HistoryPage', () => {
   it('renders Brazilian totals, switches to annual rows and opens the frozen photograph', () => {
     const fixture = initialize();
     expect(fixture.nativeElement.textContent).toContain('1.234,50');
-    fixture.nativeElement.querySelector('app-history-chart button').click();
+    fixture.nativeElement.querySelector('app-history-chart button.bar').click();
     http
       .expectOne('/api/portfolios/1/history/snapshots/4')
       .flush({
@@ -140,7 +140,7 @@ describe('HistoryPage', () => {
     expect(fixture.nativeElement.querySelector('app-history-chart').textContent).toContain(
       'Sem foto',
     );
-    expect(fixture.nativeElement.querySelector('app-history-chart button')).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-history-chart button.bar')).toBeNull();
     fixture.componentInstance.capture();
     const request = http.expectOne('/api/portfolios/1/history/snapshots');
     expect(request.request.method).toBe('POST');

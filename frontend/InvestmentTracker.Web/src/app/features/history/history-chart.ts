@@ -1,19 +1,29 @@
-import { Component, computed, input, output } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
+import { Component, computed, input, output, signal } from '@angular/core';
+import { MoneyChart } from '../../shared/money-chart';
+
 import { HistoryPeriod } from './history.service';
 
 @Component({
   standalone: true,
   selector: 'app-history-chart',
-  imports: [CurrencyPipe],
+  imports: [CurrencyPipe, MoneyChart],
   template: `
+    <div class="actions" role="group" aria-label="Formato da evolução">
+      <button (click)="mode.set('line')" [class.primary]="mode() === 'line'" [attr.aria-pressed]="mode() === 'line'">Linha</button>
+      <button (click)="mode.set('columns')" [class.primary]="mode() === 'columns'" [attr.aria-pressed]="mode() === 'columns'">Colunas</button>
+    </div>
+    @if (mode() === 'line') {
+      <app-money-chart [points]="points()" [currency]="currency()" title="Evolução do patrimônio" kind="line" />
+      <p class="hint">Pontos representam fotografias. Lacunas, fotografias desatualizadas e outras moedas interrompem a linha. Consulte os valores preservados nos botões abaixo.</p>
+    }
     <div
       class="chart-scroll"
       role="region"
       aria-label="Evolução do patrimônio por período"
       tabindex="0"
     >
-      <div class="chart">
+      <div class="chart" [class.line-mode]="mode() === 'line'">
         @for (row of rows(); track row.period) {
           <div class="column">
             <div class="bar-space">
@@ -73,18 +83,20 @@ import { HistoryPeriod } from './history.service';
         border-bottom: 1px solid var(--border);
         margin-bottom: 10px;
       }
+      .line-mode .bar-space { height: 28px; border: 0; }
+      .line-mode .bar { height: 24px !important; border-radius: 6px; }
       .bar {
         min-height: 3px;
         max-width: 65px;
         width: 75%;
         border: 0;
         padding: 0;
-        background: linear-gradient(#c58089, #97515d);
+        background: linear-gradient(#d0bb80, #ac893c);
         border-radius: 7px 7px 0 0;
       }
-      .bar.outdated { background: repeating-linear-gradient(45deg, #a7a0a3 0 7px, #ded9db 7px 14px); }
+      .bar.outdated { background: repeating-linear-gradient(45deg, #9da4ad 0 7px, #dce0e5 7px 14px); }
       .bar:hover {
-        background: #823f49;
+        background: #624811;
       }
       .missing {
         font-size: 11px;
@@ -101,9 +113,12 @@ import { HistoryPeriod } from './history.service';
   ],
 })
 export class HistoryChart {
+  readonly mode = signal<'line' | 'columns'>('line');
   readonly rows = input.required<HistoryPeriod[]>();
   readonly currency = input.required<string>();
   readonly openSnapshot = output<number>();
+  readonly points = computed(() => this.rows().map(r => ({ label: r.period,
+    value: r.totalWealth === null || r.currencyCode !== this.currency() || r.isOutdated || r.isReopened ? null : Number(r.totalWealth) })));
   private readonly maximum = computed(() =>
     Math.max(
       1,

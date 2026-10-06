@@ -1,6 +1,7 @@
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { EditPanel } from '../../shared/edit-panel';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -23,7 +24,7 @@ import {
 @Component({
   standalone: true,
   selector: 'app-external-assets-page',
-  imports: [EditPanel, PortfolioPicker, ReactiveFormsModule, CurrencyPipe, DatePipe, RouterLink],
+  imports: [CurrencyPipe, EditPanel, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink],
   templateUrl: './external-assets-page.html',
 })
 export class ExternalAssetsPage {
@@ -49,6 +50,7 @@ export class ExternalAssetsPage {
     description: ['', Validators.maxLength(500)],
   });
   select(id: number) {
+    if (id !== this.portfolioId()) { this.summary.set(null); this.cancel(); }
     this.portfolioId.set(id);
     this.success.set('');
     this.load();
@@ -57,7 +59,6 @@ export class ExternalAssetsPage {
     const id = this.portfolioId();
     if (id === null) return;
     this.request?.unsubscribe();
-    this.summary.set(null);
     this.loading.set(true);
     this.error.set('');
     this.pendingDelete.set(null);

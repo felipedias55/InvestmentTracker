@@ -34,6 +34,7 @@ namespace InvestmentTracker.Infrastructure
             services.AddScoped<IAssetRepository, AssetRepository>();
 
             services.AddScoped<IPortfolioRepository, PortfolioRepository>();
+            services.AddScoped<InvestmentTracker.Application.Portfolios.IQuoteBatchRepository, QuoteBatchRepository>();
             services.AddScoped<IExchangeRateCache, ExchangeRateCache>();
             services.AddScoped<IExchangeRateService, CachedExchangeRateService>();
             services.TryAddSingleton(TimeProvider.System);

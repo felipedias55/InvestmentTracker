@@ -90,6 +90,32 @@ describe('PortfolioPage', () => {
     expect(fixture.componentInstance.summary()?.currentValue).toBe('102.8390');
     http.expectNone('/api/portfolios/1');
   });
+  it('combines filters, sorts converted values and preserves portfolio totals', () => {
+    const fixture = initialize({ ...sample, positions: [
+      { ...sample.positions[0], assetCategoryName: 'Exterior', sectorName: 'Tecnologia', updatedOn: '2026-09-01' },
+      { ...sample.positions[0], id: 6, ticker: 'ABCD', name: 'Ação brasileira', currencyCode: 'BRL', assetCategoryName: 'Brasil', sectorName: 'Financeiro', baseCurrentValue: '200', updatedOn: '2026-10-01' },
+    ] });
+    const page = fixture.componentInstance;
+    page.sort.set('value');
+    expect(page.filteredPositions().map(p => p.ticker)).toEqual(['ABCD', 'MSFT']);
+    page.category.set('Exterior'); page.sector.set('Tecnologia'); page.currency.set('USD'); page.updatedBefore.set('2026-10-01');
+    expect(page.filteredPositions().map(p => p.ticker)).toEqual(['MSFT']);
+    page.query.set('inexistente'); expect(page.filteredPositions()).toHaveLength(0);
+    page.clearFilters(); page.query.set('acao');
+    expect(page.filteredPositions()[0].ticker).toBe('ABCD');
+    expect(page.summary()?.currentValue).toBe(sample.currentValue);
+  });
+  it('keeps the list mounted and search intact during same-portfolio refresh', () => {
+    const fixture = initialize();
+    const page = fixture.componentInstance;
+    page.query.set('msft'); fixture.detectChanges();
+    const card = fixture.nativeElement.querySelector('.position-card');
+    page.select(1); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.position-card')).toBe(card);
+    http.expectOne('/api/portfolios/1').flush(sample); fixture.detectChanges();
+    expect(page.query()).toBe('msft');
+    expect(fixture.nativeElement.querySelector('.position-card')).toBe(card);
+  });
   it('edits original amounts even while converted values are displayed', () => {
     const fixture = initialize();
     fixture.componentInstance.editPosition(sample.positions[0]);

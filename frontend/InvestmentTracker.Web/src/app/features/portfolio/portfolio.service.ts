@@ -20,6 +20,8 @@ export interface PositionInput {
   income: string;
 }
 export interface Position extends PositionInput {
+  assetCategoryId?: number;
+  sectorId?: number;
   assetTypeName?: string;
   assetCategoryName?: string;
   sectorName?: string;

@@ -1,6 +1,7 @@
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { createRequestId } from '../../core/request-id';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
+import { DatePipe, PercentPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -10,6 +11,7 @@ import { CatalogService } from '../catalogs/catalog.service';
 import { CatalogItem } from '../catalogs/catalog.models';
 import { AllocationTable } from '../allocation/allocation-table';
 import { HistoryChart } from './history-chart';
+import { MoneyChart, MoneyPoint } from '../../shared/money-chart';
 import { CashFlow, HistoryService, PortfolioHistory, SnapshotDetail } from './history.service';
 import { apiError } from '../../core/services/api-error';
 import {
@@ -21,12 +23,12 @@ import {
 @Component({
   standalone: true,
   selector: 'app-history-page',
-  imports: [
+  imports: [CurrencyPipe,
     PortfolioPicker,
     HistoryChart,
+    MoneyChart,
     AllocationTable,
     ReactiveFormsModule,
-    CurrencyPipe,
     PercentPipe,
     DatePipe,
     RouterLink,
@@ -53,6 +55,22 @@ export class HistoryPage {
   readonly mode = signal<'months' | 'years'>('months');
   readonly selectedYear = signal<string | null>(null);
   readonly chartCurrency = signal('');
+  readonly breakdownPeriod = signal('');
+  readonly breakdownRow = computed(() => {
+    const rows = this.rows().filter(r => r.currencyCode === this.chartCurrency());
+    return rows.find(r => r.period === this.breakdownPeriod()) ?? rows.at(-1);
+  });
+  readonly breakdown = computed<MoneyPoint[]>(() => {
+    const r = this.breakdownRow();
+    if (!r || r.isOutdated || r.isReopened || r.totalWealth == null || r.change == null || r.netFlowsBetweenSnapshots == null || r.retainedIncome == null || r.valuationAndOtherChanges == null) return [];
+    return [
+      { label: 'Patrimônio inicial', value: Number(r.totalWealth) - Number(r.change), total: true },
+      { label: 'Aportes líquidos', value: Number(r.netFlowsBetweenSnapshots) },
+      { label: 'Proventos retidos', value: Number(r.retainedIncome) },
+      { label: 'Valorização/outros', value: Number(r.valuationAndOtherChanges) },
+      { label: 'Patrimônio final', value: Number(r.totalWealth), total: true },
+    ];
+  });
   readonly captureConfirmation = signal(false);
   readonly editingFlow = signal<CashFlow | null>(null);
   readonly pendingDelete = signal<CashFlow | null>(null);

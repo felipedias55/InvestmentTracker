@@ -29,6 +29,15 @@ describe('IncomePage', () => {
     const fixture = TestBed.createComponent(IncomePage); fixture.detectChanges();
     http.expectOne('/api/portfolios').flush([testPortfolio]); flush(); fixture.detectChanges(); return fixture;
   }
+  it('aggregates chart periods per currency and keeps missing conversions pending', () => {
+    const component = initialize().componentInstance;
+    const row = { period: '2026-01', ticker: 'TEST', assetId: 1, currencyCode: 'BRL', received: '10', reversed: '0', net: '10' };
+    component.analysis.set({ months: [row, { ...row, assetId: 2, ticker: 'OTHER', net: '-4' }, { ...row, currencyCode: 'USD', net: '20' }], years: [], assets: [] });
+    expect(component.chartGroups().map(g => [g.currency, g.total])).toEqual([['BRL', 6], ['USD', 20]]);
+    component.analysis.set({ months: [row, { ...row, assetId: 2, net: null }], years: [], assets: [] });
+    expect(component.chartGroups()[0].total).toBeNull();
+    expect(component.chartGroups()[0].points[0].value).toBeNull();
+  });
   it('submits one operation with exact Brazilian decimals and refreshes the ledger', () => {
     const fixture = initialize(); const component = fixture.componentInstance;
     component.form.patchValue({ assetId: 10, amount: '20,2468' });

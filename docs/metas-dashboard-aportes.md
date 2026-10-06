@@ -104,3 +104,17 @@ A inicialização normal da API não aplica migrations automaticamente. A implem
 - Angular: edição brasileira de percentuais e valores; envio exato; erros sem apagar formulário; troca de carteira/dimensão e cancelamento de consultas antigas; tabelas e totais indisponíveis; invalidação do resultado quando a entrada muda.
 
 Execute `dotnet test`, `npm test -- --watch=false` e `npm run build` no diretório Angular, conforme o README. A suíte usa câmbio controlado, sem depender da API pública.
+
+## Simulador integrado: categorias, setores e execução visual
+
+Veja o [guia do simulador de aportes](simulador-de-aportes.md) para exemplos das fórmulas, escolha das combinações, desempates, conversões e valores sem distribuição.
+
+A página mostra as duas dimensões lado a lado no desktop e empilhadas no celular, com gráficos de participação atual versus meta. Um clique consulta as análises configuradas; a falta de metas ou falha em uma dimensão não impede consultar a outra. Os resultados representam o mesmo aporte e não devem ser somados.
+
+O plano conjunto usa as sugestões de cada dimensão como limites e distribui o máximo possível entre combinações categoria/setor já presentes nas posições com quantidade positiva. O algoritmo de fluxo máximo trabalha com centavos inteiros, permite reencaminhar atribuições anteriores e não ultrapassa o orçamento de nenhuma categoria ou setor. Empates seguem a ordem dos IDs dos cadastros; não há recomendação de ativo nem otimização de rentabilidade. Combinações reconhecidas como FII/REIT pelo nome de categoria/tipo só são aceitas em setores identificados como imobiliários (ou Real Estate). Cadastros inconsistentes devem ser revisados. Não são inventadas combinações para gastar o restante: ele aparece como sem distribuição compatível.
+
+Os equivalentes na moeda original usam o câmbio presente na carteira: valor-base dividido pela taxa original→base. O arredondamento é a centavos, com aritmética inteira. Datas e uso de taxas anteriores são informados; taxas ausentes, inválidas ou conflitantes não geram um valor convertido. Se uma combinação tiver várias moedas, elas aparecem como alternativas para o mesmo orçamento, nunca parcelas somáveis. Os valores não incluem custos de operação ou spread.
+
+As marcações de investido são independentes em cada análise e no plano conjunto. Vivem somente na memória da página, não registram movimentos e são apagadas ao mudar aporte, carteira, repetir a simulação, atualizar os dados ou sair. Use Compras e vendas para registrar operações reais. Depois de registrar compras, atualize a carteira no simulador para refazer o planejamento com os novos saldos.
+
+Esta entrega não altera o banco nem exige migration.

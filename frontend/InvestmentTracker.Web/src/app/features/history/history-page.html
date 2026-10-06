@@ -113,6 +113,15 @@
       </div>
     </div>
     <h2 class="section-gap">De onde veio a evolução</h2>
+    <label for="breakdown-period">Intervalo da composição patrimonial</label>
+    <select id="breakdown-period" [value]="breakdownRow()?.period ?? ''" (change)="breakdownPeriod.set($any($event.target).value)">
+      @for (r of rows(); track r.period) { @if (r.currencyCode === chartCurrency()) { <option [value]="r.period" [selected]="r.period === breakdownRow()?.period">{{ r.period }}</option> } }
+    </select>
+    @if (breakdownRow(); as r) {
+      <p class="hint">{{ r.comparisonStart | date:'dd/MM/yyyy':'UTC' }} → {{ r.snapshotDate | date:'dd/MM/yyyy':'UTC' }} · {{ r.currencyCode }}</p>
+      @if (breakdown().length) { <app-money-chart [points]="breakdown()" [currency]="r.currencyCode" title="Composição da variação patrimonial" kind="waterfall" /> }
+      @else { <p class="notice">{{ r.comparisonNote || 'Sem comparação válida para este intervalo.' }}</p> }
+    }
     <p class="hint">Entre fotografias válidas: variação patrimonial = aportes líquidos + proventos retidos + valorização e outros efeitos. Proventos recebidos fora da carteira são somados apenas ao resultado econômico. O residual inclui câmbio, taxas e ajustes; não representa apenas oscilação de preços.</p>
     <div class="table-scroll"><table><thead><tr><th>Período</th><th>Aportes líquidos entre fotos</th><th>Proventos retidos</th><th>Proventos fora da carteira</th><th>Valorização e outros efeitos</th><th>Resultado econômico</th></tr></thead><tbody>
       @for (r of rows(); track r.period) { <tr><th>{{ r.period }}</th>
@@ -143,7 +152,7 @@
     </details>
     <h2 class="section-gap">Patrimônio registrado</h2>
     <p class="hint">
-      Clique em uma barra para abrir a fotografia. Anos usam a última fotografia disponível, sem
+      Use os botões abaixo do gráfico para abrir a fotografia. Anos usam a última fotografia disponível, sem
       somar saldos mensais. Lacunas e moedas diferentes não são tratadas como patrimônio zero.
     </p>
     <app-history-chart

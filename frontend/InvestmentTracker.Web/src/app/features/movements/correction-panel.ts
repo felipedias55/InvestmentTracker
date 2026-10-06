@@ -1,5 +1,6 @@
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { Component, DestroyRef, EventEmitter, Input, OnInit, Output, inject, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -23,7 +24,7 @@ export interface CorrectionSimulation {
   snapshots: { id: number; month: string; revision: number }[]; warnings: string[]; blockers: string[];
 }
 @Component({
-  standalone: true, selector: 'app-correction-panel', imports: [ReactiveFormsModule, CurrencyPipe, DatePipe, EditPanel],
+  standalone: true, selector: 'app-correction-panel', imports: [CurrencyPipe, ReactiveFormsModule, DatePipe, EditPanel],
   templateUrl: './correction-panel.html',
 })
 export class CorrectionPanel implements OnInit {

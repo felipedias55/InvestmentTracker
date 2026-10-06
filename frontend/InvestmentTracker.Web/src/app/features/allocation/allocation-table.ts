@@ -1,11 +1,13 @@
+import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { Component, input } from '@angular/core';
-import { CurrencyPipe, DecimalPipe, PercentPipe } from '@angular/common';
+import { DecimalPipe, PercentPipe } from '@angular/common';
 import { AllocationRow } from './allocation.service';
+import { AllocationDonut } from './allocation-donut';
 
 @Component({
   standalone: true,
   selector: 'app-allocation-table',
-  imports: [CurrencyPipe, DecimalPipe, PercentPipe],
+  imports: [CurrencyPipe, DecimalPipe, PercentPipe, AllocationDonut],
   template: `
     <section [class.panel]="!visual()">
       @if (!visual()) { <h2>{{ title() }}</h2> }
@@ -13,6 +15,9 @@ import { AllocationRow } from './allocation.service';
         <p>Sem posições ou metas neste grupo.</p>
       } @else {
         @if (visual()) {
+          @if (chartType() === 'donut') {
+            <app-allocation-donut [rows]="rows()" [currency]="currency()" />
+          } @else {
           <p class="chart-legend"><span class="legend-current"></span> Participação atual @if (showTargets()) { <span class="legend-target"></span> Meta }</p>
           <div class="chart-scale" aria-hidden="true"><span>0%</span><span>50%</span><span>100%</span></div>
           @for (row of rows(); track row.groupId) {
@@ -22,6 +27,7 @@ import { AllocationRow } from './allocation.service';
                 <div class="bar-track" aria-hidden="true"><div class="bar-fill" [style.width.%]="number(row.currentPercentage) * 100"></div>@if (showTargets() && row.targetPercentage !== null) { <span class="target-marker" [style.left.%]="number(row.targetPercentage) * 100"></span> }</div>
               }
             </div>
+          }
           }
         }
         <details [open]="!visual()">
@@ -124,5 +130,6 @@ export class AllocationTable {
   readonly currency = input.required<string>();
   readonly showTargets = input(true);
   readonly visual = input(false);
+  readonly chartType = input<'bars' | 'donut'>('bars');
   readonly number = Number;
 }

@@ -1,5 +1,9 @@
 # Testes de ponta a ponta
 
+## Verificação de apresentação sem banco
+
+Execute `npm run test:presentation` no diretório do frontend para verificar dashboard, evolução, proventos, filtros e privacidade em desktop e celular emulado. Essa suíte usa apenas dados fictícios e intercepta todas as chamadas da API; não depende do SQL Server. Usa a porta 65455 e gera capturas em `test-results`. Não substitui os testes integrados descritos abaixo.
+
 A suíte usa Playwright com Chromium, API real e SQL Server. Cada execução cria uma base `InvestmentTracker_E2E_<guid>`, aplica todas as migrations, executa o seed dos catálogos e remove a base ao terminar, inclusive quando um teste falha. A conexão da aplicação e os registros pessoais não são usados.
 
 ## Executar no Windows

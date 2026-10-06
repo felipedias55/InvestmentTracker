@@ -26,7 +26,7 @@
     >
   }
   <button (click)="newPortfolio()" [disabled]="saving() || loading()">Nova carteira</button>
-  <button (click)="load()" [disabled]="saving() || loading()">Atualizar</button>
+  <button (click)="load()" [disabled]="saving() || loading()">Recarregar dados</button>
   <a routerLink="/external-assets">Patrimônio externo</a>
   <a routerLink="/income">Registrar proventos</a>
   <a routerLink="/history">Evolução e aportes realizados</a>
@@ -244,12 +244,36 @@
       @if (!s.positions.length) {
         <p class="empty">Sua carteira ainda não possui posições. Adicione o primeiro ativo.</p>
       }
-      @for (p of s.positions; track p.id) {
-        <article class="position-card">
+      <div class="position-filters">
+        <label for="position-search">Buscar ticker ou nome</label>
+        <input id="position-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" placeholder="Ex.: MSFT ou Microsoft" />
+        <details>
+          <summary>Filtros e ordenação</summary>
+          <div class="form-grid">
+            <label for="position-category">Categoria<select id="position-category" [value]="category()" (change)="category.set($any($event.target).value)"><option value="">Todas</option>@for (c of categories(); track c) { <option [value]="c">{{ c }}</option> }</select></label>
+            <label for="position-sector">Setor<select id="position-sector" [value]="sector()" (change)="sector.set($any($event.target).value)"><option value="">Todos</option>@for (c of sectors(); track c) { <option [value]="c">{{ c }}</option> }</select></label>
+            <label for="position-currency">Moeda original<select id="position-currency" [value]="currency()" (change)="currency.set($any($event.target).value)"><option value="">Todas</option>@for (c of positionCurrencies(); track c) { <option [value]="c">{{ c }}</option> }</select></label>
+            <label for="position-before">Não atualizados desde<input id="position-before" type="date" [value]="updatedBefore()" (change)="updatedBefore.set($any($event.target).value)" /></label>
+            <label for="position-sort">Ordenar por<select id="position-sort" [value]="sort()" (change)="sort.set($any($event.target).value)"><option value="ticker">Ticker (A–Z)</option><option value="value">Maior valor na moeda-base</option><option value="oldest">Atualização mais antiga</option></select></label>
+          </div>
+        </details>
+        <p class="hint" role="status">{{ filteredPositions().length }} de {{ s.positions.length }} posições. Os totais acima representam a carteira inteira.</p>
+        @if (query() || category() || sector() || currency() || updatedBefore()) {
+          <p class="hint">Filtros ativos: {{ query() ? 'Busca: ' + query() + ' · ' : '' }}{{ category() }} {{ sector() }} {{ currency() }} {{ updatedBefore() ? 'Atualização anterior a ' + updatedBefore() + ' (inclui sem data)' : '' }}</p>
+        }
+        <button (click)="clearFilters()">Limpar filtros</button>
+        <button class="primary" (click)="openQuotes()" [disabled]="loading() || saving() || !filteredPositions().length">Atualizar cotações em lote</button>
+        @if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
+      </div>
+      @if (s.positions.length && !filteredPositions().length) { <p class="empty">Nenhuma posição corresponde aos filtros.</p> }
+      @for (p of filteredPositions(); track p.id) {
+        <article class="position-card" [class.just-saved]="lastSaved() === p.id">
           <div class="section-title">
             <div>
               <strong class="ticker">{{ p.ticker }}</strong>
               <p>{{ p.name }}</p>
+              <p class="position-classification">{{ p.assetCategoryName || 'Categoria não informada' }} · {{ p.sectorName || 'Setor não informado' }}</p>
+              @if (lastSaved() === p.id) { <small role="status">Posição atualizada</small> }
             </div>
             <span class="badge">{{
               view() === 'original' ? p.currencyCode : s.portfolio.baseCurrencyCode
@@ -331,4 +355,7 @@
       </p>
     </section>
   </div>
+}
+@if (batchPositions(); as positions) {
+  <app-quote-batch-panel [portfolioId]="selectedId()!" [positions]="positions" (closed)="batchPositions.set(null)" (saved)="quotesSaved($event)" />
 }

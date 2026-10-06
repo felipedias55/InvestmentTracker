@@ -7,6 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:presentation": "playwright test --config=playwright.presentation.config.ts",
     "start:lan": "ng serve --host=0.0.0.0",
     "test:e2e": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/Test-EndToEnd.ps1"
   },
