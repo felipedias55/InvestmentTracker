@@ -93,7 +93,7 @@ Exemplo com R$ 100,00:
 
 Se A recebesse X primeiro e essa escolha fosse definitiva, B ficaria sem destino. O algoritmo consegue reorganizar para A → Y e B → X, distribuindo os R$ 100,00.
 
-O cálculo conjunto usa centavos inteiros com BigInt, evitando perda de centavos por aproximação de números decimais.
+O cálculo conjunto é executado em C# na camada Application. As capacidades do fluxo são centavos inteiros representados por decimal, preservando a precisão inclusive no maior aporte permitido. O Angular apenas apresenta a resposta e mantém as marcações visuais.
 
 ## 4. Por que pode sobrar dinheiro
 
@@ -144,18 +144,18 @@ Nada dessas marcações é salvo. São apagadas ao alterar o aporte, simular nov
 
 ## 7. Limites importantes para interpretar o resultado
 
-- As metas de cada dimensão precisam somar 100%. Uma dimensão disponível pode ser exibida mesmo se a outra estiver sem configuração ou falhar; o plano conjunto depende das duas.
+- As metas de cada dimensão precisam somar 100%. Uma dimensão disponível pode ser exibida mesmo se a outra estiver sem configuração; o plano conjunto depende das duas. Uma falha na consulta conjunta apresenta um erro sem reutilizar resultados antigos.
 - O cálculo usa a diferença percentual atual. Não resolve a composição final incluindo o aporte no denominador, portanto não garante atingir exatamente as metas depois das compras.
 - O cruzamento não utiliza metas específicas para cada par setor/categoria, pois essas metas conjuntas não são cadastradas.
 - O plano não escolhe ticker, quantidade ou preço de execução.
 - Os gráficos e as taxas refletem os dados carregados na página. Alterações feitas em outra tela exigem atualização.
-- As duas análises são consultadas separadamente. Não há uma transação única abrangendo o carregamento da carteira e ambas as simulações; evite alterar posições durante o cálculo e atualize os dados em caso de dúvida.
+- As duas análises, o plano conjunto e os equivalentes agora vêm de uma única chamada POST contribution-plan. O backend carrega um dashboard e usa esse mesmo conjunto para todos os cálculos; a tela substitui seus gráficos pelos dados dessa resposta. O carregamento interno envolve consultas sequenciais, sem isolamento de snapshot de banco: alterações concorrentes durante a leitura ainda exigem uma nova atualização.
 
 ## Referências de implementação
 
 - [Fórmula individual e distribuição de centavos](../InvestmentTracker.Application/Allocation/Services/ContributionCalculator.cs).
 - [Participações atuais e metas](../InvestmentTracker.Application/Allocation/Services/AllocationService.cs).
-- [Plano conjunto e conversão de moedas](../frontend/InvestmentTracker.Web/src/app/features/allocation/contribution-plan.ts).
+- [Plano conjunto e conversão de moedas](../InvestmentTracker.Application/Allocation/Services/ContributionPlanCalculator.cs).
 - [Estado da tela e marcações temporárias](../frontend/InvestmentTracker.Web/src/app/features/allocation/contributions-page.ts).
-- [Testes do algoritmo conjunto](../frontend/InvestmentTracker.Web/src/app/features/allocation/contribution-plan.spec.ts).
+- [Testes do algoritmo conjunto](../tests/InvestmentTracker.UnitTests/Allocation/ContributionPlanCalculatorTests.cs).
 - [Documentação de metas, dashboard e API](metas-dashboard-aportes.md).

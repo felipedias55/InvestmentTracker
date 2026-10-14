@@ -38,7 +38,7 @@
                 <label class="check"><input type="checkbox" [checked]="checked().has(r.dimension + ':' + row.groupId)" (change)="toggle(r.dimension + ':' + row.groupId)" />{{ row.name }} · investido</label>
                 <p>Atual {{ row.currentPercentage | percent:'1.2-2' }} · Meta {{ row.targetPercentage | percent:'1.2-2' }}</p>
                 <strong>{{ row.suggestedContribution | currency:r.currencyCode:'code':'1.2-2' }}</strong>
-                @for (quote of equivalents(r, row.groupId, row.suggestedContribution); track quote.currency) {
+                @for (quote of row.currencies || []; track quote.currency) {
                   @if (quote.currency !== r.currencyCode) {
                     <p class="conversion">Equivalente em {{ quote.currency }}: {{ quote.amount === null ? 'Câmbio indisponível' : (quote.amount | currency:quote.currency:'code':'1.2-2') }} · {{ quote.dates || 'Data indisponível' }} {{ quote.stale ? '· Cotação anterior' : '' }}</p>
                   }

@@ -19,7 +19,9 @@ export interface PositionInput {
   currentValue: string;
   income: string;
 }
+export interface PricePerformance { averagePrice: string | null; unitPrice: string | null; variation: string | null; }
 export interface Position extends PositionInput {
+  pricePerformance?: PricePerformance | null;
   assetCategoryId?: number;
   sectorId?: number;
   assetTypeName?: string;

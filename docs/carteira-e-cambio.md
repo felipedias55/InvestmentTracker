@@ -80,3 +80,21 @@ Os testes Angular cobrem o seletor de exibição, totais indisponíveis, data/fa
 ## Etapas futuras
 
 Metas, distribuições por categoria/setor/país, dashboard da carteira e aporte sugerido foram implementados na etapa seguinte: [regras e utilização](metas-dashboard-aportes.md). Patrimônio externo por carteira, consolidação patrimonial e proventos acumulados também estão disponíveis: [regras e utilização](patrimonio-externo-e-proventos.md).
+
+## Variação sobre o preço médio
+
+Cada posição da carteira mostra uma seta verde para valorização, vermelha para desvalorização ou um traço neutro para igualdade, acompanhados do percentual. O texto acessível informa a direção, sem depender somente da cor.
+
+O cálculo pertence à Application e usa os valores originais da posição:
+
+- Preço médio = custo investido remanescente / quantidade.
+- Cotação unitária = valor atual total cadastrado / quantidade.
+- Variação = valor atual total / custo investido remanescente − 1.
+
+A última fórmula é equivalente à comparação entre os preços unitários, mas evita arredondá-los antes de calcular a variação. A API retorna a razão (0,15 = 15%); a interface formata o percentual com duas a quatro casas decimais. O preço médio considera os custos já incorporados ao valor investido pelos registros de operações; não recalcula um histórico fiscal.
+
+A referência é a posição ainda mantida, não o total de todas as compras históricas. O indicador não inclui proventos, ganhos realizados em vendas, variação cambial nem anualização. Usa a moeda original mesmo quando a página exibe totais convertidos e funciona sem câmbio disponível. A cotação corresponde ao valor cadastrado, atualizado manualmente ou por uma consulta confirmada; não implica preço de mercado em tempo real.
+
+Sem quantidade positiva ou custo investido positivo, a variação aparece como “Sem base de cálculo”. Com quantidade válida e custo zero, a cotação unitária continua disponível. Um valor atual zero com custo positivo resulta em −100%, não em ausência de informação.
+
+Ao ocultar valores, preço médio e cotação ficam mascarados; direção e percentual permanecem visíveis, seguindo a preferência de privacidade atual. O indicador é atualizado quando a carteira é recarregada após alterações. Não exige migration.

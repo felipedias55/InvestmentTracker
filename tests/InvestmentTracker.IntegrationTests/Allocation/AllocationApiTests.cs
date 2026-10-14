@@ -168,7 +168,29 @@ namespace InvestmentTracker.IntegrationTests.Allocation
             foreach (var route in new[] { "category-targets", "sector-targets", "dashboard", "allocation" })
                 Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(path + "/" + route)).StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync(path + "/contribution-analysis", new ContributionRequestDto("category", 100m))).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync(path + "/contribution-plan", new ContributionPlanRequestDto(100m))).StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync(path + "/category-targets", new SaveTargetsDto([new(1, 1m)]))).StatusCode);
+        }
+
+        [Fact]
+        public async Task JointPlan_ShouldReturnBothAnalysesWithOneDashboardAndNeverWriteMovements()
+        {
+            var (id, _, categories, sectors) = await SeedAsync();
+            using var client = fixture.ApiFactory.CreateClient();
+            var path = $"/api/portfolios/{id}";
+            (await client.PutAsJsonAsync(path + "/category-targets", Targets(categories[0], categories[1]))).EnsureSuccessStatusCode();
+            (await client.PutAsJsonAsync(path + "/sector-targets", Targets(sectors[0], sectors[1]))).EnsureSuccessStatusCode();
+            var response = await client.PostAsJsonAsync(path + "/contribution-plan", new ContributionPlanRequestDto(100.01m));
+            response.EnsureSuccessStatusCode();
+            var result = (await response.Content.ReadFromJsonAsync<ContributionPlanDto>())!;
+            Assert.Equal(id, result.Dashboard.Summary.Portfolio.Id);
+            Assert.Equal(100.01m, result.Category!.Rows.Sum(r => r.SuggestedContribution));
+            Assert.Equal(100.01m, result.Sector!.Rows.Sum(r => r.SuggestedContribution));
+            Assert.Equal(100.01m, result.Plan!.Unallocated);
+            Assert.Empty(result.Plan.Rows);
+            await using var db = fixture.Database.CreateContext();
+            Assert.False(await db.Set<FinancialMovement>().AnyAsync());
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(path + "/contribution-plan", new ContributionPlanRequestDto(-1))).StatusCode);
         }
     }
 }

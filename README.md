@@ -1,19 +1,55 @@
 # Investment Tracker
 
-Aplicação pessoal de investimentos em .NET 10, SQL Server e Angular. Abra `InvestmentTracker.slnx` no Visual Studio. Mantidos os projetos existentes, as camadas API/Application/Domain/Infrastructure e namespaces C# com chaves.
+O **Investment Tracker** é uma aplicação web para acompanhar uma carteira pessoal de investimentos no Brasil e nos Estados Unidos. Reúne posições, patrimônio externo, compras e vendas, proventos, planejamento de aportes e evolução patrimonial, preservando o histórico das operações e das correções.
+
+Criado a partir de uma planilha, o projeto evoluiu para uma aplicação full stack com cálculos financeiros no backend, persistência relacional e interface responsiva. O foco atual é o uso local/privado: o núcleo do MVP já está em uso e as entregas seguintes ampliam análise, automação e usabilidade. Ainda não há autenticação ou preparação completa para publicação pública.
+
+Documentação revisada em **09/10/2026**.
+
+## Stack e arquitetura
+
+| Área | Tecnologias e abordagem atuais |
+| --- | --- |
+| Backend | C# 14 / .NET 10, ASP.NET Core Web API com controllers, injeção de dependência e tratamento de erros com Problem Details |
+| Persistência | Entity Framework Core 10, SQL Server e migrations; LocalDB como opção de desenvolvimento no Windows |
+| Frontend | Angular 22, TypeScript 6, componentes standalone, Signals, RxJS 7.8 e Reactive Forms |
+| Interface | HTML/CSS, gráficos próprios, layout responsivo, formatação brasileira, moeda original/base e ocultação de valores |
+| Integrações | Frankfurter v2 para câmbio; brapi para cotações brasileiras; Alpha Vantage para fechamento de ativos dos EUA |
+| Testes .NET | xUnit, Moq, ASP.NET Core MVC Testing e Coverlet; integração com SQL Server em bancos temporários |
+| Testes web | Vitest e jsdom; Playwright para fluxos E2E e apresentação em desktop/celular emulado |
+| Ferramentas | Solução Visual Studio .slnx, frontend integrado por .esproj, npm/package-lock e scripts PowerShell |
+| Configuração local | .NET User Secrets para conexão e chaves; nenhuma chave ou base com dados pessoais deve ser versionada |
+
+As versões principais acima refletem os projetos e o package.json; as versões exatas das dependências web estão no package-lock.json.
+
+A solução mantém quatro camadas:
+
+- **Domain:** entidades e conceitos do domínio, sem referência às demais camadas.
+- **Application:** casos de uso, contratos, DTOs, validações e cálculos, incluindo planejamento de aportes e métricas.
+- **Infrastructure:** EF Core, mapeamentos, migrations, repositórios e integração HTTP com provedores externos.
+- **API:** endpoints e composição das dependências. O Angular consome a API e apresenta os resultados.
+
+Operações financeiras suportadas utilizam transações, validações de concorrência e identificação de solicitações para evitar duplicidade. Correções preservam vínculos de auditoria. Essa organização em camadas não pressupõe microserviços ou um domínio totalmente encapsulado: o refinamento das entidades ainda consta no planejamento.
+
+Abra InvestmentTracker.slnx no Visual Studio. A organização atual da solução e os namespaces C# com chaves são mantidos.
 
 ## Funcionalidades atuais
 
 - Cadastros: tipos, países, moedas, categorias, setores e ativos; referências em uso são protegidas.
 - Carteiras com moeda-base própria, posições e patrimônio externo; valores originais ou convertidos, no padrão brasileiro.
-- Dashboard com distribuições, metas, filtros e gráficos recolhíveis/reordenáveis.
-- Metas por categoria e setor somando 100%; simulador de aportes sem alteração dos saldos.
+- Dashboard com distribuições, metas, filtros e gráficos recolhíveis/reordenáveis; interface responsiva com identidade dourada/prateada e controle de privacidade dos valores.
+- Metas por categoria e setor somando 100%; simulador lado a lado com gráficos, combinação de setor/categoria já presente na carteira, valores na moeda correspondente e marcações visuais de itens já atendidos. O cálculo ocorre no backend e a simulação não altera saldos.
 - Compras/vendas com taxas, reinvestimento, proventos e movimentos de dinheiro, com atualização automática dos saldos.
 - Histórico unificado, estorno auditável, desdobramento, grupamento e bonificação.
 - Prévia de dependências e fotografias afetadas por correções ou lançamentos atrasados, sem alterar saldos.
 - Simulação e aplicação atômica de correções retroativas em operações suportadas, com estornos e substitutos auditáveis.
 - Fotografias mensais versionadas, comparação mensal/anual e reabertura controlada.
 - Proventos mensais/anuais por ativo, nas moedas originais ou na moeda-base, com conversão histórica e correções auditáveis.
+
+- Consulta de cotações por mercado, preenchimento manual ou automático em lote e revisão antes de salvar; informações opcionais de fonte/data/horário no painel.
+- Indicador de valorização/desvalorização em relação ao preço médio, com percentual e sinalização visual; não representa retorno total com proventos.
+- Evolução com Dietz estimado e XIRR anualizada, condicionados à qualidade e disponibilidade do histórico.
+- Backup manual com validação de restauração e instruções para levar os dados a outra máquina.
 
 ## Instalação nova
 
@@ -65,6 +101,20 @@ A migration `IncomeHistoricalConversions` cria `IncomeConversion` e os campos de
 
 A edição manual das posições atende a saldos iniciais, ajustes e atualização de valores. Ela não substitui o registro de novas compras/vendas. A edição de patrimônio externo altera nome/descrição; mudanças de saldo usam Movimentações.
 
+## Atualização de cotações
+
+Na página **Carteira**, filtre as posições e use **Atualizar cotações em lote → Consultar cotações gratuitas → Revisar → Confirmar atualização do lote**. Só são consultados campos vazios de posições com quantidade positiva.
+
+- Brasil + BRL utiliza **brapi**; Estados Unidos + USD utiliza **Alpha Vantage**. Não são chamadas as duas APIs para cada ativo.
+- Brasil utiliza a cotação disponível com atraso; EUA utiliza fechamento diário. Não se trata de acompanhamento em tempo real.
+- O ícone **ⓘ** aparece no painel após uma consulta bem-sucedida: mouse, foco pelo teclado ou toque revelam fonte e horários disponíveis, em Brasília. A Alpha Vantage não fornece horário de mercado nesse endpoint.
+- **Recarregar dados** apenas relê os valores salvos. **Atualizar posições**, na dashboard, abre a carteira. Esses botões não consultam os provedores.
+- A data de atualização da posição é a data da gravação; não equivale necessariamente à data de mercado da cotação.
+- O cache de cotações é em memória: 30 minutos para brapi e 12 horas para Alpha Vantage. Reiniciar a API não renova a cota do provedor.
+- Recebimentos de proventos são registrados pelo usuário e independem da atualização de preços. Não existe importação automática de dividendos recebidos.
+
+As chaves devem ser configuradas nos User Secrets de cada instalação. Consulte [configuração, limites e validações das APIs](docs/cotacoes-automaticas.md). A atualização não ocorre em segundo plano e não é salva sem confirmação.
+
 ## Câmbio
 
 O provedor é [Frankfurter v2](https://frankfurter.dev/). Para os saldos atuais, existe cache persistente das taxas diárias. Para proventos, uma consulta com a data do recebimento produz uma conversão congelada. Moedas e datas são enviadas ao provedor; valores e identificadores pessoais ficam na aplicação.
@@ -110,10 +160,14 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - Lançamentos atrasados e correções contam com diagnóstico, simulação financeira e aplicação em lote. Cadeias com eventos societários, ajustes de posição ou auditoria insuficiente continuam exigindo conferência manual.
 - Conversão histórica desconhecida não vira zero nem usa câmbio atual. Mudança de moeda-base pode exigir outro equivalente, sem apagar o anterior.
 - Evolução exibe Dietz estimado no intervalo e XIRR anualizada com limites explícitos e bloqueios por dados insuficientes. TWR exato continua pendente de avaliações a cada fluxo externo.
-- Cotações automáticas dos ativos, ideias/reflexões, backup agendado, Docker, CI/CD e publicação continuam pendentes. O backup manual com validação de restauração já existe.
+- Cotações sob demanda já foram utilizadas e confirmadas pelo usuário. Ainda há espaço para ampliar a verificação de cobertura, persistir cache/controle de consumo e mapear símbolos explicitamente. Não há garantia de disponibilidade ou consistência de todos os dados externos.
+- Meta de 0% impede aporte sugerido ao grupo, mas não retira seus ativos da base de cálculo. Excluir imobiliário das metas mantendo-o no patrimônio é uma melhoria proposta, ainda não implementada.
+- Ideias/reflexões, base de demonstração, Docker, CI/CD, publicação e observabilidade ampliada permanecem no planejamento. Backup automático foi adiado por decisão do usuário; o procedimento manual já atende ao uso atual.
 - Autenticação/autorização devem anteceder a exposição pública. O uso atual é local/privado.
 
 ## Documentação
+
+- [Próximas etapas e estágio atual do projeto](docs/proximas-etapas.md).
 
 - [Cadastros](docs/cadastros.md), [carteira e câmbio](docs/carteira-e-cambio.md).
 - [Metas, dashboard e aportes](docs/metas-dashboard-aportes.md).
@@ -124,5 +178,6 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - [Métricas de rentabilidade: Dietz e XIRR](docs/metricas-de-rentabilidade.md).
 - [Apresentação, gráficos e testes visuais](docs/apresentacao-e-graficos.md).
 - [Atualização manual de cotações em lote](docs/cotacoes-manuais-em-lote.md).
+- [Cotações automáticas: provedores gratuitos e configuração](docs/cotacoes-automaticas.md).
 - [Recebimentos e câmbio histórico](docs/recebimento-de-proventos.md).
 - [Datas e backup](docs/datas-e-backup.md), [revisão funcional](docs/revisao-funcional.md).

@@ -33,6 +33,20 @@ namespace InvestmentTracker.UnitTests.Portfolios
         };
 
         [Fact]
+        public async Task PricePerformance_ShouldUseOriginalValuesEvenWithoutExchangeRateAndExcludeIncome()
+        {
+            var position = Position("USD", 40m, 46m);
+            position.Income = 100m;
+            PortfolioWith(position);
+            var result = (await Service.GetSummaryAsync(1))!;
+            Assert.False(result.ConversionAvailable);
+            var performance = Assert.Single(result.Positions).PricePerformance!;
+            Assert.Equal(20m, performance.AveragePrice);
+            Assert.Equal(23m, performance.UnitPrice);
+            Assert.Equal(.15m, performance.Variation);
+        }
+
+        [Fact]
         public async Task Summary_ShouldConvertBeforeSummingAndKeepOriginalSubtotals()
         {
             PortfolioWith(Position("BRL", 100m, 120m), Position("USD", 10m, 20m), Position("USD", 5m, 10m));

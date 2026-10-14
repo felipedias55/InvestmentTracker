@@ -45,8 +45,12 @@ export interface Contribution {
     difference: string;
     adjustedWeight: string;
     suggestedContribution: string;
+    currencies?: ContributionCurrency[];
   }[];
 }
+export interface ContributionCurrency { currency: string; amount: string | null; rate: string | null; dates: string; stale: boolean; }
+export interface JointPlan { rows: { key: string; category: string; sector: string; amount: string; currencies: ContributionCurrency[] }[]; unallocated: string; }
+export interface ContributionPlan { dashboard: Dashboard; category: Contribution | null; sector: Contribution | null; plan: JointPlan | null; }
 @Injectable({ providedIn: 'root' })
 export class AllocationService {
   private readonly http = inject(HttpClient);
@@ -62,6 +66,9 @@ export class AllocationService {
   }
   dashboard(id: number) {
     return this.http.get<Dashboard>(`/api/portfolios/${id}/dashboard`);
+  }
+  plan(id: number, amount: string) {
+    return this.http.post<ContributionPlan>('/api/portfolios/' + id + '/contribution-plan', { amount });
   }
   simulate(id: number, dimension: Dimension, amount: string) {
     return this.http.post<Contribution>(`/api/portfolios/${id}/contribution-analysis`, {

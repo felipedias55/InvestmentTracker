@@ -109,7 +109,7 @@ Execute `dotnet test`, `npm test -- --watch=false` e `npm run build` no diretór
 
 Veja o [guia do simulador de aportes](simulador-de-aportes.md) para exemplos das fórmulas, escolha das combinações, desempates, conversões e valores sem distribuição.
 
-A página mostra as duas dimensões lado a lado no desktop e empilhadas no celular, com gráficos de participação atual versus meta. Um clique consulta as análises configuradas; a falta de metas ou falha em uma dimensão não impede consultar a outra. Os resultados representam o mesmo aporte e não devem ser somados.
+A página mostra as duas dimensões lado a lado no desktop e empilhadas no celular, com gráficos de participação atual versus meta. Um clique consulta as análises configuradas; a falta de metas em uma dimensão não impede consultar a outra. A API retorna ambas as análises em uma única resposta; falhas de consulta são exibidas sem reaproveitar resultados antigos. Os resultados representam o mesmo aporte e não devem ser somados.
 
 O plano conjunto usa as sugestões de cada dimensão como limites e distribui o máximo possível entre combinações categoria/setor já presentes nas posições com quantidade positiva. O algoritmo de fluxo máximo trabalha com centavos inteiros, permite reencaminhar atribuições anteriores e não ultrapassa o orçamento de nenhuma categoria ou setor. Empates seguem a ordem dos IDs dos cadastros; não há recomendação de ativo nem otimização de rentabilidade. Combinações reconhecidas como FII/REIT pelo nome de categoria/tipo só são aceitas em setores identificados como imobiliários (ou Real Estate). Cadastros inconsistentes devem ser revisados. Não são inventadas combinações para gastar o restante: ele aparece como sem distribuição compatível.
 
@@ -118,3 +118,5 @@ Os equivalentes na moeda original usam o câmbio presente na carteira: valor-bas
 As marcações de investido são independentes em cada análise e no plano conjunto. Vivem somente na memória da página, não registram movimentos e são apagadas ao mudar aporte, carteira, repetir a simulação, atualizar os dados ou sair. Use Compras e vendas para registrar operações reais. Depois de registrar compras, atualize a carteira no simulador para refazer o planejamento com os novos saldos.
 
 Esta entrega não altera o banco nem exige migration.
+
+Desde 07/10/2026, POST /api/portfolios/{id}/contribution-plan recebe apenas amount e retorna dashboard, category, sector e plan. As regras de elegibilidade, fluxo máximo, limites e conversão pertencem à camada Application. O endpoint contribution-analysis continua disponível para consumidores da análise individual.

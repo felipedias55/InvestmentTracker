@@ -64,13 +64,17 @@ test('simulador reúne gráficos, plano em moeda original e marcas temporárias'
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/portfolios') return route.fulfill({ json: [testPortfolio] });
     if (path.endsWith('/dashboard')) return route.fulfill({ json: { ...dashboard, summary: { ...dashboard.summary, positions } } });
-    if (path.endsWith('/contribution-analysis')) {
-      const dimension = route.request().postDataJSON().dimension;
-      const groups = dimension === 'category' ? dashboard.allocation.categories : dashboard.allocation.sectors;
-      return route.fulfill({ json: { dimension, currencyCode: 'BRL', amount: '100', unallocatedAmount: '0', sumOfWeights: '0.1', hasStaleRates: false, hasFallbackRates: false,
-        rows: groups.map(r => ({ ...r, adjustedWeight: '0.1', suggestedContribution: r.groupId === (dimension === 'category' ? 2 : 3) ? '100' : '0' })) } });
-    }
-    throw new Error('Unexpected request: ' + path);
+    if (path.endsWith('/contribution-plan')) {
+      const analysis = (dimension: string) => {
+        const groups = dimension === 'category' ? dashboard.allocation.categories : dashboard.allocation.sectors;
+        return { dimension, currencyCode: 'BRL', amount: '100', unallocatedAmount: '0', sumOfWeights: '0.1', hasStaleRates: false, hasFallbackRates: false,
+          rows: groups.map(r => ({ ...r, currencies: [], adjustedWeight: '0.1', suggestedContribution: r.groupId === (dimension === 'category' ? 2 : 3) ? '100' : '0' })) };
+      };
+      return route.fulfill({ json: { dashboard: { ...dashboard, summary: { ...dashboard.summary, positions } },
+        category: analysis('category'), sector: analysis('sector'),
+        plan: { unallocated: '0', rows: [{ key: '2-3', category: 'Ações EUA', sector: 'Consumo', amount: '100',
+          currencies: [{ currency: 'USD', amount: '20', rate: '5', dates: '2026-10-06', stale: false }] }] } } });
+    }    throw new Error('Unexpected request: ' + path);
   });
   await page.goto('/contributions');
   await expect(page.locator('app-allocation-table')).toHaveCount(2);

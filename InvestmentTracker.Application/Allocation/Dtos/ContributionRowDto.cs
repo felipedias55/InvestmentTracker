@@ -9,5 +9,8 @@ namespace InvestmentTracker.Application.Allocation.Dtos
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal TargetPercentage,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal Difference,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal AdjustedWeight,
-        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal SuggestedContribution);
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal SuggestedContribution)
+    {
+        public IReadOnlyList<ContributionCurrencyDto> Currencies { get; init; } = [];
+    }
 }

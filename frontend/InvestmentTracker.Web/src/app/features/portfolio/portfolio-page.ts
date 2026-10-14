@@ -1,6 +1,7 @@
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { EditPanel } from '../../shared/edit-panel';
 import { QuoteBatchPanel } from './quote-batch-panel';
+import { PositionPerformance } from './position-performance';
 import {
   brazilianNumberValidator,
   formatBrazilianNumber,
@@ -22,7 +23,7 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-portfolio-page',
-  imports: [CurrencyPipe, EditPanel, QuoteBatchPanel, ReactiveFormsModule, DatePipe, RouterLink],
+  imports: [CurrencyPipe, EditPanel, QuoteBatchPanel, PositionPerformance, ReactiveFormsModule, DatePipe, RouterLink],
   templateUrl: './portfolio-page.html',
   styleUrl: './portfolio-page.css',
 })

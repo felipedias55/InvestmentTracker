@@ -42,7 +42,7 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
                 await MovementRecorder.SaveAsync(db, new FinancialMovement
                 {
                     PortfolioId = portfolioId, RequestId = batch.RequestId, Date = today, Kind = "position-adjustment",
-                    CurrencyCode = portfolio.BaseCurrency.Code, Amount = 0, Description = $"Atualização manual de cotações: {positions.Count} posições",
+                    CurrencyCode = portfolio.BaseCurrency.Code, Amount = 0, Description = $"Atualização de cotações confirmada: {positions.Count} posições",
                     CreatedAtUtc = clock.GetUtcNow().UtcDateTime, RequestPayload = payload
                 }, ct);
                 await transaction.CommitAsync(ct);

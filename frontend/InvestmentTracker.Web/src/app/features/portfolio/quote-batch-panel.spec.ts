@@ -39,6 +39,53 @@ describe('QuoteBatchPanel', () => {
     component.save(); const retry = http.expectOne('/api/portfolios/1/quotes');
     expect(retry.request.body).toEqual(body); retry.flush(null);
   });
+  it('previews quotes without saving and includes source only while the fetched price is unchanged', () => {
+    const component = initialize().componentInstance;
+    component.fetchQuotes();
+    const preview = http.expectOne('/api/portfolios/1/quotes/preview');
+    expect(preview.request.body).toEqual({ positionIds: [1] });
+    preview.flush([{ positionId: 1, quote: { provider: 'Alpha Vantage', price: '30.1234', date: '2026-10-06', message: 'Fechamento' } }]);
+    expect(component.prices()[1]).toBe('30,1234');
+    http.expectNone('/api/portfolios/1/quotes');
+    component.review.set(true); component.save();
+    const save = http.expectOne('/api/portfolios/1/quotes');
+    expect(save.request.body.items[0].source).toBe('Alpha Vantage');
+    expect(save.request.body.items[0].quoteDate).toBe('2026-10-06');
+    save.flush(null);
+    component.setPrice(1, '31');
+    expect(component.quotes()[1]).toBeUndefined();
+  });
+  it('keeps failed quotes blank and does not overwrite manual input', () => {
+    const fixture = initialize(), component = fixture.componentInstance;
+    fixture.componentRef.setInput('positions', [position, { ...position, id: 3 }]);
+    component.setPrice(1, '99');
+    component.fetchQuotes();
+    const preview = http.expectOne('/api/portfolios/1/quotes/preview');
+    expect(preview.request.body.positionIds).toEqual([3]);
+    preview.flush([{ positionId: 3, quote: { provider: 'Alpha Vantage', price: null, date: null, message: 'Limite' } }]);
+    expect(component.prices()[1]).toBe('99');
+    expect(component.prices()[3]).toBeUndefined();
+    expect(component.quotes()[3].message).toBe('Limite');
+  });
+
+  it('shows quote timestamps only in an optional tooltip, with a touch toggle', () => {
+    const fixture = initialize(), component = fixture.componentInstance;
+    component.quotes.set({ 1: { provider: 'brapi', price: '54.12', date: '2026-10-07',
+      marketTime: '2026-10-07T13:19:30Z', retrievedAt: '2026-10-07T13:50:00Z', message: 'Com atraso' } });
+    fixture.detectChanges();
+    const button = fixture.nativeElement.querySelector('.quote-info-button') as HTMLButtonElement;
+    const tooltip = fixture.nativeElement.querySelector('[role=tooltip]') as HTMLElement;
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(tooltip.classList.contains('open')).toBe(false);
+    expect(tooltip.textContent).toContain('07/10/2026, 10:19:30 (Brasília)');
+    expect(tooltip.textContent).toContain('07/10/2026, 10:50:00 (Brasília)');
+    button.click(); fixture.detectChanges();
+    expect(tooltip.classList.contains('open')).toBe(true);
+    button.click(); fixture.detectChanges();
+    expect(tooltip.classList.contains('open')).toBe(false);
+    expect(component.quoteDetails({ provider: 'Alpha Vantage', price: '10', date: '2026-10-06', message: 'Diário' }))
+      .toContain('06/10/2026 · horário não fornecido');
+  });
   it('rejects invalid decimals and total overflow without sending anything', () => {
     const component = initialize().componentInstance;
     for (const price of ['0', '-1', '1,23456', 'texto', '999.999.999.999.999,9999']) {

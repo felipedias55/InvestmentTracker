@@ -27,6 +27,10 @@ test('cotações em lote revisam valores e preservam filtros e posições não p
   const after = await json(request, path);
   expect(Number(after.positions[0].currentValue)).toBe(33.8423);
   expect(Number(after.positions[1].currentValue)).toBe(20);
+  await expect(page.locator('app-position-performance').first()).toContainText('125,6153%');
+  await expect(page.locator('app-position-performance .gain').first()).toContainText('▲');
+  await page.locator('app-position-performance').first().scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath('position-performance.png') });
   for (const p of after.positions) { expect(Number(p.quantity)).toBe(1.123456); expect(Number(p.investedAmount)).toBe(15); expect(Number(p.income)).toBe(3); }
   const history = await json(request, path + '/history'); expect(history.cashFlows).toHaveLength(0);
   expect((await json(request, path + '/movements')).filter((m: any) => m.kind === 'position-adjustment')).toHaveLength(1);
@@ -412,12 +416,11 @@ test('carteira vazia, metas de categoria e setor e simulador respeitam percentua
   const before = await json(request, path);
   await navigate(page, 'Simular aporte'); await choosePortfolio(page, name);
   await page.locator('#contribution-amount').fill('100,01');
-  const pending = page.waitForResponse(r => r.url().endsWith('/contribution-analysis') && r.request().postDataJSON()?.dimension === 'category');
-  const sectorPending = page.waitForResponse(r => r.url().endsWith('/contribution-analysis') && r.request().postDataJSON()?.dimension === 'sector');
+  const pending = page.waitForResponse(r => r.url().endsWith('/contribution-plan'));
   await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
-  const result = await (await pending).json();
+  const combined = await (await pending).json(); const result = combined.category;
   expect(Number(result.rows.find((r: any) => r.groupId === targets[0].groupId).suggestedContribution)).toBe(0);
   expect(Number(result.rows.find((r: any) => r.groupId === targets[1].groupId).suggestedContribution)).toBe(100.01);
-  expect(Number((await (await sectorPending).json()).unallocatedAmount)).toBe(100.01);
+  expect(Number(combined.sector.unallocatedAmount)).toBe(100.01);
   expect(await json(request, path)).toEqual(before); expect(await json(request, path + '/movements')).toHaveLength(0);
 });

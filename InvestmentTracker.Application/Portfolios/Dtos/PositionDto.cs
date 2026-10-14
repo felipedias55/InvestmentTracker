@@ -24,6 +24,7 @@ namespace InvestmentTracker.Application.Portfolios.Dtos
         bool IsStale,
         bool IsFallback)
     {
+        public PositionPricePerformance? PricePerformance { get; init; }
         [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)]
         public decimal Income { get; init; }
         [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)]

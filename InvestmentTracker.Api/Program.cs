@@ -23,6 +23,11 @@ builder.Services.AddDbContext<InvestmentTrackerDbContext>(options =>
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
+builder.Services.AddHttpClient("AssetQuotes", client => client.Timeout = TimeSpan.FromSeconds(15)).RemoveAllLoggers();
+builder.Services.AddSingleton<InvestmentTracker.Application.Quotes.IAssetQuoteProvider>(services =>
+    new InvestmentTracker.Infrastructure.Quotes.FreeAssetQuoteProvider(
+        services.GetRequiredService<IHttpClientFactory>().CreateClient("AssetQuotes"),
+        services.GetRequiredService<IConfiguration>(), services.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton(new PortfolioDefaults(
     (builder.Configuration["Portfolio:DefaultCurrencyCode"] ?? "BRL").Trim().ToUpperInvariant()));
 builder.Services.AddHttpClient<IExchangeRateProvider, FrankfurterClient>(client =>

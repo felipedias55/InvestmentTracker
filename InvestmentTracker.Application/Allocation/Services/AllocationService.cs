@@ -66,6 +66,13 @@ namespace InvestmentTracker.Application.Allocation.Services
             return dashboard is null ? null : ContributionCalculator.Calculate(dashboard, dto);
         }
 
+        public async Task<ContributionPlanDto?> PlanContributionAsync(int portfolioId, ContributionPlanRequestDto dto, CancellationToken cancellationToken = default)
+        {
+            ContributionCalculator.ValidateAmount(dto.Amount);
+            var dashboard = await GetDashboardAsync(portfolioId, cancellationToken);
+            return dashboard is null ? null : ContributionPlanCalculator.Calculate(dashboard, dto.Amount);
+        }
+
         private static IReadOnlyList<AllocationRowDto> BuildRows(PortfolioSummaryDto summary,
             Func<PositionDto, (int Id, string Name)> classify, IReadOnlyList<AllocationTargetDto> targets)
         {

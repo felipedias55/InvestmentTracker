@@ -320,6 +320,7 @@
               </dd>
             </div>
           </dl>
+          <app-position-performance [performance]="p.pricePerformance" [currency]="p.currencyCode" />
           <p class="hint">Dados atualizados em: {{ p.updatedOn ? (p.updatedOn | date: 'dd/MM/yyyy' : 'UTC') : 'Não informado' }}.</p>
           @if (p.currencyCode !== s.portfolio.baseCurrencyCode) {
             <p class="hint">

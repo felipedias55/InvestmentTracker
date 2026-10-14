@@ -39,6 +39,12 @@ namespace InvestmentTracker.Api.Controllers
             var result = await service.GetDashboardAsync(id, cancellationToken);
             return result is null ? NotFound() : Ok(result.Allocation);
         }
+        [HttpPost("contribution-plan")]
+        public async Task<IActionResult> Plan(int id, ContributionPlanRequestDto dto, CancellationToken cancellationToken)
+        {
+            var result = await service.PlanContributionAsync(id, dto, cancellationToken);
+            return result is null ? NotFound() : Ok(result);
+        }
         [HttpPost("contribution-analysis")]
         public async Task<IActionResult> Contribution(int id, ContributionRequestDto dto, CancellationToken cancellationToken)
         {

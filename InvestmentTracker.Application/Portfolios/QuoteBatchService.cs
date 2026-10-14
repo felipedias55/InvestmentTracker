@@ -5,7 +5,13 @@ namespace InvestmentTracker.Application.Portfolios
 {
     [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)]
     public sealed record QuoteUpdate(int PositionId, string CurrencyCode, decimal UnitPrice,
-        decimal ExpectedQuantity, decimal ExpectedValue, DateOnly ExpectedUpdatedOn);
+        decimal ExpectedQuantity, decimal ExpectedValue, DateOnly ExpectedUpdatedOn)
+    {
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Source { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public DateOnly? QuoteDate { get; init; }
+    }
     public sealed record QuoteBatchDto(Guid RequestId, IReadOnlyList<QuoteUpdate> Items);
     public interface IQuoteBatchRepository
     {
@@ -21,6 +27,9 @@ namespace InvestmentTracker.Application.Portfolios
                 throw new InputValidationException("Uma posição não pode aparecer duas vezes no lote.");
             foreach (var item in batch.Items)
             {
+                if ((item.Source is null) != (item.QuoteDate is null) ||
+                    item.Source is not (null or "brapi" or "Alpha Vantage"))
+                    throw new InputValidationException("Fonte e data da cotação inválidas.");
                 if (item.PositionId <= 0 || string.IsNullOrWhiteSpace(item.CurrencyCode) || item.ExpectedQuantity <= 0
                     || item.ExpectedQuantity > 9999999999999.999999m || decimal.Round(item.ExpectedQuantity, 6) != item.ExpectedQuantity
                     || item.ExpectedValue < 0 || item.ExpectedValue > 999999999999999.9999m || decimal.Round(item.ExpectedValue, 4) != item.ExpectedValue)

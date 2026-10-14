@@ -7,12 +7,47 @@ using InvestmentTracker.Infrastructure.Persistence.Repositories;
 using InvestmentTracker.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using InvestmentTracker.Application.Quotes;
 
 namespace InvestmentTracker.IntegrationTests.Portfolios
 {
     [Collection(DatabaseCollection.Name)]
     public class QuoteBatchApiTests(DatabaseFixture fixture)
     {
+        private sealed class FakeQuotes : IAssetQuoteProvider
+        {
+            public Task<AssetQuote> FetchAsync(string market, string symbol, CancellationToken ct)
+                => Task.FromResult(new AssetQuote("brapi", symbol, "BRL", 15, DateOnly.FromDateTime(DateTime.UtcNow), "available", "Synthetic"));
+        }
+        [Fact]
+        public async Task QuotePreview_ShouldNotWriteAndConfirmedBatchShouldKeepSourceInAudit()
+        {
+            var (portfolio, batch) = await Seed();
+            var item = batch.Items.Single(x => x.CurrencyCode == "BRL");
+            await using (var db = fixture.Database.CreateContext())
+            {
+                var position = await db.PortfolioAssets.Include(p => p.Asset).SingleAsync(p => p.Id == item.PositionId);
+                position.Asset.CountryId = (await db.Countries.SingleAsync(c => c.Name == "Brasil")).Id;
+                await db.SaveChangesAsync();
+            }
+            using var factory = fixture.ApiFactory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IAssetQuoteProvider, FakeQuotes>()));
+            using var client = factory.CreateClient();
+            var response = await client.PostAsJsonAsync($"/api/portfolios/{portfolio}/quotes/preview", new AssetQuoteRequest([item.PositionId]));
+            response.EnsureSuccessStatusCode();
+            var preview = Assert.Single((await response.Content.ReadFromJsonAsync<PositionQuote[]>())!);
+            Assert.Equal(15, preview.Quote.Price);
+            await using (var db = fixture.Database.CreateContext())
+            {
+                Assert.False(await db.Set<FinancialMovement>().AnyAsync());
+                Assert.Equal(20, (await db.PortfolioAssets.FindAsync(item.PositionId))!.CurrentValue);
+            }
+            var confirmed = batch with { Items = [item with { Source = preview.Quote.Provider, QuoteDate = preview.Quote.Date }] };
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync($"/api/portfolios/{portfolio}/quotes", confirmed)).StatusCode);
+            await using var check = fixture.Database.CreateContext();
+            Assert.Contains("brapi", (await check.Set<FinancialMovement>().SingleAsync()).RequestPayload);
+        }
         private async Task<(int Portfolio, QuoteBatchDto Batch)> Seed()
         {
             await fixture.ResetAsync();
