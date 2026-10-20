@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -12,7 +13,7 @@ import { fractionToPercentage, percentageToFraction, percentageUnits } from './p
 @Component({
   standalone: true,
   selector: 'app-targets-page',
-  imports: [PortfolioPicker, ReactiveFormsModule],
+  imports: [RouterLink, PortfolioPicker, ReactiveFormsModule],
   templateUrl: './targets-page.html',
 })
 export class TargetsPage {

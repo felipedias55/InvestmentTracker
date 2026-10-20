@@ -1,0 +1,67 @@
+
+      .totals {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+        margin-top: 24px;
+      }
+      .totals strong {
+        font-size: 22px;
+        overflow-wrap: anywhere;
+      }
+      .totals .wealth-card { background: var(--gold-metal); color: #30270f; grid-column: span 2; }
+      .wealth-card h2, .wealth-card .hint { color: #514017; }
+      .wealth-card strong { font-size: clamp(28px, 4vw, 38px); }
+      .overview-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
+      .overview-actions a { text-decoration: none; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: white; }
+      .quality-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 18px; }
+      .quality-strip div { padding: 16px; background: #fff; border: 1px solid var(--border); border-radius: 12px; }
+      .quality-strip strong { display: block; margin-bottom: 6px; } .quality-strip span { color: var(--muted); font-size: 12px; }
+      .chart-heading select { width: auto; max-width: 180px; } .chart-heading label { margin: 0; }
+      @media(max-width: 600px) { .totals { grid-template-columns: 1fr; } .totals .wealth-card { grid-column: auto; } }
+    
+:host { display: block; min-width: 0; }
+.totals { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.totals .panel { padding: 16px; }
+.totals .wealth-card { grid-column: span 2; }
+.totals h2 { font-size: 14px; margin-top: 0; }
+.totals strong { font-size: 22px; }
+.overview-actions { gap: 14px; margin: 14px 0; }
+.overview-actions a { padding: 3px 0; border: 0; background: transparent; font-size: 13px; }
+.reference-details { margin: 12px 0; }
+.dashboard-filters { margin: 16px 0; padding: 16px; }
+.dashboard-filters .section-title { margin-bottom: 10px; }
+.dashboard-filters h2 { margin: 0; font-size: 18px; }
+.dashboard-filters summary, .reference-details summary { cursor: pointer; color: var(--muted); }
+.dashboard-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 100px; gap: 12px; }
+.dashboard-grid .chart-card { grid-column: span 2; grid-row: span 6; min-width: 0; margin: 0; padding: 16px; display: flex; flex-direction: column; }
+.dashboard-grid .chart-card.compact { grid-row: span 4; }
+.dashboard-grid .chart-card.wide { grid-column: span 4; grid-row: span 6; }
+.dashboard-grid .chart-card.is-collapsed { grid-row: span 1; }
+.chart-heading { gap: 8px; margin-bottom: 10px; }
+.chart-heading h2 { font-size: 16px; margin: 0; }
+.chart-controls { flex-wrap: wrap; align-items: center; min-width: 0; }
+.chart-controls select { max-width: 160px; font-size: 12px; }
+.chart-controls button { padding: 6px 10px; }
+.chart-body { min-height: 0; overflow: auto; scrollbar-gutter: stable; }
+.chart-body[hidden] { display: none; }
+.is-collapsed .chart-heading { margin: 0; }
+.is-collapsed .chart-controls label { display: none; }
+.drag-handle { cursor: grab; padding: 4px 10px; font-size: 22px; }
+.drag-handle:active { cursor: grabbing; }
+.dragging { opacity: .55; }
+.dashboard-grid .drop-target { outline: 3px dashed var(--accent, #b99a48); outline-offset: -4px; background: #faf6e9; }
+button:focus-visible, .chart-body:focus-visible { outline: 2px solid var(--accent, #b99a48); outline-offset: 2px; }
+@media (max-width: 1000px) {
+  .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .dashboard-grid { display: flex; flex-direction: column; }
+  .dashboard-grid .chart-card { max-height: none; }
+  .chart-body { overflow: visible; }
+  .drag-handle { display: none; }
+  .chart-controls { width: 100%; }
+  .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .totals .wealth-card { grid-column: span 2; }
+  .totals strong { font-size: 19px; }
+}

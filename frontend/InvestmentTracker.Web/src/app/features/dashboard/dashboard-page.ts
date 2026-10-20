@@ -1,3 +1,8 @@
+import { DashboardSummary } from './dashboard-summary';
+import { DashboardMovements } from './dashboard-movements';
+import type { PortfolioHistory } from '../history/history.service';
+import type { IncomeAnalysis } from '../income/income-page';
+import { DashboardAnalysis } from './dashboard-analysis';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
@@ -12,32 +17,10 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-dashboard-page',
-  imports: [CurrencyPipe, PortfolioPicker, AllocationTable, DatePipe, RouterLink],
+  imports: [DashboardSummary, DashboardMovements, DashboardAnalysis, CurrencyPipe, PortfolioPicker, AllocationTable, DatePipe, RouterLink],
   templateUrl: './dashboard-page.html',
-  styles: [
-    `
-      .totals {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 16px;
-        margin-top: 24px;
-      }
-      .totals strong {
-        font-size: 22px;
-        overflow-wrap: anywhere;
-      }
-      .totals .wealth-card { background: var(--gold-metal); color: #30270f; grid-column: span 2; }
-      .wealth-card h2, .wealth-card .hint { color: #514017; }
-      .wealth-card strong { font-size: clamp(28px, 4vw, 38px); }
-      .overview-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
-      .overview-actions a { text-decoration: none; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: white; }
-      .quality-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 18px; }
-      .quality-strip div { padding: 16px; background: #fff; border: 1px solid var(--border); border-radius: 12px; }
-      .quality-strip strong { display: block; margin-bottom: 6px; } .quality-strip span { color: var(--muted); font-size: 12px; }
-      .chart-heading select { width: auto; max-width: 180px; } .chart-heading label { margin: 0; }
-      @media(max-width: 600px) { .totals { grid-template-columns: 1fr; } .totals .wealth-card { grid-column: auto; } }
-    `,
-  ],
+  styleUrl: './dashboard-page.css',
+
 })
 export class DashboardPage {
   private readonly api = inject(AllocationService);
@@ -47,28 +30,71 @@ export class DashboardPage {
   readonly data = signal<Dashboard | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
+  readonly periodHistory = signal<PortfolioHistory | null>(null);
+  readonly periodIncome = signal<IncomeAnalysis | null>(null);
+  readonly historyError = signal('');
+  readonly incomeError = signal('');
+  analysisError(id: ChartId, message: string) {
+    if (id === 'evolution') this.historyError.set(message);
+    if (id === 'income') this.incomeError.set(message);
+  }
   readonly query = signal('');
   readonly status = signal('all');
   readonly sort = signal('value');
-  readonly order = signal<ChartId[]>(['categories', 'sectors', 'countries']);
-  readonly collapsed = signal<ChartId[]>([]);
+  readonly order = signal<ChartId[]>(['categories', 'sectors', 'countries', 'evolution', 'income', 'highlights', 'movements']);
+  readonly collapsed = signal<ChartId[]>(['movements']);
   readonly announcement = signal('');
-  readonly chartTypes = signal<Record<ChartId, 'bars' | 'donut'>>({ categories: 'donut', sectors: 'bars', countries: 'donut' });
+  readonly organizing = signal(false);
+  readonly dragged = signal<ChartId | null>(null);
+  readonly dropTarget = signal<ChartId | null>(null);
+  readonly sizes = signal<Record<ChartId, string>>({ categories: 'medium', sectors: 'medium', countries: 'compact', evolution: 'wide', income: 'medium', highlights: 'medium', movements: 'medium' });
+  setSize(id: ChartId, size: string) {
+    if (!['compact', 'medium', 'wide'].includes(size)) return;
+    this.sizes.update(sizes => ({ ...sizes, [id]: size })); this.saveLayout();
+  }
+  toggleOrganizing() { this.organizing.update(value => !value); this.endDrag(); }
+  startDrag(event: DragEvent, id: ChartId) {
+    if (!this.organizing() || window.matchMedia('(max-width: 700px)').matches) { event.preventDefault(); return; }
+    this.dragged.set(id);
+    if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', id); }
+  }
+  overChart(event: DragEvent, id: ChartId) {
+    if (!this.organizing() || !this.dragged() || this.dragged() === id) return;
+    event.preventDefault(); this.dropTarget.set(id);
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+  dropChart(event: DragEvent, target: ChartId) {
+    event.preventDefault();
+    const source = this.dragged();
+    if (this.organizing() && source && source !== target) {
+      const items = [...this.order()];
+      const destination = items.indexOf(target);
+      items.splice(items.indexOf(source), 1);
+      items.splice(destination, 0, source);
+      this.order.set(items); this.saveLayout();
+      this.announcement.set(`${this.titles[source]} na posição ${destination + 1} de ${items.length}.`);
+    }
+    this.endDrag();
+  }
+  endDrag() { this.dragged.set(null); this.dropTarget.set(null); }
+  readonly chartTypes = signal<Record<AllocationChartId, 'bars' | 'donut'>>({ categories: 'donut', sectors: 'bars', countries: 'donut' });
   readonly oldestUpdate = computed(() => this.data()?.summary.positions.map(p => p.updatedOn).filter((x): x is string => !!x).sort()[0] ?? null);
   readonly missingDates = computed(() => this.data()?.summary.positions.filter(p => !p.updatedOn).length ?? 0);
-  setChartType(id: ChartId, type: string) {
+  setChartType(id: AllocationChartId, type: string) {
     if (type !== 'bars' && type !== 'donut') return;
     this.chartTypes.update(types => ({ ...types, [id]: type })); this.saveLayout();
   }
-  readonly titles = { categories: 'Distribuição por categoria', sectors: 'Distribuição por setor', countries: 'Distribuição por país' };
+  readonly titles = { categories: 'Distribuição por categoria', sectors: 'Distribuição por setor', countries: 'Distribuição por país', evolution: 'Evolução patrimonial', income: 'Proventos por período', highlights: 'Destaques dos ativos', movements: 'Movimentações recentes' };
   private storageKey() { return `investment-tracker.dashboard.v1.${this.portfolioId()}`; }
   private saveLayout() {
-    try { localStorage.setItem(this.storageKey(), JSON.stringify({ order: this.order(), collapsed: this.collapsed(), types: this.chartTypes() })); } catch { /* Preferences remain available for this session. */ }
+    try { localStorage.setItem(this.storageKey(), JSON.stringify({ order: this.order(), collapsed: this.collapsed(), types: this.chartTypes(), sizes: this.sizes() })); } catch { /* Preferences remain available for this session. */ }
   }
   resetLayout() {
+    this.endDrag();
+    this.sizes.set({ categories: 'medium', sectors: 'medium', countries: 'compact', evolution: 'wide', income: 'medium', highlights: 'medium', movements: 'medium' });
     this.chartTypes.set({ categories: 'donut', sectors: 'bars', countries: 'donut' });
-    this.order.set(['categories', 'sectors', 'countries']);
-    this.collapsed.set([]);
+    this.order.set(['categories', 'sectors', 'countries', 'evolution', 'income', 'highlights', 'movements']);
+    this.collapsed.set(['movements']);
     this.saveLayout();
   }
   toggleChart(id: ChartId) {
@@ -83,10 +109,11 @@ export class DashboardPage {
     [items[index], items[destination]] = [items[destination], items[index]];
     this.order.set(items);
     this.saveLayout();
-    this.announcement.set(`${this.titles[id]} na posição ${destination + 1} de 3.`);
+    this.announcement.set(`${this.titles[id]} na posição ${destination + 1} de ${items.length}.`);
   }
   clearFilters() { this.query.set(''); this.status.set('all'); this.sort.set('value'); }
-  filteredRows(id: ChartId): AllocationRow[] {
+  isAllocation(id: ChartId): id is AllocationChartId { return id === 'categories' || id === 'sectors' || id === 'countries'; }
+  filteredRows(id: AllocationChartId): AllocationRow[] {
     const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
     const query = normalize(this.query().trim());
     return (this.data()?.allocation[id] ?? []).filter(row => normalize(row.name).includes(query))
@@ -97,22 +124,25 @@ export class DashboardPage {
         a.currentValue === null ? (b.currentValue === null ? 0 : 1) : b.currentValue === null ? -1 : Number(b.currentValue) - Number(a.currentValue));
   }
   select(id: number) {
+    this.endDrag(); this.organizing.set(false);
+    this.sizes.set({ categories: 'medium', sectors: 'medium', countries: 'compact', evolution: 'wide', income: 'medium', highlights: 'medium', movements: 'medium' });
     this.portfolioId.set(id);
     this.clearFilters();
-    const defaults: ChartId[] = ['categories', 'sectors', 'countries'];
+    const defaults: ChartId[] = ['categories', 'sectors', 'countries', 'evolution', 'income', 'highlights', 'movements'];
     this.order.set(defaults);
-    this.collapsed.set([]);
+    this.collapsed.set(['movements']);
     try {
       this.chartTypes.set({ categories: 'donut', sectors: 'bars', countries: 'donut' });
       const stored = JSON.parse(localStorage.getItem(this.storageKey()) ?? 'null');
       if (stored && Array.isArray(stored.order) && Array.isArray(stored.collapsed)) {
         for (const id of defaults) {
-          if (stored.types?.[id] === 'bars' || stored.types?.[id] === 'donut') this.chartTypes.update(types => ({ ...types, [id]: stored.types[id] }));
+          if (['compact', 'medium', 'wide'].includes(stored.sizes?.[id])) this.sizes.update(sizes => ({ ...sizes, [id]: stored.sizes[id] }));
+          if (this.isAllocation(id) && (stored.types?.[id] === 'bars' || stored.types?.[id] === 'donut')) this.chartTypes.update(types => ({ ...types, [id]: stored.types[id] }));
         }
         const valid = (value: unknown): value is ChartId => defaults.includes(value as ChartId);
         const order: ChartId[] = [...new Set<ChartId>(stored.order.filter(valid))];
         this.order.set([...order, ...defaults.filter(id => !order.includes(id))]);
-        this.collapsed.set([...new Set<ChartId>(stored.collapsed.filter(valid))]);
+        this.collapsed.set([...new Set<ChartId>([...stored.collapsed.filter(valid), ...(!stored.order.includes('movements') ? ['movements' as ChartId] : [])])]);
       }
     } catch { /* Invalid or unavailable storage uses the default layout. */ }
     this.load();
@@ -123,6 +153,7 @@ export class DashboardPage {
     this.request?.unsubscribe();
     this.loading.set(true);
     this.data.set(null);
+    this.periodHistory.set(null); this.periodIncome.set(null); this.historyError.set(''); this.incomeError.set('');
     this.error.set('');
     this.request = this.api
       .dashboard(id)
@@ -140,4 +171,5 @@ export class DashboardPage {
   }
 }
 
-type ChartId = 'categories' | 'sectors' | 'countries';
+type AllocationChartId = 'categories' | 'sectors' | 'countries';
+type ChartId = AllocationChartId | 'evolution' | 'income' | 'highlights' | 'movements';

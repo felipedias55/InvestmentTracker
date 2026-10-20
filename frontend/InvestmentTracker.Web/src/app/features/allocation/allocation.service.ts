@@ -1,3 +1,4 @@
+import type { StrategyConfig } from './strategy-editor';
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ExternalAssetSummary } from '../external-assets/external-assets.service';
@@ -50,7 +51,7 @@ export interface Contribution {
 }
 export interface ContributionCurrency { currency: string; amount: string | null; rate: string | null; dates: string; stale: boolean; }
 export interface JointPlan { rows: { key: string; category: string; sector: string; amount: string; currencies: ContributionCurrency[] }[]; unallocated: string; }
-export interface ContributionPlan { dashboard: Dashboard; category: Contribution | null; sector: Contribution | null; plan: JointPlan | null; }
+export interface ContributionPlan { dashboard: Dashboard; category: Contribution | null; sector: Contribution | null; plan: JointPlan | null; strategyNotes?: string[]; eligibleBase?: string | null; }
 @Injectable({ providedIn: 'root' })
 export class AllocationService {
   private readonly http = inject(HttpClient);
@@ -67,8 +68,8 @@ export class AllocationService {
   dashboard(id: number) {
     return this.http.get<Dashboard>(`/api/portfolios/${id}/dashboard`);
   }
-  plan(id: number, amount: string) {
-    return this.http.post<ContributionPlan>('/api/portfolios/' + id + '/contribution-plan', { amount });
+  plan(id: number, amount: string, strategy: StrategyConfig | null = null) {
+    return this.http.post<ContributionPlan>('/api/portfolios/' + id + '/contribution-plan', strategy ? { amount, strategy } : { amount });
   }
   simulate(id: number, dimension: Dimension, amount: string) {
     return this.http.post<Contribution>(`/api/portfolios/${id}/contribution-analysis`, {

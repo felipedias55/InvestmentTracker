@@ -31,6 +31,21 @@ namespace InvestmentTracker.UnitTests.Quotes
             repo.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
         [Fact]
+        public async Task ShouldFetchOnlySelectedPositivePositions()
+        {
+            var repo = new Mock<IPortfolioRepository>();
+            repo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(new Portfolio());
+            var zero = Position(9); zero.Quantity = 0;
+            repo.Setup(r => r.GetPositionsAsync(1, default)).ReturnsAsync([Position(7), Position(8), zero]);
+            var provider = new Mock<IAssetQuoteProvider>(MockBehavior.Strict);
+            provider.Setup(p => p.FetchAsync("US", "MSFT", default))
+                .ReturnsAsync(new AssetQuote("Alpha Vantage", "MSFT", "USD", 100, new(2026, 10, 6), "available", ""));
+            var result = await new AssetQuoteService(repo.Object, provider.Object, new Clock()).PreviewAsync(1, new([8, 9]), default);
+            Assert.Equal(new[] { 8, 9 }, result!.Select(r => r.PositionId));
+            provider.Verify(p => p.FetchAsync("US", "MSFT", default), Times.Once);
+            provider.VerifyNoOtherCalls();
+        }
+        [Fact]
         public async Task UnsupportedCountriesShouldNotBeGuessedFromCurrency()
         {
             var repo = new Mock<IPortfolioRepository>();

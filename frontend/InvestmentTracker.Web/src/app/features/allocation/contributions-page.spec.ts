@@ -21,6 +21,8 @@ describe('ContributionsPage', () => {
     const fixture = TestBed.createComponent(ContributionsPage); fixture.detectChanges();
     http.expectOne('/api/portfolios').flush([testPortfolio]);
     http.expectOne('/api/portfolios/1/dashboard').flush(testDashboard);
+    fixture.detectChanges();
+    http.expectOne('/api/portfolios/1/strategies').flush([]);
     fixture.detectChanges(); return fixture;
   }
   it('sends only the amount and renders the server plan without recomputing it', () => {

@@ -796,6 +796,38 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.PortfolioStrategyRevision", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ConfigurationJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PortfolioId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortfolioId", "ProfileId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("PortfolioStrategyRevision", (string)null);
+                });
+
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.PortfolioTrade", b =>
                 {
                     b.Property<int>("Id")
@@ -1193,6 +1225,15 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Portfolio");
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.PortfolioStrategyRevision", b =>
+                {
+                    b.HasOne("InvestmentTracker.Domain.Entities.Portfolio", null)
+                        .WithMany()
+                        .HasForeignKey("PortfolioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.PortfolioTrade", b =>

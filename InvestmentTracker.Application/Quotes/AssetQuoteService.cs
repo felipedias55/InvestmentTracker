@@ -12,6 +12,9 @@ namespace InvestmentTracker.Application.Quotes
     {
         public DateTimeOffset? MarketTime { get; init; }
         public DateTimeOffset? RetrievedAt { get; init; }
+        public bool FromCache { get; init; }
+        public bool Requested { get; init; }
+        public DateTimeOffset? RetryAfter { get; init; }
     }
     public sealed record PositionQuote(int PositionId, AssetQuote Quote);
     public interface IAssetQuoteProvider

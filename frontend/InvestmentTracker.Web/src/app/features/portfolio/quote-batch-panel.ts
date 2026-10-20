@@ -10,7 +10,8 @@ import { createRequestId } from '../../core/request-id';
 import { apiError } from '../../core/services/api-error';
 import { Position } from './portfolio.service';
 
-interface QuoteInfo { provider: string; date: string | null; price: string | null; message: string; marketTime?: string | null; retrievedAt?: string | null; }
+interface QuoteInfo { provider: string; date: string | null; price: string | null; message: string; marketTime?: string | null; retrievedAt?: string | null;
+  requested?: boolean; fromCache?: boolean; retryAfter?: string | null; status?: string; }
 
 
 // Quantities have six decimals, prices four. Round the total to four with banker's rounding, as in C# decimal.
@@ -38,7 +39,9 @@ export function quoteTotal(quantity: string, unitPrice: string): string {
         @if (!review()) {
           <button (click)="fetchQuotes()" [disabled]="saving() || fetching() || uncertain() || !rows().length || rows().length > 200">{{ fetching() ? 'Consultando provedores…' : 'Consultar cotações gratuitas' }}</button>
           <p class="hint">Consulta apenas campos vazios. Brasil: brapi com atraso. EUA: Alpha Vantage, fechamento diário. Chaves gratuitas devem estar configuradas na API. A consulta não salva posições.</p>
+          <p class="hint">EUA: consultas espaçadas para reduzir bloqueios; um lote pode levar alguns minutos. Após uma pausa, consulte novamente: os campos já preenchidos serão preservados.</p>
         }
+        @if (fetchSummary()) { <p role="status">{{ fetchSummary() }}</p> }
         <fieldset [disabled]="saving() || fetching() || uncertain()">
           @for (row of review() ? changed() : rows(); track row.position.id) {
             <div class="quote-row">
@@ -57,7 +60,7 @@ export function quoteTotal(quantity: string, unitPrice: string): string {
                       (click)="infoId.set(infoId() === row.position.id ? null : row.position.id)" (keydown.escape)="infoId.set(null)">ⓘ</button>
                     <span role="tooltip" [id]="'quote-info-' + row.position.id" [class.open]="infoId() === row.position.id">{{ quoteDetails(quote) }}</span>
                   </span>
-                } @else { <p class="hint">{{ quote.message }}</p> }
+                } @else { <p class="hint">{{ quote.message }} @if (quote.retryAfter) { Nova tentativa a partir de {{ retryTime(quote.retryAfter) }}. }</p> }
               }
               @if (row.problem) { <p class="field-error" role="alert">{{ row.problem }}</p> }
               @if (row.total !== null) {
@@ -107,21 +110,28 @@ export class QuoteBatchPanel {
   readonly saving = signal(false);
   readonly fetching = signal(false);
   readonly quotes = signal<Record<number, QuoteInfo>>({});
+  readonly fetchSummary = signal('');
+  retryTime(value: string): string {
+    return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) + ' (Brasília)';
+  }
   fetchQuotes() {
     if (this.fetching() || this.saving() || this.uncertain() || this.review()) return;
     const ids = this.rows().filter(r => !(this.prices()[r.position.id] || '').trim()).map(r => r.position.id);
     if (!ids.length || ids.length > 200) { this.error.set('Deixe em branco os campos que deseja consultar, até 200 posições.'); return; }
-    this.fetching.set(true); this.error.set('');
+    this.fetching.set(true); this.error.set(''); this.fetchSummary.set('');
     this.http.post<{ positionId: number; quote: QuoteInfo }[]>(
       '/api/portfolios/' + this.portfolioId() + '/quotes/preview', { positionIds: ids })
       .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: results => {
+          const selected = new Set(ids);
+          results = results.filter(item => selected.has(item.positionId));
           const prices = { ...this.prices() }, quotes = { ...this.quotes() };
           for (const item of results) {
             quotes[item.positionId] = item.quote;
             if (item.quote.price !== null) prices[item.positionId] = formatBrazilianNumber(item.quote.price);
           }
           this.prices.set(prices); this.quotes.set(quotes); this.requestId = createRequestId(); this.fetching.set(false);
+          this.fetchSummary.set(`${results.filter(r => r.quote.requested).length} consultas enviadas · ${results.filter(r => r.quote.fromCache).length} reutilizadas do cache · ${results.filter(r => r.quote.price !== null).length} cotações recebidas · ${results.filter(r => r.quote.price === null).length} sem cotação. Confira o motivo em cada ativo. Valores ainda não salvos.`);
         },
         error: error => { this.fetching.set(false); this.error.set(apiError(error)); }
       });
@@ -138,6 +148,7 @@ export class QuoteBatchPanel {
       quote.marketTime ? 'Horário de mercado: ' + instant(quote.marketTime) : 'Fechamento: ' + date + ' · horário não fornecido pelo provedor',
       quote.retrievedAt ? 'Consulta ao provedor: ' + instant(quote.retrievedAt) : 'Horário da consulta não disponível',
       quote.message,
+      quote.fromCache ? 'Reutilizada do cache, sem consumir nova consulta.' : 'Consultada no provedor.',
       'O valor só é salvo na carteira após confirmar o lote.'
     ].join('\n');
   }

@@ -44,6 +44,10 @@ namespace InvestmentTracker.Application.Allocation.Services
                     group.Any(p => p.IsStale || p.IsFallback));
             }).ToList();
 
+        public static bool IsEligible(PositionDto p)
+            => p.Quantity > 0 && (!Regex.IsMatch($"{p.AssetCategoryName} {p.AssetTypeName}",
+                @"\b(fii|fiis|reit|reits)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+                || Regex.IsMatch(p.SectorName, "imobili|real estate", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
         public static ContributionJointPlanDto Build(ContributionAnalysisDto category, ContributionAnalysisDto sector, IReadOnlyList<PositionDto> positions)
         {
             var cats = category.Rows.OrderBy(r => r.GroupId).ToList();
@@ -52,9 +56,7 @@ namespace InvestmentTracker.Application.Allocation.Services
             var sink = size - 1;
             // Decimal capacities hold exact integral cents, including the maximum supported contribution.
             var capacity = new decimal[size, size];
-            var eligible = positions.Where(p => p.Quantity > 0 && (
-                !Regex.IsMatch($"{p.AssetCategoryName} {p.AssetTypeName}", @"\b(fii|fiis|reit|reits)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
-                || Regex.IsMatch(p.SectorName, "imobili|real estate", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))).ToList();
+            var eligible = positions.Where(IsEligible).ToList();
             for (var i = 0; i < cats.Count; i++)
             {
                 capacity[0, i + 1] = cats[i].SuggestedContribution * 100m;

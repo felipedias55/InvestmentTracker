@@ -86,6 +86,25 @@ describe('QuoteBatchPanel', () => {
     expect(component.quoteDetails({ provider: 'Alpha Vantage', price: '10', date: '2026-10-06', message: 'Diário' }))
       .toContain('06/10/2026 · horário não fornecido');
   });
+  it('shows partial results, retry reasons and retries only empty filtered positions', () => {
+    const fixture = initialize(), component = fixture.componentInstance;
+    fixture.componentRef.setInput('positions', [position, { ...position, id: 3 }]);
+    component.fetchQuotes();
+    http.expectOne('/api/portfolios/1/quotes/preview').flush([
+      { positionId: 1, quote: { provider: 'Alpha Vantage', price: '30', date: '2026-10-06', message: 'Fechamento', fromCache: true } },
+      { positionId: 3, quote: { provider: 'Alpha Vantage', price: null, date: null, message: 'Pausa temporária', requested: true, retryAfter: '2026-10-20T15:00:00Z' } },
+      { positionId: 99, quote: { price: '999' } }
+    ]);
+    fixture.detectChanges();
+    expect(component.prices()[99]).toBeUndefined();
+    expect(fixture.nativeElement.textContent).toContain('1 consultas enviadas · 1 reutilizadas do cache');
+    expect(fixture.nativeElement.textContent).toContain('Pausa temporária');
+    expect(fixture.nativeElement.textContent).toContain('20/10/2026, 12:00 (Brasília)');
+    component.fetchQuotes();
+    const retry = http.expectOne('/api/portfolios/1/quotes/preview');
+    expect(retry.request.body.positionIds).toEqual([3]);
+    retry.flush([]);
+  });
   it('rejects invalid decimals and total overflow without sending anything', () => {
     const component = initialize().componentInstance;
     for (const price of ['0', '-1', '1,23456', 'texto', '999.999.999.999.999,9999']) {

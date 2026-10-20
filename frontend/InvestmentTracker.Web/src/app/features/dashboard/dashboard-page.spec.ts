@@ -22,7 +22,7 @@ describe('DashboardPage', () => {
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
   });
-  afterEach(() => http.verify());
+  afterEach(() => { for (const r of http.match(req => req.url.endsWith('/history') || req.url.endsWith('/income/analysis'))) if (!r.cancelled) r.flush({ months: [], years: [], assets: [] }); http.verify(); });
   function initialize(data: Dashboard = testDashboard) {
     const fixture = TestBed.createComponent(DashboardPage);
     fixture.detectChanges();
@@ -102,10 +102,11 @@ describe('DashboardPage', () => {
   it('reorders and collapses charts and restores saved preferences per portfolio', () => {
     const fixture = initialize();
     const component = fixture.componentInstance;
+    component.toggleOrganizing(); fixture.detectChanges();
     const move: HTMLButtonElement = fixture.nativeElement.querySelector('[aria-label="Mover Distribuição por categoria para baixo"]');
     move.click();
     fixture.detectChanges();
-    expect(component.order()).toEqual(['sectors', 'categories', 'countries']);
+    expect(component.order()).toEqual(['sectors', 'categories', 'countries', 'evolution', 'income', 'highlights', 'movements']);
     const toggle: HTMLButtonElement = fixture.nativeElement.querySelector('[aria-controls="chart-categories"]');
     toggle.click();
     fixture.detectChanges();
@@ -114,25 +115,55 @@ describe('DashboardPage', () => {
     component.select(1);
     http.expectOne('/api/portfolios/1/dashboard').flush(testDashboard);
     expect(component.order()[0]).toBe('sectors');
-    expect(component.collapsed()).toEqual(['categories']);
+    expect(component.collapsed()).toEqual(['movements', 'categories']);
     component.select(2);
     http.expectOne('/api/portfolios/2/dashboard').flush(testDashboard);
     expect(component.order()[0]).toBe('categories');
-    expect(component.collapsed()).toEqual([]);
+    expect(component.collapsed()).toEqual(['movements']);
   });
   it('recovers from corrupt preferences and ignores unknown or duplicate chart IDs', () => {
     localStorage.setItem('investment-tracker.dashboard.v1.1', '{invalid');
     const fixture = initialize();
     const component = fixture.componentInstance;
-    expect(component.order()).toEqual(['categories', 'sectors', 'countries']);
+    expect(component.order()).toEqual(['categories', 'sectors', 'countries', 'evolution', 'income', 'highlights', 'movements']);
     localStorage.setItem('investment-tracker.dashboard.v1.1', JSON.stringify({ order: ['countries', 'countries', 'unknown'], collapsed: ['unknown', 'sectors'] }));
     component.select(1);
     http.expectOne('/api/portfolios/1/dashboard').flush(testDashboard);
-    expect(component.order()).toEqual(['countries', 'categories', 'sectors']);
-    expect(component.collapsed()).toEqual(['sectors']);
+    expect(component.order()).toEqual(['countries', 'categories', 'sectors', 'evolution', 'income', 'highlights', 'movements']);
+    expect(component.collapsed()).toEqual(['sectors', 'movements']);
     component.resetLayout();
-    expect(component.collapsed()).toEqual([]);
-    expect(component.order()).toEqual(['categories', 'sectors', 'countries']);
+    expect(component.collapsed()).toEqual(['movements']);
+    expect(component.order()).toEqual(['categories', 'sectors', 'countries', 'evolution', 'income', 'highlights', 'movements']);
   });
 
-});
+  it('persists sizes and drag order, restores them and isolates portfolios', () => {
+    const component = initialize().componentInstance;
+    component.organizing.set(true);
+    component.dragged.set('countries');
+    component.dropChart({ preventDefault() {} } as DragEvent, 'categories');
+    component.setSize('countries', 'wide');
+    expect(component.order()).toEqual(['countries', 'categories', 'sectors', 'evolution', 'income', 'highlights', 'movements']);
+    expect(component.dragged()).toBeNull();
+    component.select(1);
+    http.expectOne('/api/portfolios/1/dashboard').flush(testDashboard);
+    expect(component.sizes().countries).toBe('wide');
+    expect(component.order()[0]).toBe('countries');
+    component.select(2);
+    http.expectOne('/api/portfolios/2/dashboard').flush(testDashboard);
+    expect(component.sizes().countries).toBe('compact');
+    component.setSize('countries', 'invalid');
+    expect(component.sizes().countries).toBe('compact');
+    component.resetLayout();
+    expect(component.order()[0]).toBe('categories');
+  });
+  it('ignores drops outside organization mode and preserves collapse when resized', () => {
+    const component = initialize().componentInstance;
+    component.dragged.set('countries');
+    component.dropChart({ preventDefault() {} } as DragEvent, 'categories');
+    expect(component.order()[0]).toBe('categories');
+    component.toggleChart('categories');
+    component.setSize('categories', 'wide');
+    expect(component.collapsed()).toContain('categories');
+    component.toggleChart('categories');
+    expect(component.sizes().categories).toBe('wide');
+  });});

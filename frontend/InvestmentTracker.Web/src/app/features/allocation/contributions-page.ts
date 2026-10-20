@@ -1,3 +1,4 @@
+import { StrategyEditor, StrategyConfig } from './strategy-editor';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { Component, DestroyRef, inject, signal, computed } from '@angular/core';
 import { PercentPipe } from '@angular/common';
@@ -19,7 +20,7 @@ import {
 @Component({
   standalone: true,
   selector: 'app-contributions-page',
-  imports: [CurrencyPipe, AllocationTable,
+  imports: [StrategyEditor, CurrencyPipe, AllocationTable,
     PortfolioPicker,
     ReactiveFormsModule,
 
@@ -44,6 +45,7 @@ export class ContributionsPage {
   private simulation?: Subscription;
   private version = 0;
   reset() {
+    this.strategyNotes.set([]); this.eligibleBase.set(null);
     this.version++;
     this.simulation?.unsubscribe();
     this.saving.set(false);
@@ -52,6 +54,11 @@ export class ContributionsPage {
   toggle(key: string) {
     this.checked.update(current => { const next = new Set(current); next.has(key) ? next.delete(key) : next.add(key); return next; });
   }
+  readonly strategy = signal<StrategyConfig | null>(null);
+  readonly strategyValid = signal(true);
+  readonly strategyNotes = signal<string[]>([]);
+  readonly eligibleBase = signal<string | null>(null);
+  strategyChanged(value: { config: StrategyConfig | null; valid: boolean }) { this.strategy.set(value.config); this.strategyValid.set(value.valid); this.reset(); }
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly error = signal('');
@@ -93,7 +100,7 @@ export class ContributionsPage {
       });
   }
   simulate() {
-    if (this.form.invalid || this.saving() || !this.dashboard()) {
+    if (this.form.invalid || !this.strategyValid() || this.saving() || !this.dashboard()) {
       this.form.markAllAsTouched();
       return;
     }
@@ -102,10 +109,11 @@ export class ContributionsPage {
     this.saving.set(true);
     this.error.set('');
     const amount = parseBrazilianNumber(this.form.controls.amount.value);
-    this.simulation = this.api.plan(this.portfolioId()!, amount)
+    this.simulation = this.api.plan(this.portfolioId()!, amount, this.strategy())
       .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: response => {
           if (version !== this.version) return;
+          this.strategyNotes.set(response.strategyNotes ?? []); this.eligibleBase.set(response.eligibleBase ?? null);
           this.dashboard.set(response.dashboard);
           this.result.set(response.category); this.sectorResult.set(response.sector);
           this.plan.set(response.plan); this.saving.set(false);

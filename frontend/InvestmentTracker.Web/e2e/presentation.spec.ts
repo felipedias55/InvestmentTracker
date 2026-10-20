@@ -22,7 +22,8 @@ test('gráficos, filtros e privacidade permanecem legíveis em todas as telas', 
       '/api/portfolios': [testPortfolio], '/api/portfolios/1/dashboard': dashboard,
       '/api/portfolios/1': dashboard.summary, '/api/assets': [], '/api/currencies': [{ id: 1, name: 'Real', code: 'BRL' }],
       '/api/portfolios/1/external-assets': dashboard.externalAssets,
-      '/api/portfolios/1/income': [], '/api/portfolios/1/income/analysis': { months: income, years: [], assets: income.slice(0, 1) },
+      '/api/portfolios/1/movements': [{ id: 1, date: '2026-03-27', createdAtUtc: '2026-03-27T12:00:00Z', kind: 'income', amount: '200', currencyCode: 'BRL', effects: [{ name: 'TEST' }], reversedById: 2 }],
+      '/api/portfolios/1/income': [], '/api/portfolios/1/income/analysis': { months: income, years: [], assets: income.slice(0, 1), convertedMonths: income, convertedYears: [] },
       '/api/portfolios/1/history': { portfolio: testPortfolio, today: '2026-03-28', months: [month('2026-01', '9000', 1), month('2026-02', null, null), month('2026-03', '10000', 3)], years: [month('2026', '10000', 3)], cashFlows: [] },
     };
     if (!(path in responses)) throw new Error('Unexpected API call: ' + path);
@@ -30,6 +31,7 @@ test('gráficos, filtros e privacidade permanecem legíveis em todas as telas', 
   });
   await page.goto('/dashboard');
   await expect(page.locator('app-allocation-donut')).toHaveCount(2);
+  await page.getByText('Filtrar grupos', { exact: true }).click();
   await page.locator('#chart-search').fill('Brasil');
   await expect(page.locator('app-allocation-donut').first()).toContainText('40,0%');
   await page.getByRole('button', { name: 'Limpar filtros', exact: true }).click();
@@ -37,6 +39,35 @@ test('gráficos, filtros e privacidade permanecem legíveis em todas as telas', 
   await page.reload();
   await expect(page.locator('#chart-type-categories')).toHaveValue('bars');
   await page.locator('#chart-type-categories').selectOption('donut');
+  await expect(page.locator('app-dashboard-analysis')).toHaveCount(3);
+  await expect(page.locator('app-dashboard-analysis').filter({ hasText: 'Comparação desde' })).toContainText('Dietz estimado');
+  await expect(page.locator('app-dashboard-analysis').filter({ hasText: 'Recebimentos líquidos' })).toContainText('Proventos líquidos de estornos');
+  await expect(page.locator('app-dashboard-summary')).toContainText('dados parciais');
+  await page.locator('app-dashboard-summary summary').click();
+  await expect(page.locator('app-dashboard-summary')).toContainText('250,00');
+  const recent = page.locator('.chart-card').filter({ has: page.getByRole('heading', { name: 'Movimentações recentes', exact: true }) });
+  await expect(recent).toHaveClass(/is-collapsed/);
+  await recent.getByRole('button', { name: 'Expandir', exact: true }).click();
+  await expect(recent).toContainText('Estornado por #2');
+  await page.screenshot({ path: info.outputPath('dashboard-analysis.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Organizar dashboard', exact: true }).click();
+  if (info.project.name === 'desktop') {
+    for (const card of await page.locator('.chart-card').all()) { const close = card.getByRole('button', { name: 'Recolher', exact: true }); if (await close.count()) await close.click(); }
+    await page.locator('.dashboard-grid').scrollIntoViewIfNeeded();
+    await page.getByRole('button', { name: 'Arrastar Distribuição por país', exact: true }).dragTo(page.locator('.chart-card').first().locator('.chart-heading'), { targetPosition: { x: 15, y: 15 } });
+  } else {
+    await page.getByRole('button', { name: 'Mover Distribuição por país para cima', exact: true }).click();
+    await page.getByRole('button', { name: 'Mover Distribuição por país para cima', exact: true }).click();
+  }
+  await expect(page.locator('.chart-card').first()).toContainText('Distribuição por país');
+  if (info.project.name === 'desktop') await page.locator('.chart-card').first().getByRole('button', { name: 'Expandir', exact: true }).click();
+  await page.getByLabel('Tamanho de Distribuição por país', { exact: true }).selectOption('wide');
+  await page.locator('.chart-card').first().getByRole('button', { name: 'Recolher', exact: true }).click();
+  await page.reload();
+  await expect(page.locator('.chart-card').first()).toHaveClass(/is-collapsed/);
+  await expect(page.locator('.chart-card').first()).toHaveClass(/wide/);
+  await page.locator('.chart-card').first().getByRole('button', { name: 'Expandir', exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('dashboard.png'), fullPage: true });
   await page.getByRole('button', { name: 'Ocultar valores', exact: true }).click();
   await expect(page.locator('.wealth-card')).toContainText('••••••');
@@ -64,7 +95,17 @@ test('simulador reúne gráficos, plano em moeda original e marcas temporárias'
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/portfolios') return route.fulfill({ json: [testPortfolio] });
     if (path.endsWith('/dashboard')) return route.fulfill({ json: { ...dashboard, summary: { ...dashboard.summary, positions } } });
+    if (path.endsWith('/strategies')) {
+      if (route.request().method() === 'POST') { const body = route.request().postDataJSON(); return route.fulfill({ json: { profileId: body.profileId, revision: body.expectedRevision + 1, config: body.config } }); }
+      return route.fulfill({ json: [] });
+    }
     if (path.endsWith('/contribution-plan')) {
+      const sent = route.request().postDataJSON();
+      if (sent.strategy) {
+        expect(sent.strategy.model).toBe('real-estate');
+        expect(sent.strategy.excludedCategoryIds).toEqual([3]);
+        expect(sent.strategy.rules).toEqual([{ categoryId: 3, kind: 'fixed', value: '500,00'.replace(',', '.') }]);
+      }
       const analysis = (dimension: string) => {
         const groups = dimension === 'category' ? dashboard.allocation.categories : dashboard.allocation.sectors;
         return { dimension, currencyCode: 'BRL', amount: '100', unallocatedAmount: '0', sumOfWeights: '0.1', hasStaleRates: false, hasFallbackRates: false,
@@ -97,4 +138,18 @@ test('simulador reúne gráficos, plano em moeda original e marcas temporárias'
   await page.locator('#contribution-amount').fill('200');
   await expect(page.locator('.joint-plan')).toHaveCount(0);
   await expect(page.locator('input[type=checkbox]:checked')).toHaveCount(0);
+  await page.locator('app-strategy-editor summary').click();
+  await page.getByLabel('Usar estratégia nesta simulação').check();
+  await page.getByLabel('Modelo', { exact: true }).selectOption('real-estate');
+  const estate = page.locator('app-strategy-editor .rule').filter({ hasText: 'Fundos imobiliários' });
+  await estate.getByLabel('Regra de Fundos imobiliários', { exact: true }).selectOption('fixed');
+  await estate.getByLabel('Valor da regra de Fundos imobiliários', { exact: true }).fill('500,00');
+  await estate.getByLabel('Excluir da base do restante').check();
+  await page.getByRole('button', { name: 'Salvar como estratégia padrão' }).click();
+  await expect(page.locator('app-strategy-editor')).toContainText('Estratégia salva');
+  await page.locator('#contribution-amount').fill('2.000,00');
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
+  await expect(page.locator('.joint-plan')).toContainText('Plano da estratégia');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('strategy.png'), fullPage: true });
 });

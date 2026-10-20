@@ -80,8 +80,9 @@
       <strong>{{ d.summary.positions.length }}</strong>
     </section>
   </div>
+  <app-dashboard-summary [history]="periodHistory()" [income]="periodIncome()" [historyError]="historyError()" [incomeError]="incomeError()" [currency]="d.summary.portfolio.baseCurrencyCode" />
   <div class="overview-actions" aria-label="Ações da carteira"><a routerLink="/portfolio">Atualizar posições →</a><a routerLink="/contributions">Simular aporte →</a><a routerLink="/income">Registrar proventos →</a><a routerLink="/history">Ver evolução →</a></div>
-  <div class="quality-strip" aria-label="Referências dos dados">
+  <details class="reference-details"><summary>Referências dos dados e metas</summary><div class="quality-strip" aria-label="Referências dos dados">
     <div><strong>Atualização mais antiga</strong><span>{{ oldestUpdate() ? (oldestUpdate() | date:'dd/MM/yyyy':'UTC') : 'Sem data registrada' }} · posições da carteira</span>@if (missingDates()) { <span> · {{ missingDates() }} sem data</span> }</div>
     <div><strong>Referência de câmbio</strong><span>{{ !d.summary.conversionAvailable ? 'Conversão incompleta' : d.summary.hasFallbackRates ? 'Última referência armazenada' : d.summary.hasStaleRates ? 'Referência de dia anterior' : 'Conversão disponível' }}</span></div>
     <div><strong>Metas de alocação</strong><span>{{ d.allocation.categoryTargetsConfigured && d.allocation.sectorTargetsConfigured ? 'Categoria e setor configurados' : 'Há metas a configurar' }}</span><a routerLink="/allocation"> Revisar</a></div>
@@ -91,6 +92,7 @@
     carteira + patrimônio externo. Proventos são exibidos separadamente, sem serem somados
     novamente. Metas, distribuições e aportes consideram apenas os ativos da carteira.
   </p>
+  </details>
   @if (d.externalAssets; as external) {
     @if (!external.conversionAvailable) {
       <p class="notice error" role="alert">
@@ -117,7 +119,9 @@
     percentuais.
   </p>
   <section class="panel dashboard-filters" aria-label="Filtros dos gráficos">
-    <div class="section-title"><h2>Distribuição dos investimentos</h2><button (click)="resetLayout()">Restaurar gráficos</button></div>
+    <div class="section-title"><h2>Análises da carteira</h2><button (click)="toggleOrganizing()" [attr.aria-pressed]="organizing()">{{ organizing() ? 'Concluir organização' : 'Organizar dashboard' }}</button></div>
+    @if (organizing()) { <p class="hint">Arraste pela alça ou use as setas para mover os gráficos. Escolha o tamanho de cada bloco. As preferências ficam salvas neste navegador por carteira.</p><button (click)="resetLayout()">Restaurar organização padrão</button> }
+    <details><summary>Filtrar grupos {{ query() || status() !== 'all' || sort() !== 'value' ? '· filtros ativos' : '' }}</summary>
     <div class="filter-grid">
       <div><label for="chart-search">Buscar grupo</label><input id="chart-search" type="search" placeholder="Categoria, setor ou país" [value]="query()" (input)="query.set($any($event.target).value)" /></div>
       <div><label for="chart-status">Situação das metas</label><select id="chart-status" [value]="status()" (change)="status.set($any($event.target).value)"><option value="all">Todas</option><option value="below">Abaixo da meta</option><option value="above">Acima da meta</option><option value="missing">Sem meta configurada</option></select></div>
@@ -125,30 +129,42 @@
       <button (click)="clearFilters()">Limpar filtros</button>
     </div>
     <p class="hint">Os filtros alteram apenas os grupos exibidos. Totais e percentuais continuam referentes à carteira inteira. O filtro de metas se aplica a categorias e setores.</p>
+    </details>
   </section>
   <p class="sr-only" role="status">{{ announcement() }}</p>
+  <div class="dashboard-grid" [class.organizing]="organizing()">
   @for (id of order(); track id; let first = $first; let last = $last) {
-    <section class="chart-card panel">
+    <section class="chart-card panel" [class.compact]="sizes()[id] === 'compact'" [class.wide]="sizes()[id] === 'wide'" [class.is-collapsed]="collapsed().includes(id)" [class.drop-target]="dropTarget() === id" [class.dragging]="dragged() === id" (dragover)="overChart($event, id)" (drop)="dropChart($event, id)">
       <div class="section-title chart-heading">
+        @if (organizing()) { <button class="drag-handle" draggable="true" (dragstart)="startDrag($event, id)" (dragend)="endDrag()" [attr.aria-label]="'Arrastar ' + titles[id]" title="Arrastar gráfico">⠿</button> }
         <h2>{{ titles[id] }}</h2>
         <div class="chart-controls">
-          <label [for]="'chart-type-' + id"><span class="sr-only">Formato de {{ titles[id] }}</span><select [id]="'chart-type-' + id" [value]="chartTypes()[id]" (change)="setChartType(id, $any($event.target).value)"><option value="donut">Distribuição · rosca</option><option value="bars">{{ id === 'countries' ? 'Comparar · barras' : 'Atual × meta · barras' }}</option></select></label>
+          @if (isAllocation(id)) { <label [for]="'chart-type-' + id"><span class="sr-only">Formato de {{ titles[id] }}</span><select [id]="'chart-type-' + id" [value]="chartTypes()[id]" (change)="setChartType(id, $any($event.target).value)"><option value="donut">Distribuição · rosca</option><option value="bars">{{ id === 'countries' ? 'Comparar · barras' : 'Atual × meta · barras' }}</option></select></label> }
+          @if (organizing()) {
+          <label><span class="sr-only">Tamanho de {{ titles[id] }}</span><select [attr.aria-label]="'Tamanho de ' + titles[id]" [value]="sizes()[id]" (change)="setSize(id, $any($event.target).value)"><option value="compact">Compacto</option><option value="medium">Médio</option><option value="wide">Amplo</option></select></label>
           <button (click)="moveChart(id, -1)" [disabled]="first" [attr.aria-label]="'Mover ' + titles[id] + ' para cima'">↑</button>
           <button (click)="moveChart(id, 1)" [disabled]="last" [attr.aria-label]="'Mover ' + titles[id] + ' para baixo'">↓</button>
+          }
           <button (click)="toggleChart(id)" [attr.aria-expanded]="!collapsed().includes(id)" [attr.aria-controls]="'chart-' + id">{{ collapsed().includes(id) ? 'Expandir' : 'Recolher' }}</button>
         </div>
       </div>
-      <div [id]="'chart-' + id" [hidden]="collapsed().includes(id)">
+      <div class="chart-body" tabindex="0" [attr.aria-label]="titles[id]" [id]="'chart-' + id" [hidden]="collapsed().includes(id)">
+        @if (isAllocation(id)) {
         <p class="hint" role="status">{{ filteredRows(id).length }} de {{ d.allocation[id].length }} grupos</p>
         @if (d.allocation[id].length && !filteredRows(id).length) {
           <p class="empty">Nenhum grupo corresponde aos filtros.</p>
         } @else {
           <app-allocation-table [title]="titles[id]" [rows]="filteredRows(id)" [currency]="d.summary.portfolio.baseCurrencyCode" [showTargets]="id !== 'countries'" [visual]="true" [chartType]="chartTypes()[id]" />
         }
+        } @else if (id === 'movements') {
+          <app-dashboard-movements [portfolioId]="portfolioId()!" [active]="!collapsed().includes(id)" />
+        } @else {
+          <app-dashboard-analysis (historyLoaded)="periodHistory.set($event)" (incomeLoaded)="periodIncome.set($event)" (loadFailed)="analysisError(id, $event)" [kind]="id" [portfolioId]="portfolioId()!" [currency]="d.summary.portfolio.baseCurrencyCode" [positions]="d.summary.positions" />
+        }
       </div>
     </section>
   }
-  <a routerLink="/contributions">Simular próximo aporte →</a>
+  </div>
   <details style="margin-top: 24px">
     <summary>Referências de câmbio por posição</summary>
     @for (p of d.summary.positions; track p.id) {

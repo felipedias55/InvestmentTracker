@@ -59,6 +59,7 @@ namespace InvestmentTracker.IntegrationTests.Infrastructure
                 DELETE FROM SectorAllocationTarget;
                 DELETE FROM Asset;
                 DELETE FROM ExternalAsset;
+                DELETE FROM PortfolioStrategyRevision;
                 DELETE FROM Portfolio;
                 DELETE FROM AssetType;
                 DELETE FROM Country;

@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace InvestmentTracker.Application.Allocation.Dtos
 {
     public sealed record ContributionPlanRequestDto(
-        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal Amount);
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal Amount) { public InvestmentTracker.Application.Strategies.StrategyConfig? Strategy { get; init; } }
     public sealed record ContributionCurrencyDto(string Currency,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal? Amount,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal? Rate,
@@ -14,5 +14,10 @@ namespace InvestmentTracker.Application.Allocation.Dtos
     public sealed record ContributionJointPlanDto(IReadOnlyList<ContributionPlanRowDto> Rows,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal Unallocated);
     public sealed record ContributionPlanDto(DashboardDto Dashboard, ContributionAnalysisDto? Category,
-        ContributionAnalysisDto? Sector, ContributionJointPlanDto? Plan);
+        ContributionAnalysisDto? Sector, ContributionJointPlanDto? Plan)
+    {
+        public IReadOnlyList<string> StrategyNotes { get; init; } = [];
+        [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)]
+        public decimal? EligibleBase { get; init; }
+    }
 }

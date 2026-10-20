@@ -59,9 +59,17 @@ Se alterar manualmente um preço consultado, sua identificação de fonte/data �
 
 ## Cache e consumo
 
-Há um coordenador único por processo da API, com consultas sequenciais. Resultados válidos ficam em memória por 30 minutos para brapi e 12 horas para Alpha Vantage. Falhas ficam por dois minutos para evitar repetição imediata.
+Atualizado em 20/10/2026. Há um coordenador único por processo da API, com consultas sequenciais. A brapi mantém resultados em memória por 30 minutos e falhas por dois minutos. Na Alpha Vantage, cotações ficam em cache persistente por 12 horas; avisos e falhas não são confundidos com cotações.
 
-Alpha Vantage possui também um teto local de 25 tentativas por dia UTC por processo, intervalo mínimo entre chamadas e interrupção após uma resposta de limite. O cache e o contador são reiniciados ao reiniciar a API. Isso não renova a cota real do provedor; chamadas externas ou outras instâncias também podem consumir a chave. O limite oficial sempre prevalece.
+Alpha Vantage possui proteção local de **25 tentativas em uma janela móvel de 24 horas**, por chave. Essa janela conservadora não presume o horário de renovação do provedor. Tentativas são salvas antes do envio, inclusive quando a conexão falha ou o navegador cancela. Reiniciar a API não apaga esse controle. Consultas são espaçadas em pelo menos 13 segundos; essa é uma precaução local, não garantia de franquia por minuto. Um lote americano pode levar alguns minutos.
+
+O estado é salvo em `%LOCALAPPDATA%\InvestmentTracker\QuoteState`, fora do repositório. `Quotes:StateDirectory` permite definir outra pasta local gravável. O arquivo usa um hash da chave como nome e não contém a chave, posições ou saldos: apenas tickers, cotações, horários e controle de consultas. Escrita atômica e bloqueio de arquivo coordenam processos que compartilham a pasta. Não apague esses arquivos para tentar renovar a cota. Outras máquinas, pastas e aplicações que utilizem a mesma chave não compartilham esse controle, mas consomem a franquia real.
+
+HTTP 429 gera pausa temporária, respeitando `Retry-After`; sem esse cabeçalho, a pausa é de um minuto. Avisos de frequência também geram pausa de um minuto. Somente uma mensagem identificada como limite diário gera bloqueio conservador de 24 horas a partir da resposta. Avisos desconhecidos não esgotam artificialmente o contador. Não são feitas tentativas automáticas adicionais: após o horário informado, consulte novamente para retomar os campos vazios.
+
+O painel informa consultas enviadas, respostas reutilizadas do cache e resultados sem cotação. Cada ativo exibe uma frase com o motivo: pausa temporária, limite diário, chave recusada, restrição do plano gratuito, ticker não reconhecido, falta de dados, resposta inválida ou falha de comunicação. Falha no armazenamento local interrompe a consulta com uma mensagem própria, evitando ignorar silenciosamente a proteção de consumo. O controle local não é um extrato oficial da franquia.
+
+A seleção é uma cópia dos filtros ativos ao abrir o painel. Somente posições dessa seleção, com quantidade positiva e campo de preço vazio, são enviadas para consulta. Para mudar a seleção, feche o painel, ajuste os filtros e abra novamente. Consultar não salva preços: revise e confirme o lote.
 
 Não há controle persistente da cota mensal brapi nesta primeira etapa. Ao atingir limites, a aplicação informa a falha e mantém a alternativa manual, sem ativar cobranças.
 
@@ -75,7 +83,7 @@ Application coordena a consulta e valida compatibilidade com a posição. Infras
 
 Testes automatizados usam respostas HTTP controladas e bancos temporários. Após a primeira entrega, as chaves foram configuradas localmente, houve consulta real à brapi e o usuário confirmou o funcionamento do fluxo de consulta e gravação. Isso não comprova cobertura de todos os tickers nem consistência de todos os campos retornados pelos provedores.
 
-Próximos passos: ampliar a verificação de tickers reais, inconsistências de dados e eventuais bloqueios do plano gratuito; depois avaliar cache persistente, controle de consumo entre reinícios e mapeamento explícito de instrumentos/símbolos.
+A correção de limites foi validada com HTTP simulado, sem consumir a franquia real. Próximos passos: acompanhar os motivos retornados na utilização real e avaliar mapeamento explícito de instrumentos/símbolos se necessário. Não há mudança automática de provedor, endpoint premium, plano ou assinatura.
 
 Não exige migration.
 

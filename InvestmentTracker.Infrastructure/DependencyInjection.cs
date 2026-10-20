@@ -46,6 +46,7 @@ namespace InvestmentTracker.Infrastructure
             services.AddScoped<InvestmentTracker.Application.Income.IIncomeRepository, IncomeRepository>();
             services.AddScoped<InvestmentTracker.Application.Movements.IMovementRepository, MovementRepository>();
             services.AddScoped<InvestmentTracker.Application.Movements.ICorrectionRepository, CorrectionRepository>();
+            services.AddScoped<InvestmentTracker.Application.Strategies.IStrategyRepository, InvestmentTracker.Infrastructure.Persistence.Repositories.StrategyRepository>();
             return services;
         }
     }

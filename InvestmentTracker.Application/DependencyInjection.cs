@@ -58,6 +58,7 @@ namespace InvestmentTracker.Application
             services.AddScoped<InvestmentTracker.Application.Movements.ICorrectionService, InvestmentTracker.Application.Movements.CorrectionService>();
             services.AddScoped<InvestmentTracker.Application.Income.IIncomeAnalysisService, InvestmentTracker.Application.Income.IncomeAnalysisService>();
             services.AddScoped<InvestmentTracker.Application.Income.IIncomeConversionService, InvestmentTracker.Application.Income.IncomeConversionService>();
+            services.AddScoped<InvestmentTracker.Application.Strategies.StrategyService>();
             return services;
         }
     }

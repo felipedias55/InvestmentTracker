@@ -4,7 +4,7 @@ O **Investment Tracker** é uma aplicação web para acompanhar uma carteira pes
 
 Criado a partir de uma planilha, o projeto evoluiu para uma aplicação full stack com cálculos financeiros no backend, persistência relacional e interface responsiva. O foco atual é o uso local/privado: o núcleo do MVP já está em uso e as entregas seguintes ampliam análise, automação e usabilidade. Ainda não há autenticação ou preparação completa para publicação pública.
 
-Documentação revisada em **09/10/2026**.
+Documentação revisada em **15/10/2026**.
 
 ## Stack e arquitetura
 
@@ -38,6 +38,7 @@ Abra InvestmentTracker.slnx no Visual Studio. A organização atual da solução
 - Cadastros: tipos, países, moedas, categorias, setores e ativos; referências em uso são protegidas.
 - Carteiras com moeda-base própria, posições e patrimônio externo; valores originais ou convertidos, no padrão brasileiro.
 - Dashboard com distribuições, metas, filtros e gráficos recolhíveis/reordenáveis; interface responsiva com identidade dourada/prateada e controle de privacidade dos valores.
+- Estratégias com modelos de metas, aportes regulares, buy and hold, renda, núcleo/complementos, faixas, imobiliário fixo e personalizada; reservas, exclusões da base do restante e configurações versionadas por carteira.
 - Metas por categoria e setor somando 100%; simulador lado a lado com gráficos, combinação de setor/categoria já presente na carteira, valores na moeda correspondente e marcações visuais de itens já atendidos. O cálculo ocorre no backend e a simulação não altera saldos.
 - Compras/vendas com taxas, reinvestimento, proventos e movimentos de dinheiro, com atualização automática dos saldos.
 - Histórico unificado, estorno auditável, desdobramento, grupamento e bonificação.
@@ -50,6 +51,8 @@ Abra InvestmentTracker.slnx no Visual Studio. A organização atual da solução
 - Indicador de valorização/desvalorização em relação ao preço médio, com percentual e sinalização visual; não representa retorno total com proventos.
 - Evolução com Dietz estimado e XIRR anualizada, condicionados à qualidade e disponibilidade do histórico.
 - Backup manual com validação de restauração e instruções para levar os dados a outra máquina.
+
+A dashboard reúne resumo mensal/anual com comparação de proventos, evolução, destaques sobre o preço médio e movimentações recentes. Os gráficos e a lista de movimentações podem ser movidos, redimensionados e recolhidos, com preferências por carteira salvas no navegador. Períodos parciais e referências incompletas são sinalizados; valores atuais e históricos permanecem distintos.
 
 ## Instalação nova
 
@@ -161,7 +164,7 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - Conversão histórica desconhecida não vira zero nem usa câmbio atual. Mudança de moeda-base pode exigir outro equivalente, sem apagar o anterior.
 - Evolução exibe Dietz estimado no intervalo e XIRR anualizada com limites explícitos e bloqueios por dados insuficientes. TWR exato continua pendente de avaliações a cada fluxo externo.
 - Cotações sob demanda já foram utilizadas e confirmadas pelo usuário. Ainda há espaço para ampliar a verificação de cobertura, persistir cache/controle de consumo e mapear símbolos explicitamente. Não há garantia de disponibilidade ou consistência de todos os dados externos.
-- Meta de 0% impede aporte sugerido ao grupo, mas não retira seus ativos da base de cálculo. Excluir imobiliário das metas mantendo-o no patrimônio é uma melhoria proposta, ainda não implementada.
+- Meta de 0% impede aporte sugerido ao grupo, mas não retira seus ativos da base de cálculo. No simulador de estratégias, a exclusão por categoria permite retirar imobiliário da base do restante, mantendo-o no patrimônio.
 - Ideias/reflexões, base de demonstração, Docker, CI/CD, publicação e observabilidade ampliada permanecem no planejamento. Backup automático foi adiado por decisão do usuário; o procedimento manual já atende ao uso atual.
 - Autenticação/autorização devem anteceder a exposição pública. O uso atual é local/privado.
 
@@ -170,6 +173,7 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - [Próximas etapas e estágio atual do projeto](docs/proximas-etapas.md).
 
 - [Cadastros](docs/cadastros.md), [carteira e câmbio](docs/carteira-e-cambio.md).
+- [Estratégias de investimento e modelos](docs/estrategias-de-investimento.md).
 - [Metas, dashboard e aportes](docs/metas-dashboard-aportes.md).
 - [Simulador de aportes: como são escolhidos setor, categoria e moeda](docs/simulador-de-aportes.md).
 - [Compras e vendas](docs/compras-e-vendas.md), [movimentações e estornos](docs/movimentacoes-e-estornos.md).
@@ -177,6 +181,7 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - [Fechamentos, evolução e eventos](docs/fechamentos-proventos-e-eventos.md), [histórico](docs/historico-da-carteira.md).
 - [Métricas de rentabilidade: Dietz e XIRR](docs/metricas-de-rentabilidade.md).
 - [Apresentação, gráficos e testes visuais](docs/apresentacao-e-graficos.md).
+- [Plano de migração da interface, padrões e modo escuro](docs/entregas-layout.md).
 - [Atualização manual de cotações em lote](docs/cotacoes-manuais-em-lote.md).
 - [Cotações automáticas: provedores gratuitos e configuração](docs/cotacoes-automaticas.md).
 - [Recebimentos e câmbio histórico](docs/recebimento-de-proventos.md).

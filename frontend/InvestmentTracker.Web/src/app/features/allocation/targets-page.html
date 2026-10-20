@@ -5,6 +5,7 @@
     Defina a distribuição desejada. As metas de categoria e setor são independentes e cada conjunto
     deve somar 100%.
   </p>
+  <a routerLink="/contributions">Escolher estratégia e simular aportes →</a>
 </header>
 <app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
 @if (portfolioId()) {

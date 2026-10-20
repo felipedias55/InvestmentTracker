@@ -100,6 +100,14 @@ describe('PortfolioPage', () => {
     expect(page.filteredPositions().map(p => p.ticker)).toEqual(['ABCD', 'MSFT']);
     page.category.set('Exterior'); page.sector.set('Tecnologia'); page.currency.set('USD'); page.updatedBefore.set('2026-10-01');
     expect(page.filteredPositions().map(p => p.ticker)).toEqual(['MSFT']);
+    page.openQuotes(); fixture.detectChanges();
+    const consult = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Consultar cotações gratuitas'))!;
+    consult.click();
+    const quotes = http.expectOne('/api/portfolios/1/quotes/preview');
+    expect(quotes.request.body.positionIds).toEqual([5]);
+    quotes.flush([]);
+    page.batchPositions.set(null);
     page.query.set('inexistente'); expect(page.filteredPositions()).toHaveLength(0);
     page.clearFilters(); page.query.set('acao');
     expect(page.filteredPositions()[0].ticker).toBe('ABCD');
