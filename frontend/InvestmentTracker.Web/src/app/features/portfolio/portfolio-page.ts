@@ -1,3 +1,8 @@
+import { SectionLink } from '../../shared/section-link';
+import { ActivatedRoute } from '@angular/router';
+import { rememberContext } from '../../shared/page-context';
+import { UnsavedForm } from '../../shared/unsaved-changes';
+import { UnsavedChanges } from '../../shared/unsaved-registry';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { EditPanel } from '../../shared/edit-panel';
 import { QuoteBatchPanel } from './quote-batch-panel';
@@ -8,7 +13,14 @@ import {
   parseBrazilianNumber,
 } from '../../core/brazilian-number';
 import { PortfolioSelection } from '../../shared/portfolio-picker';
-import { Component, DestroyRef, computed, inject, signal, OnInit } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal, linkedSignal, OnInit } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatTableModule } from '@angular/material/table';
+import { MatMenuModule } from '@angular/material/menu';
+import { AppIcon } from '../../shared/app-icon';
+import { ListPaginator } from '../../shared/list-paginator';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -23,13 +35,18 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-portfolio-page',
-  imports: [CurrencyPipe, EditPanel, QuoteBatchPanel, PositionPerformance, ReactiveFormsModule, DatePipe, RouterLink],
+  imports: [SectionLink, UnsavedForm, CurrencyPipe, EditPanel, QuoteBatchPanel, PositionPerformance, ReactiveFormsModule, DatePipe, RouterLink,
+    MatButtonModule, MatFormFieldModule, MatInputModule, MatTableModule, MatMenuModule, AppIcon, ListPaginator],
   templateUrl: './portfolio-page.html',
   styleUrl: './portfolio-page.css',
 })
 export class PortfolioPage implements OnInit {
+  private readonly context = rememberContext('portfolio', () => ({ query: this.query(), category: this.category(), sector: this.sector(), currency: this.currency(), updatedBefore: this.updatedBefore(), sort: this.sort(), view: this.view(), pageSize: this.pageSize(), pageIndex: this.pageIndex() }), state => { this.query.set(state.query); this.category.set(state.category); this.sector.set(state.sector); this.currency.set(state.currency); this.updatedBefore.set(state.updatedBefore); this.sort.set(state.sort); this.view.set(state.view); this.pageSize.set(state.pageSize); this.pageIndex.set(state.pageIndex); }, () => !this.loading());
+
+  private readonly drafts = inject(UnsavedChanges);
   private readonly api = inject(PortfolioService);
   private readonly selection = inject(PortfolioSelection);
+  private readonly route = inject(ActivatedRoute);
   private readonly catalogs = inject(CatalogService);
   private readonly assetApi = inject(AssetService);
   private readonly destroyRef = inject(DestroyRef);
@@ -62,6 +79,18 @@ export class PortfolioPage implements OnInit {
   readonly updatedBefore = signal('');
   readonly sort = signal('ticker');
   readonly lastSaved = signal<number | null>(null);
+  readonly showPositionForm = signal(false);
+  readonly detailsId = signal<number | null>(null);
+  readonly detailsPosition = computed(() => this.summary()?.positions.find(p => p.id === this.detailsId()) ?? null);
+  readonly columns = ['asset', 'category', 'quantity', 'invested', 'current', 'performance', 'actions'];
+  readonly pageSize = signal(10);
+  readonly pageIndex = linkedSignal({
+    source: () => [this.selectedId(), this.query(), this.category(), this.sector(), this.currency(), this.updatedBefore(), this.sort()].join('|'),
+    computation: () => 0,
+  });
+  readonly effectivePage = computed(() => Math.min(this.pageIndex(), Math.max(0, Math.ceil(this.filteredPositions().length / this.pageSize()) - 1)));
+  readonly pagedPositions = computed(() => this.filteredPositions().slice(this.effectivePage() * this.pageSize(), (this.effectivePage() + 1) * this.pageSize()));
+  startPosition() { this.cancelPosition(); this.showPositionForm.set(true); }
   readonly categories = computed(() => this.options('assetCategoryName'));
   readonly sectors = computed(() => this.options('sectorName'));
   readonly positionCurrencies = computed(() => this.options('currencyCode'));
@@ -143,7 +172,7 @@ export class PortfolioPage implements OnInit {
             return;
           }
           const selected =
-            data.portfolios.find((p) => p.id === (this.selectedId() ?? this.selection.id())) ??
+            data.portfolios.find(p => p.id === (this.selectedId() ?? (Number(this.route.snapshot.queryParamMap.get('portfolioId')) || this.selection.id()))) ??
             data.portfolios[0];
           this.select(selected.id);
         },
@@ -154,11 +183,14 @@ export class PortfolioPage implements OnInit {
       });
   }
   select(id: number) {
+    this.context.save();
+    if (id !== this.selectedId() && !this.drafts.confirmWithin()) return;
     this.summaryRequest?.unsubscribe();
     const changed = this.summary()?.portfolio.id !== id;
     this.selectedId.set(id);
     this.selection.id.set(id);
     if (changed) { this.summary.set(null); this.clearFilters(); this.lastSaved.set(null); }
+    this.context.restore(id);
     this.cancelPosition();
     this.pendingDelete.set(null);
     this.showPortfolioForm.set(false);
@@ -231,6 +263,7 @@ export class PortfolioPage implements OnInit {
     );
   }
   editPosition(position: Position) {
+    this.detailsId.set(null);
     this.editingPosition.set(position.id);
     this.pendingDelete.set(null);
     this.success.set('');
@@ -245,6 +278,8 @@ export class PortfolioPage implements OnInit {
     this.positionForm.controls.assetId.disable();
   }
   cancelPosition() {
+    this.showPositionForm.set(false);
+    this.detailsId.set(null);
     this.editingPosition.set(null);
     this.positionForm.reset();
     this.positionForm.controls.assetId.enable();

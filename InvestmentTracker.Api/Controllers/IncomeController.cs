@@ -10,6 +10,9 @@ namespace InvestmentTracker.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> List(int portfolioId, CancellationToken ct)
             => Ok(await service.ListAsync(portfolioId, ct));
+        [HttpGet("page")]
+        public async Task<IActionResult> Page(int portfolioId, [FromQuery] IncomePageQuery query, CancellationToken ct)
+            => Ok(await service.PageAsync(portfolioId, query, ct));
         [HttpPost("{id:int}/conversions")]
         public async Task<IActionResult> Convert(int portfolioId, int id, SaveIncomeConversionDto dto, CancellationToken ct)
         {

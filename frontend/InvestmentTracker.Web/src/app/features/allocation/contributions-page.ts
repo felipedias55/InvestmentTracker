@@ -1,3 +1,9 @@
+import { SectionLink } from '../../shared/section-link';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { StrategyEditor, StrategyConfig } from './strategy-editor';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { Component, DestroyRef, inject, signal, computed } from '@angular/core';
@@ -20,7 +26,7 @@ import {
 @Component({
   standalone: true,
   selector: 'app-contributions-page',
-  imports: [StrategyEditor, CurrencyPipe, AllocationTable,
+  imports: [SectionLink, MatCheckboxModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, StrategyEditor, CurrencyPipe, AllocationTable,
     PortfolioPicker,
     ReactiveFormsModule,
 

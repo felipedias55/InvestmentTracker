@@ -10,7 +10,7 @@
 <app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
 @if (portfolioId()) {
   <div class="actions" role="group" aria-label="Tipo de meta">
-    <button
+    <button mat-stroked-button
       [class.primary]="dimension() === 'category'"
       [attr.aria-pressed]="dimension() === 'category'"
       [disabled]="saving()"
@@ -18,7 +18,7 @@
     >
       Categorias
     </button>
-    <button
+    <button mat-stroked-button
       [class.primary]="dimension() === 'sector'"
       [attr.aria-pressed]="dimension() === 'sector'"
       [disabled]="saving()"
@@ -37,34 +37,37 @@
     <p role="status">Carregando metas…</p>
   }
   @if (!ready() && !loading()) {
-    <button (click)="load()">Tentar novamente</button>
+    <button mat-stroked-button (click)="load()">Tentar novamente</button>
   }
   @if (ready()) {
-    <form class="panel" [formGroup]="form" (ngSubmit)="save()" style="margin-top: 24px">
+    <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" class="panel" [formGroup]="form" (ngSubmit)="save()" style="margin-top: 24px">
       <fieldset [disabled]="saving()">
         <h2>Metas por {{ dimension() === 'category' ? 'categoria' : 'setor' }}</h2>
-        <p>
+        <details><summary>Como funcionam as metas e os grupos em branco</summary><p>
           Deixe em branco os grupos sem meta cadastrada. Na comparação, eles terão meta de 0% quando
           este conjunto estiver configurado.
-        </p>
-        <div formArrayName="rows">
-          @for (row of rows.controls; track row.controls.groupId.value; let i = $index) {
+        </p></details>
+        <div class="target-toolbar"><mat-form-field appearance="outline"><mat-label>Buscar grupo</mat-label><input matInput type="search" [value]="query()" (input)="search($any($event.target).value)" /></mat-form-field>
+          <strong aria-live="polite">Total do conjunto: {{ total() }}%</strong>
+        </div>
+        @if (!filteredRows().length) { <p>Nenhum grupo corresponde à busca.</p> }
+        <div formArrayName="rows" class="target-grid">
+          @for (entry of pageRows(); track entry.row.controls.groupId.value) {
+            @let row = entry.row; @let i = entry.index;
             <div [formGroupName]="i">
-              <label [for]="'target-' + i">{{ row.controls.name.value }} (%)</label>
-              <input
+              <mat-form-field appearance="outline"><mat-label>{{ row.controls.name.value }} (%)</mat-label><input matInput
                 [id]="'target-' + i"
                 formControlName="percentage"
                 inputmode="decimal"
                 placeholder="Ex.: 25,5"
-              />
+              /></mat-form-field>
             </div>
           }
         </div>
-        <p aria-live="polite">
-          <strong>Total: {{ total() }}%</strong>
-        </p>
+        <app-list-paginator [length]="filteredRows().length" [index]="pageIndex()" [size]="pageSize()" (changed)="pageIndex.set($event.pageIndex); pageSize.set($event.pageSize)" />
+        @if (form.touched && form.invalid) { <p class="notice error">Há percentuais inválidos no conjunto, inclusive em outras páginas. Corrija os campos antes de salvar.</p> }
         <div class="actions">
-          <button class="primary" type="submit" [disabled]="!rows.length">
+          <button mat-flat-button class="primary" type="submit" [disabled]="!rows.length">
             Salvar conjunto de metas
           </button>
         </div>

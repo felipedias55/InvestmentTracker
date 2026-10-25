@@ -1,3 +1,11 @@
+import { DraftState } from '../../shared/draft-state';
+import { EditPanel } from '../../shared/edit-panel';
+import { ListPaginator } from '../../shared/list-paginator';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
@@ -20,37 +28,51 @@ export const strategyModels = [
 ];
 @Component({
   selector: 'app-strategy-editor', standalone: true,
+  imports: [DraftState, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatCheckboxModule, EditPanel, ListPaginator],
   template: `
-  <details class="panel" (toggle)="open.set($any($event.target).open)" [open]="enabled()">
-    <summary>Estratégia de investimento {{ enabled() ? '· ' + name() : '· metas atuais' }}</summary>
+  <div [appDraftState]="config()" [draftBusy]="saving()" [draftSaved]="notice()"><section class="panel strategy-summary">
+    <div><strong>Estratégia de investimento</strong><p>{{ enabled() ? name() : 'Metas atuais da carteira' }}</p></div>
+    <button mat-stroked-button (click)="open.set(true)">Configurar estratégia</button>
+    @if (enabled() && !valid() && !open()) { <p class="notice error">Estratégia incompleta. Revise a configuração para simular.</p> }
+    @if (loading()) { <p role="status">Carregando estratégia…</p> }
+    @if (error() && !open()) { <p role="alert" class="notice error">{{ error() }}</p> }
+  </section>
+  @if (open()) {
+  <app-edit-panel [editing]="true" [busy]="saving()" [wide]="true" title="Configurar estratégia" (closed)="open.set(false)"><section class="panel">
     @if (error()) { <p role="alert" class="notice error">{{ error() }}</p> }
     @if (notice()) { <p role="status">{{ notice() }}</p> }
     <fieldset [disabled]="saving() || loading()">
-      <label><input type="checkbox" [checked]="enabled()" (change)="enabled.set($any($event.target).checked)" /> Usar estratégia nesta simulação</label>
+      <mat-checkbox [checked]="enabled()" (change)="enabled.set($event.checked)">Usar estratégia nesta simulação</mat-checkbox>
       @if (enabled()) {
-        <label>Configuração salva<select (change)="choose($any($event.target).value)" [value]="profileId()"><option value="">Nova configuração</option>@for (s of saved(); track s.profileId) { <option [value]="s.profileId" [selected]="profileId() === s.profileId">{{ s.config.name }} · revisão {{ s.revision }}</option> }</select></label>
-        <label>Modelo<select aria-label="Modelo" [value]="model()" (change)="preset($any($event.target).value)">@for (m of models; track m.id) { <option [value]="m.id">{{ m.name }}</option> }</select></label>
-        <p class="hint">{{ help() }}</p>
-        <label>Nome<input maxlength="100" [value]="name()" (input)="name.set($any($event.target).value)" /></label>
-        <label>Distribuir o restante<select [value]="remainder()" (change)="remainder.set($any($event.target).value)"><option value="targets">Metas de categoria e setor</option><option value="equal">Igual entre combinações de categoria/setor</option><option value="reserve">Manter sem distribuição</option></select></label>
-        @if (model() === 'bands') { <label>Tolerância em pontos percentuais<input inputmode="decimal" [value]="tolerance()" (input)="tolerance.set($any($event.target).value)" /></label> }
+        <mat-form-field appearance="outline"><mat-label>Configuração salva</mat-label><select matNativeControl (change)="choose($any($event.target).value)" [value]="profileId()"><option value="">Nova configuração</option>@for (s of saved(); track s.profileId) { <option [value]="s.profileId" [selected]="profileId() === s.profileId">{{ s.config.name }} · revisão {{ s.revision }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Modelo</mat-label><select matNativeControl aria-label="Modelo" [value]="model()" (change)="preset($any($event.target).value)">@for (m of models; track m.id) { <option [value]="m.id">{{ m.name }}</option> }</select></mat-form-field>
+        <details><summary>Como funciona este modelo</summary><p>{{ help() }}</p></details>
+        <mat-form-field appearance="outline"><mat-label>Nome</mat-label><input matInput maxlength="100" [value]="name()" (input)="name.set($any($event.target).value)" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Distribuir o restante</mat-label><select matNativeControl [value]="remainder()" (change)="remainder.set($any($event.target).value)"><option value="targets">Metas de categoria e setor</option><option value="equal">Igual entre combinações de categoria/setor</option><option value="reserve">Manter sem distribuição</option></select></mat-form-field>
+        @if (model() === 'bands') { <mat-form-field appearance="outline"><mat-label>Tolerância em pontos percentuais</mat-label><input matInput inputmode="decimal" [value]="tolerance()" (input)="tolerance.set($any($event.target).value)" /></mat-form-field> }
         <p class="hint">Reservas fixas em {{ currency() }}; percentuais sobre o aporte total. Excluir remove a categoria da base do restante, não da carteira. Reservas são divididas igualmente entre os setores existentes da categoria.</p>
-        @for (c of categories(); track c.groupId) {
+        <mat-form-field appearance="outline"><mat-label>Buscar categoria nas regras</mat-label><input matInput type="search" [value]="query()" (input)="query.set($any($event.target).value); pageIndex.set(0)" /></mat-form-field>
+        @if (!filteredCategories().length) { <p>Nenhuma categoria corresponde à busca.</p> }
+        @for (c of pageCategories(); track c.groupId) {
           <div class="rule">
             <strong>{{ c.name }}</strong>
-            <label><input type="checkbox" [checked]="excluded().includes(c.groupId)" (change)="exclude(c.groupId, $any($event.target).checked)" /> Excluir da base do restante</label>
-            <label>Reserva<select [attr.aria-label]="'Regra de ' + c.name" [value]="rules()[c.groupId]?.kind || ''" (change)="rule(c.groupId, $any($event.target).value, rules()[c.groupId]?.value || '0')"><option value="">Sem reserva</option><option value="fixed">Valor fixo</option><option value="percent">Percentual do aporte</option></select></label>
-            @if (rules()[c.groupId]; as r) { <label>{{ r.kind === 'fixed' ? currency() : '%' }}<input inputmode="decimal" [attr.aria-label]="'Valor da regra de ' + c.name" [value]="r.value" (input)="rule(c.groupId, r.kind, $any($event.target).value)" /></label> }
+            <mat-checkbox [checked]="excluded().includes(c.groupId)" (change)="exclude(c.groupId, $event.checked)">Excluir da base do restante</mat-checkbox>
+            <mat-form-field appearance="outline"><mat-label>Reserva</mat-label><select matNativeControl [attr.aria-label]="'Regra de ' + c.name" [value]="rules()[c.groupId]?.kind || ''" (change)="rule(c.groupId, $any($event.target).value, rules()[c.groupId]?.value || '0')"><option value="">Sem reserva</option><option value="fixed">Valor fixo</option><option value="percent">Percentual do aporte</option></select></mat-form-field>
+            @if (rules()[c.groupId]; as r) { <mat-form-field appearance="outline"><mat-label>{{ r.kind === 'fixed' ? currency() : '%' }}</mat-label><input matInput inputmode="decimal" [attr.aria-label]="'Valor da regra de ' + c.name" [value]="r.value" (input)="rule(c.groupId, r.kind, $any($event.target).value)" /></mat-form-field> }
           </div>
         }
+        <mat-form-field appearance="outline"><mat-label>Regras por página</mat-label><select matNativeControl [value]="pageSize()" (change)="pageSize.set(+$any($event.target).value); pageIndex.set(0)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
+        <app-list-paginator [hidePageSize]="true" [length]="filteredCategories().length" [index]="currentPage()" [size]="pageSize()" (changed)="pageIndex.set($event.pageIndex); pageSize.set($event.pageSize)" />
         @if (!valid()) { <p class="notice">Informe nome e valores válidos, positivos ou zero, com até duas casas decimais. Confira os percentuais.</p> }
-        <button type="button" [disabled]="!valid()" (click)="save()">Salvar como estratégia padrão</button>
+        <button mat-flat-button type="button" [disabled]="!valid()" (click)="save()">Salvar como estratégia padrão</button>
         <p class="hint">A última configuração salva é a padrão ao abrir esta carteira. Salvar cria uma revisão; simular usa os campos atuais sem gravá-los.</p>
       }
+    <div class="actions"><button mat-stroked-button type="button" (click)="open.set(false)" [disabled]="saving()">Concluir configuração</button></div>
     </fieldset>
-  </details>
-  `,
-  styles: ['details { display:block; margin:16px 0; } summary { cursor:pointer; } .rule { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; align-items:center; border-top:1px solid var(--border); padding:12px 0; } input[type=checkbox] { width:auto; } label { display:block; }']
+  </section></app-edit-panel>
+  }
+  </div>`,
+  styles: ['mat-form-field { width:100%; } .strategy-summary { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; } fieldset { min-width:0; } details { display:block; margin:16px 0; } summary { cursor:pointer; } .rule { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; align-items:center; border-top:1px solid var(--border); padding:12px 0; } input[type=checkbox] { width:auto; } label { display:block; }']
 })
 export class StrategyEditor {
   private readonly http = inject(HttpClient);
@@ -63,6 +85,13 @@ export class StrategyEditor {
   readonly name = signal('Alocação por metas'); readonly model = signal('targets'); readonly remainder = signal('targets');
   readonly tolerance = signal('5'); readonly excluded = signal<number[]>([]);
   readonly rules = signal<Record<number, { kind: string; value: string }>>({});
+  readonly query = signal(''); readonly pageIndex = signal(0); readonly pageSize = signal(10);
+  readonly filteredCategories = computed(() => {
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    return this.categories().filter(c => normalize(c.name).includes(normalize(this.query().trim())));
+  });
+  readonly currentPage = computed(() => Math.min(this.pageIndex(), Math.max(0, Math.ceil(this.filteredCategories().length / this.pageSize()) - 1)));
+  readonly pageCategories = computed(() => this.filteredCategories().slice(this.currentPage() * this.pageSize(), (this.currentPage() + 1) * this.pageSize()));
   readonly help = computed(() => this.models.find(m => m.id === this.model())?.help ?? '');
   readonly valid = computed(() => {
     const values = Object.values(this.rules());
@@ -78,7 +107,7 @@ export class StrategyEditor {
   constructor() {
     effect(() => this.changed.emit({ config: this.enabled() ? this.config() : null, valid: !this.loading() && !this.saving() && (!this.enabled() || this.valid()) }));
     effect(onCleanup => {
-      const id = this.portfolioId(); this.saving.set(false); this.enabled.set(false); this.saved.set([]); this.profileId.set(''); this.revision.set(0);
+      const id = this.portfolioId(); this.open.set(false); this.query.set(''); this.pageIndex.set(0); this.saving.set(false); this.enabled.set(false); this.saved.set([]); this.profileId.set(''); this.revision.set(0);
       this.rules.set({}); this.excluded.set([]); this.error.set(''); this.notice.set(''); this.loading.set(true);
       const sub = this.http.get<SavedStrategy[]>(`/api/portfolios/${id}/strategies`).subscribe({
         next: rows => { this.saved.set(rows); if (rows.length) this.choose(rows[0].profileId); this.loading.set(false); },

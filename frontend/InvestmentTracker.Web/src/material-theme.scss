@@ -1,0 +1,62 @@
+@use '@angular/material' as mat;
+
+html {
+  @include mat.theme((
+    color: (primary: mat.$azure-palette, theme-type: light),
+    typography: 'Segoe UI',
+    density: -2,
+  ));
+  @include mat.theme-overrides((
+    primary: #315e99,
+    on-primary: #ffffff,
+    primary-container: #e8f0fb,
+    on-primary-container: #1c426e,
+    surface: #ffffff,
+    on-surface: #20252d,
+    surface-container: #f5f7fa,
+    outline: #687585,
+  ));
+  @include mat.button-overrides((
+    filled-container-shape: 6px,
+    outlined-container-shape: 6px,
+    text-container-shape: 6px,
+  ));
+}
+
+// Geometry and focus of fields belong to Material; global styles do not reset them.
+.mat-mdc-form-field { width: 100%; min-width: 0; }
+.mat-mdc-table { background: var(--surface); }
+.mat-mdc-header-cell { text-transform: none; letter-spacing: normal; }
+.mat-mdc-paginator { background: var(--surface); }
+.mat-mdc-icon-button { flex-shrink: 0; }
+.registration-workspace .text-danger, .position-record-actions .text-danger {
+  @include mat.button-overrides((outlined-label-text-color: var(--loss), outlined-outline-color: var(--loss)));
+}
+.mat-mdc-button-base app-icon { vertical-align: middle; }
+// Material creates tbody outside the component's scoped template attributes.
+@media (max-width: 700px) {
+  .portfolio-table tbody { display: block; width: 100%; }
+}
+
+html[data-theme='dark'] {
+  @include mat.theme((color: (primary: mat.$azure-palette, theme-type: dark)));
+  @include mat.theme-overrides((primary: #a5c8ff, on-primary: #102f53,
+    primary-container: #253e5b, on-primary-container: #d5e5ff,
+    surface: #1c232d, on-surface: #e6edf5, surface-container: #242d39,
+    on-surface-variant: #bec9d7, outline: #8896a8));
+}
+
+// Explicit product roles keep enabled actions distinct from disabled controls in both themes.
+html {
+  @include mat.button-overrides((
+    filled-container-color: var(--accent), filled-label-text-color: var(--on-accent),
+    outlined-label-text-color: var(--accent-text), outlined-outline-color: var(--accent-text),
+    text-label-text-color: var(--accent-text),
+    filled-label-text-weight: 600, outlined-label-text-weight: 600, text-label-text-weight: 600,
+    filled-disabled-container-color: var(--button-disabled-surface),
+    filled-disabled-label-text-color: var(--button-disabled-text),
+    outlined-disabled-label-text-color: var(--button-disabled-text),
+    outlined-disabled-outline-color: var(--border),
+    text-disabled-label-text-color: var(--button-disabled-text)
+  ));
+}

@@ -9,6 +9,30 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
 {
     public sealed class IncomeRepository(InvestmentTrackerDbContext db) : IIncomeRepository
     {
+        public async Task<IncomePageDto> PageAsync(int portfolioId, IncomePageQuery query, CancellationToken ct)
+        {
+            var filtered = db.Set<IncomeReceipt>().AsNoTracking().Where(x => x.PortfolioId == portfolioId);
+            if (!string.IsNullOrEmpty(query.Search)) filtered = filtered.Where(x => x.Ticker.Contains(query.Search));
+            if (query.From.HasValue) filtered = filtered.Where(x => x.Date >= query.From.Value);
+            if (query.To.HasValue) filtered = filtered.Where(x => x.Date <= query.To.Value);
+            if (query.PendingOnly)
+            {
+                var code = await db.Portfolios.Where(x => x.Id == portfolioId).Select(x => x.BaseCurrency.Code).SingleOrDefaultAsync(ct);
+                filtered = filtered.Where(x => x.CurrencyCode != code && !x.Conversions.Any(c => c.BaseCurrencyCode == code));
+            }
+            var total = await filtered.CountAsync(ct);
+            var page = Math.Min(query.PageIndex, Math.Max(0, (total - 1) / query.PageSize));
+            var receipts = await filtered.Include(x => x.Conversions).OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
+                .Skip(page * query.PageSize).Take(query.PageSize).ToListAsync(ct);
+            var ids = receipts.Select(x => x.Id).ToArray();
+            var movements = db.Set<FinancialMovement>().Where(x => x.PortfolioId == portfolioId);
+            var reversals = await movements.Where(x => x.IncomeReceiptId.HasValue && ids.Contains(x.IncomeReceiptId.Value)
+                && x.Kind == "income" && x.ReversalOfId == null)
+                .Select(x => new { Id = x.IncomeReceiptId!.Value,
+                    ReversedBy = movements.Where(r => r.ReversalOfId == x.Id).Select(r => (int?)r.Id).FirstOrDefault() }).ToListAsync(ct);
+            var items = receipts.Select(x => IncomeService.Map(x) with { ReversedById = reversals.FirstOrDefault(r => r.Id == x.Id)?.ReversedBy }).ToList();
+            return new IncomePageDto(items, total, page, query.PageSize);
+        }
         public async Task<IReadOnlyList<IncomeReceipt>> ListAsync(int portfolioId, CancellationToken ct)
             => await db.Set<IncomeReceipt>().AsNoTracking().Include(x => x.Conversions).Where(x => x.PortfolioId == portfolioId)
                 .OrderByDescending(x => x.Date).ThenByDescending(x => x.Id).ToListAsync(ct);

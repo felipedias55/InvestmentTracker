@@ -12,6 +12,19 @@ namespace InvestmentTracker.Application.Movements
         ICurrencyRepository currencies, IExchangeRateService rates, TimeProvider clock,
         InvestmentTracker.Application.Assets.Interfaces.IAssetRepository assets) : IMovementService
     {
+        public Task<MovementPageDto> PageAsync(int portfolioId, MovementPageQuery query, CancellationToken ct)
+        {
+            if (query.PageIndex < 0 || query.PageSize is not (10 or 25 or 50) || query.Search?.Length > 120
+                || (query.From.HasValue && query.To.HasValue && query.From > query.To)
+                || query.Status is not (null or "" or "active" or "reversed" or "reversal"))
+                throw new InputValidationException("Informe filtros e paginação válidos.");
+            return repository.PageAsync(portfolioId, query with { Search = query.Search?.Trim(), Kind = query.Kind?.Trim() }, ct);
+        }
+        public async Task<MovementDto?> DetailAsync(int portfolioId, int id, CancellationToken ct)
+        {
+            var movement = await repository.GetAsync(portfolioId, id, ct);
+            return movement is null ? null : await MapAsync(movement, await repository.ReversalIdAsync(portfolioId, id, ct), ct);
+        }
         private const decimal MaxMoney = 999999999999999.9999m;
         private DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(),
             TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo")).DateTime);

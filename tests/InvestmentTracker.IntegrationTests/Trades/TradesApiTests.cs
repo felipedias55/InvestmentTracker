@@ -49,6 +49,38 @@ namespace InvestmentTracker.IntegrationTests.Trades
             => new(Guid.NewGuid(), Today, "buy", asset, quantity, price, cash);
 
         [Fact]
+        public async Task Page_ShouldFilterBeforePaging_IdentifyReversals_AndScopeToPortfolio()
+        {
+            var (portfolio, asset, _) = await Seed(); using var client = Client();
+            await using var db = fixture.Database.CreateContext();
+            var records = Enumerable.Range(1, 23).Select(i => new PortfolioTrade {
+                PortfolioId = portfolio, AssetId = asset, RequestId = Guid.NewGuid(), Date = Today,
+                Kind = "buy", Ticker = "TRADE", CurrencyCode = "BRL", Quantity = 1, UnitPrice = 10, Amount = 10
+            }).ToList();
+            db.AddRange(records); await db.SaveChangesAsync();
+            var original = new FinancialMovement { PortfolioId = portfolio, RequestId = Guid.NewGuid(),
+                Date = Today, Kind = "buy", TradeId = records[0].Id, CurrencyCode = "BRL" };
+            db.Add(original); await db.SaveChangesAsync();
+            var reversal = new FinancialMovement { PortfolioId = portfolio, RequestId = Guid.NewGuid(),
+                Date = Today, Kind = "reversal", ReversalOfId = original.Id, CurrencyCode = "BRL" };
+            db.Add(reversal); await db.SaveChangesAsync();
+            var path = $"/api/portfolios/{portfolio}/trades/page";
+            var page = (await client.GetFromJsonAsync<TradePageDto>(path + "?pageIndex=1&pageSize=10&search=TRA&kind=buy"))!;
+            Assert.Equal(23, page.Total);
+            Assert.Equal(records.Skip(3).Take(10).Reverse().Select(x => x.Id), page.Items.Select(x => x.Trade.Id));
+            var last = (await client.GetFromJsonAsync<TradePageDto>(path + "?pageIndex=999"))!;
+            Assert.Equal(2, last.PageIndex); Assert.Equal(3, last.Items.Count);
+            var first = last.Items.Single(x => x.Trade.Id == records[0].Id);
+            Assert.Equal(original.Id, first.MovementId); Assert.Equal(reversal.Id, first.ReversedById);
+            Assert.Empty((await client.GetFromJsonAsync<TradePageDto>(path + "?kind=sell"))!.Items);
+            Assert.Empty((await client.GetFromJsonAsync<TradePageDto>(path + "?from=2026-09-09"))!.Items);
+            Assert.Empty((await client.GetFromJsonAsync<TradePageDto>($"/api/portfolios/{portfolio + 1000}/trades/page"))!.Items);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "?pageSize=1000")).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "?kind=invalid")).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "?from=2026-10-20&to=2026-01-01")).StatusCode);
+        }
+
+        [Fact]
         public async Task BuyAndSell_ShouldUpdateCostQuantityAndCashFlowsOnceAndPreserveIncome()
         {
             var (portfolio, asset, _) = await Seed(); using var client = Client();

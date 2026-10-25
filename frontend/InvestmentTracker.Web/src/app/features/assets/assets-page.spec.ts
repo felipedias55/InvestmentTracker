@@ -24,6 +24,7 @@ describe('AssetsPage', () => {
     const fixture = TestBed.createComponent(AssetsPage);
     fixture.detectChanges();
     flushLoad();
+    fixture.componentInstance.newItem();
     fixture.componentInstance.form.patchValue({ ticker: 'PETR4', name: 'Petrobras' });
     fixture.componentInstance.save();
     fixture.detectChanges();
@@ -34,6 +35,7 @@ describe('AssetsPage', () => {
     const fixture = TestBed.createComponent(AssetsPage);
     fixture.detectChanges();
     flushLoad();
+    fixture.componentInstance.newItem();
     fixture.componentInstance.form.setValue({
       ticker: 'PETR4',
       name: 'Petrobras',
@@ -57,6 +59,7 @@ describe('AssetsPage', () => {
     const fixture = TestBed.createComponent(AssetsPage);
     fixture.detectChanges();
     flushLoad(true);
+    fixture.componentInstance.newItem();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('a[href="/currencies"]')).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('Cadastre primeiro');
@@ -65,6 +68,7 @@ describe('AssetsPage', () => {
     const fixture = TestBed.createComponent(AssetsPage);
     fixture.detectChanges();
     flushLoad();
+    fixture.componentInstance.newItem();
     fixture.componentInstance.form.setValue({
       ticker: 'PETR4',
       name: 'Petrobras',
@@ -87,4 +91,16 @@ describe('AssetsPage', () => {
     );
     expect(fixture.componentInstance.form.controls.ticker.value).toBe('PETR4');
   });
+  it('filters before pagination and keeps the current page while editing', () => {
+    const fixture = TestBed.createComponent(AssetsPage); fixture.detectChanges(); flushLoad();
+    const component = fixture.componentInstance;
+    const assets = Array.from({ length: 26 }, (_, i) => ({ id: i + 1, ticker: 'TEST' + String(i).padStart(2, '0'), name: 'Ativo', assetTypeId: 1, countryId: 1, currencyId: 1, assetCategoryId: i < 12 ? 1 : 2, sectorId: 1, createdAt: '2026-10-01T12:00:00Z' }));
+    component.items.set(assets); component.categoryFilter.set('1');
+    expect(component.filteredItems()).toHaveLength(12);
+    component.changePage({ pageIndex: 1, pageSize: 10 }); expect(component.pageItems()).toHaveLength(2);
+    component.edit(component.pageItems()[0]); component.cancel(); expect(component.currentPage()).toBe(1);
+    component.search('TEST00'); expect(component.currentPage()).toBe(0); expect(component.pageItems()).toHaveLength(1);
+    expect(component.items()).toHaveLength(26);
+  });
+
 });

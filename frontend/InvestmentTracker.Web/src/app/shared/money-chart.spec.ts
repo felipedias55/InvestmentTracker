@@ -4,6 +4,18 @@ import { ValuePrivacy } from '../core/value-privacy';
 import { AllocationDonut } from '../features/allocation/allocation-donut';
 
 describe('Financial charts', () => {
+  it('reduces only the dashboard plot height while preserving the zero baseline and missing points', () => {
+    const fixture = TestBed.createComponent(MoneyChart);
+    fixture.componentRef.setInput('points', [{ label: 'Jan', value: 100 }, { label: 'Fev', value: null }, { label: 'Mar', value: -20 }]);
+    fixture.componentRef.setInput('currency', 'BRL'); fixture.componentRef.setInput('title', 'Teste');
+    fixture.componentRef.setInput('fitContainer', true); fixture.componentRef.setInput('compact', true);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.height()).toBe(220);
+    expect(fixture.componentInstance.y(-20)).toBeGreaterThan(fixture.componentInstance.y(0));
+    expect(fixture.nativeElement.querySelector('svg').getAttribute('viewBox')).toContain('220');
+    fixture.componentRef.setInput('fitContainer', false); fixture.detectChanges();
+    expect(fixture.componentInstance.height()).toBe(300);
+  });
   afterEach(() => localStorage.removeItem('investment-tracker.hide-values'));
   it('breaks lines at missing values and gives negative columns a real zero baseline', () => {
     const fixture = TestBed.createComponent(MoneyChart);

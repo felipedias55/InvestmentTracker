@@ -68,6 +68,41 @@ namespace InvestmentTracker.IntegrationTests.Movements
             return (await response.Content.ReadFromJsonAsync<MovementDto>())!;
         }
         [Fact]
+        public async Task PagedHistory_ShouldFilterBeforePaging_KeepStableOrder_AndLoadAuditSeparately()
+        {
+            var (portfolio, _, _) = await Seed();
+            using var client = Client();
+            await using var db = fixture.Database.CreateContext();
+            var records = Enumerable.Range(1, 23).Select(i => new FinancialMovement {
+                PortfolioId = portfolio, RequestId = Guid.NewGuid(), Date = Today, Kind = "deposit",
+                Description = "Depósito de teste", CurrencyCode = "BRL", Amount = i, CreatedAtUtc = DateTime.UtcNow
+            }).ToList();
+            db.AddRange(records); await db.SaveChangesAsync();
+            db.Add(new FinancialMovement { PortfolioId = portfolio, RequestId = Guid.NewGuid(), Date = Today.AddDays(1),
+                Kind = "reversal", Description = "Estorno de teste", CurrencyCode = "BRL", ReversalOfId = records[0].Id, CreatedAtUtc = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+            var path = $"/api/portfolios/{portfolio}/movements";
+            var page = (await client.GetFromJsonAsync<MovementPageDto>(path + "/page?kind=deposit&pageIndex=1&pageSize=10"))!;
+            Assert.Equal(23, page.Total);
+            Assert.Equal(records.Skip(3).Take(10).Reverse().Select(x => x.Id), page.Items.Select(x => x.Id));
+            var last = (await client.GetFromJsonAsync<MovementPageDto>(path + "/page?kind=deposit&pageIndex=999&pageSize=10"))!;
+            Assert.Equal(2, last.PageIndex); Assert.Equal(3, last.Items.Count);
+            Assert.NotNull(last.Items.Single(x => x.Id == records[0].Id).ReversedById);
+            var reversed = (await client.GetFromJsonAsync<MovementPageDto>(path + "/page?status=reversed"))!;
+            Assert.Single(reversed.Items); Assert.Equal(records[0].Id, reversed.Items[0].Id);
+            var dates = (await client.GetFromJsonAsync<MovementPageDto>(path + $"/page?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}&status=active"))!;
+            Assert.Equal(22, dates.Total);
+            var search = (await client.GetFromJsonAsync<MovementPageDto>(path + $"/page?search=%23{records[0].Id}"))!;
+            Assert.Single(search.Items);
+            var detail = (await client.GetFromJsonAsync<MovementDto>(path + $"/{records[0].Id}"))!;
+            Assert.False(detail.CanReverse); Assert.NotNull(detail.ReversedById);
+            Assert.DoesNotContain("effects", await client.GetStringAsync(path + "/page"), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/portfolios/{portfolio + 1000}/movements/{records[0].Id}")).StatusCode);
+            Assert.Empty((await client.GetFromJsonAsync<MovementPageDto>($"/api/portfolios/{portfolio + 1000}/movements/page"))!.Items);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "/page?pageSize=1000")).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "/page?from=2026-10-20&to=2026-01-01")).StatusCode);
+        }
+        [Fact]
         public async Task Correction_FailureAfterFirstWrite_ShouldRollBackHeaderAndBalances()
         {
             var (portfolio, _, cash) = await Seed();

@@ -9,6 +9,15 @@ namespace InvestmentTracker.Api.Controllers
     {
         [HttpGet]
         public async Task<IActionResult> List(int portfolioId, CancellationToken ct) => Ok(await service.ListAsync(portfolioId, ct));
+        [HttpGet("page")]
+        public async Task<IActionResult> Page(int portfolioId, [FromQuery] MovementPageQuery query, CancellationToken ct)
+            => Ok(await service.PageAsync(portfolioId, query, ct));
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> Detail(int portfolioId, int id, CancellationToken ct)
+        {
+            var result = await service.DetailAsync(portfolioId, id, ct);
+            return result is null ? NotFound() : Ok(result);
+        }
         [HttpGet("{id:int}/correction-draft")]
         public async Task<IActionResult> Draft(int portfolioId, int id, CancellationToken ct)
         {

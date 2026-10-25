@@ -1,37 +1,43 @@
-<button class="skip-link" [inert]="mobile() && menuOpen()" type="button" (click)="main.focus()">Ir para o conteúdo</button>
+<button mat-button class="skip-link" [inert]="mobile() && menuOpen()" type="button" (click)="main.focus()">Ir para o conteúdo</button>
 <header class="app-toolbar">
-  <button #menuButton class="menu-toggle" [attr.aria-label]="menuOpen() ? 'Recolher menu' : 'Abrir menu'" type="button" (click)="toggleMenu()" aria-controls="app-navigation" [attr.aria-expanded]="menuOpen()"><span aria-hidden="true">☰</span></button>
+  <button mat-icon-button #menuButton class="menu-toggle" [attr.aria-label]="menuOpen() ? 'Recolher menu' : 'Abrir menu'" type="button" (click)="toggleMenu()" aria-controls="app-navigation" [attr.aria-expanded]="menuOpen()"><app-icon name="menu" /></button>
   <a class="brand" routerLink="/dashboard" (click)="navigate($event)"
       ><img class="brand-icon" src="fd-logo.png" alt="FD" width="44" height="44"
-      ><span>Investment <br /><strong>Tracker</strong></span></a
+      ><span>InvestmentTracker</span></a
     >
-  <button class="privacy-toggle" type="button" (click)="privacy.toggle()" [attr.aria-pressed]="privacy.hidden()" [attr.aria-label]="privacy.hidden() ? 'Mostrar valores' : 'Ocultar valores'">{{ privacy.hidden() ? 'Mostrar valores' : 'Ocultar valores' }}</button>
+  <button mat-icon-button class="privacy-toggle" type="button" (click)="privacy.toggle()" [attr.aria-pressed]="privacy.hidden()" [attr.aria-label]="privacy.hidden() ? 'Mostrar valores' : 'Ocultar valores'"><app-icon [name]="privacy.hidden() ? 'hidden' : 'eye'" /></button>
+  <button mat-icon-button class="theme-toggle" [matMenuTriggerFor]="themeMenu" aria-label="Escolher tema"><app-icon name="theme" /></button>
+  <mat-menu #themeMenu="matMenu">
+    <button mat-menu-item (click)="theme.select('light')">Claro {{ theme.preference() === 'light' ? '· selecionado' : '' }}</button>
+    <button mat-menu-item (click)="theme.select('dark')">Escuro {{ theme.preference() === 'dark' ? '· selecionado' : '' }}</button>
+    <button mat-menu-item (click)="theme.select('system')">Sistema {{ theme.preference() === 'system' ? '· selecionado' : '' }}</button>
+  </mat-menu>
 </header>
 @if (mobile() && menuOpen()) { <div class="menu-backdrop" (click)="closeMenu()" aria-hidden="true"></div> }
 <div class="app-shell" [class.menu-open]="menuOpen()" [class.mobile-menu-open]="mobile() && menuOpen()">
   <aside #sidebar id="app-navigation" class="sidebar" [hidden]="!menuOpen()" aria-label="Menu de navegação" (click)="navigate($event)">
-    <p class="nav-label">ORGANIZE SEUS INVESTIMENTOS</p>
+    <p class="nav-label">INVESTIMENTOS</p>
     <nav aria-label="Investimentos e cadastros">
-      <a routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page">Dashboard ⌂</a>
-      <a routerLink="/portfolio" routerLinkActive="active" ariaCurrentWhenActive="page">Carteira</a>
-      <a routerLink="/trades" routerLinkActive="active" ariaCurrentWhenActive="page">Compras e vendas</a>
-      <a routerLink="/income" routerLinkActive="active" ariaCurrentWhenActive="page">Proventos</a>
-      <a routerLink="/movements" routerLinkActive="active" ariaCurrentWhenActive="page">Movimentações</a>
-      <a routerLink="/history" routerLinkActive="active" ariaCurrentWhenActive="page">Evolução e fechamentos</a>
-      <a routerLink="/contributions" routerLinkActive="active" ariaCurrentWhenActive="page">Simular aporte</a>
-      <a routerLink="/allocation" routerLinkActive="active" ariaCurrentWhenActive="page">Metas</a>
-      <a routerLink="/external-assets" routerLinkActive="active" ariaCurrentWhenActive="page">Patrimônio externo</a>
-      <a routerLink="/assets" routerLinkActive="active" ariaCurrentWhenActive="page">Ativos</a>
+      <a routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="home" /><span>Dashboard</span></a>
+      <a routerLink="/portfolio" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="wallet" /><span>Carteira</span></a>
+      <a routerLink="/trades" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="chart" /><span>Compras e vendas</span></a>
+      <a routerLink="/income" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="income" /><span>Proventos</span></a>
+      <a routerLink="/movements" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="transfer" /><span>Movimentações</span></a>
+      <a routerLink="/history" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="trend" /><span>Evolução e fechamentos</span></a>
+      <a routerLink="/contributions" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="calculator" /><span>Simular aporte</span></a>
+      <a routerLink="/allocation" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="target" /><span>Metas</span></a>
+      <a routerLink="/external-assets" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="folder" /><span>Patrimônio externo</span></a>
+      <a routerLink="/assets" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="folder" /><span>Ativos</span></a>
       @for (catalog of catalogs; track catalog.key) {
         <a
           [routerLink]="'/' + catalog.key"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          >{{ catalog.label }}</a
+          ><app-icon name="folder" /><span>{{ catalog.label }}</span></a
         >
       }
     </nav>
-    <p class="sidebar-note">Cada investimento.<br />Uma visão mais clara.</p>
+
   </aside>
   <main #main id="main" tabindex="-1" [inert]="mobile() && menuOpen()"><router-outlet /></main>
 </div>

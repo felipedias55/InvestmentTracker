@@ -102,7 +102,7 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
     expect((await response).ok()).toBe(valid);
     if (valid) await expect(page.getByRole('status').filter({ hasText: 'Operação registrada' })).toBeVisible();
     else await expect(page.getByRole('alert')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Atualizar saldos e histórico' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Recarregar dados' })).toBeEnabled();
   };
   await trade('buy', '10', '25,50');
   let summary = await json(request, path);
@@ -177,11 +177,11 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   await page.locator('#income-cash').selectOption({ index: 1 });
   await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Recebimento registrado' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Atualizar recebimentos' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Recarregar dados' })).toBeEnabled();
   await page.locator('#income-amount').fill('2');
   await page.locator('#income-cash').selectOption({ index: 0 });
   await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Atualizar recebimentos' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Recarregar dados' })).toBeEnabled();
   await expect(page.locator('section').filter({ has: page.getByRole('heading', { name: 'Histórico de recebimentos', exact: true }) }).locator('tbody tr')).toHaveCount(2);
   expect(Number((await json(request, path)).totalIncome)).toBe(14.34);
   expect(Number((await json(request, path + '/external-assets')).totalValue)).toBe(142.84);
@@ -268,7 +268,7 @@ test('depósito, retirada, transferência, ajuste e estorno atualizam saldos e t
     const pending = page.waitForResponse(r => r.url().endsWith('/movements') && r.request().method() === 'POST');
     await page.getByRole('button', { name: 'Registrar movimentação', exact: true }).click();
     const response = await pending; expect(response.ok()).toBeTruthy();
-    await expect(page.getByRole('button', { name: 'Atualizar movimentações' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Recarregar dados' })).toBeEnabled();
     return response.json();
   };
   const deposit = await move('deposit', '10,50');
@@ -299,7 +299,7 @@ test('depósito, retirada, transferência, ajuste e estorno atualizam saldos e t
     await page.getByLabel('Motivo do estorno', { exact: true }).fill('Desfazer lançamento de teste');
     await page.getByRole('button', { name: 'Confirmar estorno', exact: true }).click();
     await expect(page.locator('dialog:modal')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Atualizar movimentações' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Recarregar dados' })).toBeEnabled();
   }
   const restored = await json(request, path + '/external-assets');
   expect(restored.items.map((b: any) => Number(b.value))).toEqual([100, 100]);

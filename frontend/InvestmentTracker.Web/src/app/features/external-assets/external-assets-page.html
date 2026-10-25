@@ -7,7 +7,10 @@
 </header>
 <app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
 @if (portfolioId()) {
-  <button (click)="load()" [disabled]="saving() || loading()">Atualizar</button>
+  <div class="actions">
+  <button mat-flat-button class="primary" (click)="newItem()" [disabled]="loading() || saving() || !summary()">Novo patrimônio</button>
+  <button mat-stroked-button (click)="load()" [disabled]="saving() || loading()">Recarregar dados</button>
+  </div>
 }
 @if (error()) {
   <p class="notice error" role="alert">{{ error() }}</p>
@@ -39,29 +42,25 @@
   } @else if (s.hasStaleRates) {
     <p class="notice">Há cotações de dias anteriores. Confira as datas de referência.</p>
   }
-  <div class="workspace">
-    <app-edit-panel [editing]="editingId() !== null" [busy]="saving()" [error]="error()" title="Editar patrimônio" (closed)="cancel()"><form class="panel" [formGroup]="form" (ngSubmit)="save()">
+  <div class="registration-workspace">
+  @if (formOpen()) {
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" [title]="editingId() === null ? 'Novo patrimônio' : 'Editar patrimônio'" (closed)="cancel()"><form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" class="panel" [formGroup]="form" (ngSubmit)="save()">
       <fieldset [disabled]="saving()">
-        <h2>{{ editingId() === null ? 'Adicionar patrimônio' : 'Editar patrimônio' }}</h2>
-        <label for="external-name">Nome</label
-        ><input id="external-name" formControlName="name" maxlength="200" />
-        <label for="external-currency">Moeda original</label
-        ><select id="external-currency" formControlName="currencyId" [attr.inert]="editingId() !== null ? '' : null" [attr.aria-disabled]="editingId() !== null">
+        <mat-form-field appearance="outline"><mat-label>Nome</mat-label><input matInput id="external-name" formControlName="name" maxlength="200" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Moeda original</mat-label><select matNativeControl id="external-currency" formControlName="currencyId" [attr.inert]="editingId() !== null ? '' : null" [attr.aria-disabled]="editingId() !== null">
           <option [ngValue]="0">Selecione</option>
           @for (c of currencies(); track c.id) {
             <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
           }
-        </select>
-        <label for="external-value">Valor na moeda selecionada</label
-        ><input
+        </select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Valor na moeda selecionada</mat-label><input matInput
           id="external-value"
-          [readOnly]="editingId() !== null"
+          [readonly]="editingId() !== null"
           formControlName="value"
           inputmode="decimal"
           (blur)="formatValue()"
-        />
-        <label for="external-description">Descrição (opcional)</label
-        ><input id="external-description" formControlName="description" maxlength="500" />
+        /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Descrição (opcional)</mat-label><input matInput id="external-description" formControlName="description" maxlength="500" /></mat-form-field>
         <p class="hint">
           O valor cadastrado é o saldo inicial. Para entradas, saídas e correções, use Movimentações. A edição altera nome e descrição; saldo e moeda são preservados.
         </p>
@@ -72,26 +71,25 @@
           </p>
         }
         <div class="actions">
-          <button class="primary" type="submit">Salvar</button>
-          @if (editingId() !== null) {
-            <button type="button" (click)="cancel()">Cancelar</button>
-          }
+          <button data-discard  mat-stroked-button type="button" (click)="cancel()">Cancelar</button>
+<button mat-flat-button class="primary" type="submit">{{ saving() ? 'Salvando…' : 'Salvar' }}</button>
         </div>
       </fieldset>
     </form></app-edit-panel>
+  }
     <section class="panel">
       <h2>
         Itens cadastrados <span class="count">{{ s.items.length }}</span>
       </h2>
       <div class="actions" role="group" aria-label="Moeda de exibição" style="margin-bottom: 20px">
-        <button
+        <button mat-stroked-button
           [class.primary]="view() === 'base'"
           [attr.aria-pressed]="view() === 'base'"
           (click)="view.set('base')"
         >
           Moeda-base
         </button>
-        <button
+        <button mat-stroked-button
           [class.primary]="view() === 'original'"
           [attr.aria-pressed]="view() === 'original'"
           (click)="view.set('original')"
@@ -103,18 +101,24 @@
         <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar remoção" (closed)="pendingDelete.set(null)"><div class="confirmation" role="alert">
           <p>Remover {{ item.name }} desta carteira?</p>
           <div class="actions">
-            <button class="danger" [disabled]="saving()" (click)="remove()">
+            <button mat-stroked-button [disabled]="saving()" (click)="pendingDelete.set(null)">Cancelar</button><button mat-stroked-button class="danger" [disabled]="saving()" (click)="remove()">
               Confirmar remoção
             </button>
-            <button [disabled]="saving()" (click)="pendingDelete.set(null)">Cancelar</button>
           </div>
         </div></app-edit-panel>
       }
       @if (!s.items.length) {
         <p class="empty">Nenhum patrimônio externo cadastrado nesta carteira.</p>
       }
+      <div class="registration-filters">
+        <mat-form-field appearance="outline"><mat-label>Buscar patrimônio</mat-label><input matInput type="search" [value]="query()" (input)="search($any($event.target).value)" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Moeda</mat-label><select matNativeControl [value]="currencyFilter()" (change)="currencyFilter.set($any($event.target).value); pageIndex.set(0)">
+          <option value="">Todas</option>@for (c of currencies(); track c.id) { <option [value]="c.code" [selected]="'' + (currencyFilter()) === '' + (c.code)">{{ c.code }}</option> }
+        </select></mat-form-field>
+      </div>
+      @if (s.items.length && !filteredItems().length) { <p class="empty">Nenhum patrimônio corresponde aos filtros.</p> }
       <div class="asset-cards">
-        @for (item of s.items; track item.id) {
+        @for (item of pageItems(); track item.id) {
           <article class="asset-card">
             <h3>{{ item.name }}</h3>
             <strong>{{
@@ -124,6 +128,7 @@
                   ? 'Indisponível'
                   : (item.baseValue | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2')
             }}</strong>
+            <details><summary>Detalhes e câmbio</summary>
             @if (item.description) {
               <p>{{ item.description }}</p>
             }
@@ -141,15 +146,17 @@
                 }
               </p>
             }
-            <div class="actions">
-              <button [disabled]="saving()" (click)="edit(item)">Editar {{ item.name }}</button
-              ><button class="text-danger" [disabled]="saving()" (click)="pendingDelete.set(item)">
-                Remover {{ item.name }}
+            </details>
+            <div class="card-footer record-actions">
+              <button mat-stroked-button [disabled]="saving()" (click)="edit(item)" [attr.aria-label]="'Editar ' + item.name"><app-icon name="edit" /> Editar</button
+              ><button mat-stroked-button class="text-danger" [disabled]="saving()" (click)="pendingDelete.set(item)" [attr.aria-label]="'Remover ' + item.name">
+                Remover
               </button>
             </div>
           </article>
         }
       </div>
+      <app-list-paginator [length]="filteredItems().length" [index]="currentPage()" [size]="pageSize()" (changed)="changePage($event)" />
     </section>
   </div>
 }

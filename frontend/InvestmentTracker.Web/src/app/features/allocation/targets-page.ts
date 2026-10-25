@@ -1,3 +1,11 @@
+import { rememberContext } from '../../shared/page-context';
+import { UnsavedForm } from '../../shared/unsaved-changes';
+import { UnsavedChanges } from '../../shared/unsaved-registry';
+import { ListPaginator } from '../../shared/list-paginator';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule } from '@angular/forms';
@@ -13,10 +21,14 @@ import { fractionToPercentage, percentageToFraction, percentageUnits } from './p
 @Component({
   standalone: true,
   selector: 'app-targets-page',
-  imports: [RouterLink, PortfolioPicker, ReactiveFormsModule],
+  imports: [UnsavedForm, ListPaginator, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, RouterLink, PortfolioPicker, ReactiveFormsModule],
   templateUrl: './targets-page.html',
+  styleUrl: './targets-page.css',
 })
 export class TargetsPage {
+  private readonly context = rememberContext('targets', () => ({ dimension: this.dimension(), query: this.query(), pageSize: this.pageSize(), pageIndex: this.pageIndex() }), state => { this.dimension.set(state.dimension); this.query.set(state.query); this.pageSize.set(state.pageSize); this.pageIndex.set(state.pageIndex); }, () => !this.loading());
+
+  private readonly drafts = inject(UnsavedChanges);
   private readonly api = inject(AllocationService);
   private readonly catalogs = inject(CatalogService);
   private readonly destroyRef = inject(DestroyRef);
@@ -30,6 +42,13 @@ export class TargetsPage {
   readonly success = signal('');
   readonly ready = signal(false);
   readonly form = this.fb.group({ rows: this.fb.array<ReturnType<TargetsPage['row']>>([]) });
+  readonly query = signal(''); readonly pageIndex = signal(0); readonly pageSize = signal(10);
+  search(value: string) { this.query.set(value); this.pageIndex.set(0); }
+  filteredRows() {
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    return this.rows.controls.map((row, index) => ({ row, index })).filter(x => normalize(x.row.controls.name.value).includes(normalize(this.query().trim())));
+  }
+  pageRows() { return this.filteredRows().slice(this.pageIndex() * this.pageSize(), (this.pageIndex() + 1) * this.pageSize()); }
   get rows() {
     return this.form.controls.rows;
   }
@@ -45,11 +64,15 @@ export class TargetsPage {
     });
   }
   select(id: number) {
+    this.context.save();
+    if (this.saving()) return;
     this.portfolioId.set(id);
-    this.load();
+    this.context.restore(id); this.load();
   }
   changeDimension(value: Dimension) {
-    this.dimension.set(value);
+    if (this.saving()) return;
+    if (value !== this.dimension() && !this.drafts.confirmWithin()) return;
+    this.dimension.set(value); this.query.set(''); this.pageIndex.set(0);
     this.load();
   }
   load() {
@@ -79,6 +102,7 @@ export class TargetsPage {
             );
           }
           this.loading.set(false);
+          this.pageIndex.set(Math.min(this.pageIndex(), Math.max(0, Math.ceil(this.filteredRows().length / this.pageSize()) - 1)));
           this.ready.set(true);
         },
         error: (e) => {
@@ -117,6 +141,7 @@ export class TargetsPage {
       .subscribe({
         next: () => {
           this.saving.set(false);
+          this.form.markAsPristine();
           this.success.set('Metas salvas. A soma do conjunto é 100%.');
         },
         error: (e) => {

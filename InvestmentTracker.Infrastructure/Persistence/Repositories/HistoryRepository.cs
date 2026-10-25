@@ -1,4 +1,5 @@
 using System.Data;
+using InvestmentTracker.Application.History.Dtos;
 using InvestmentTracker.Application.Common.Exceptions;
 using InvestmentTracker.Application.History.Interfaces;
 using InvestmentTracker.Domain.Entities;
@@ -9,6 +10,21 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
 {
     public sealed class HistoryRepository(InvestmentTrackerDbContext context) : IHistoryRepository
     {
+        public async Task<CashFlowPageDto> PageCashFlowsAsync(int portfolioId, CashFlowPageQuery query, CancellationToken cancellationToken)
+        {
+            var filtered = context.PortfolioCashFlows.AsNoTracking().Where(f => f.PortfolioId == portfolioId);
+            if (query.Year.HasValue) filtered = filtered.Where(f => f.Date.Year == query.Year.Value);
+            if (!string.IsNullOrEmpty(query.Kind)) filtered = filtered.Where(f => f.Kind == query.Kind);
+            var total = await filtered.CountAsync(cancellationToken);
+            var page = Math.Min(query.PageIndex, Math.Max(0, (total - 1) / query.PageSize));
+            var items = await filtered.OrderByDescending(f => f.Date).ThenByDescending(f => f.Id)
+                .Skip(page * query.PageSize).Take(query.PageSize)
+                .Select(f => new CashFlowDto(f.Id, f.Date, f.Kind, f.CurrencyId, f.Currency.Code,
+                    f.Amount, f.BaseCurrencyCode, f.BaseAmount, f.Notes)
+                    { TradeId = f.TradeId, MovementId = f.MovementId, IsReversal = f.IsReversal }).ToListAsync(cancellationToken);
+            return new CashFlowPageDto(items, total, page, query.PageSize);
+        }
+
         public async Task<IReadOnlyList<PortfolioSnapshot>> GetSnapshotsAsync(int portfolioId, CancellationToken cancellationToken)
             => await context.PortfolioSnapshots.AsNoTracking().Where(s => s.PortfolioId == portfolioId).OrderBy(s => s.Month)
                 .Select(s => new PortfolioSnapshot { Id = s.Id, PortfolioId = s.PortfolioId, Month = s.Month,

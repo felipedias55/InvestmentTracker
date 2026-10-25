@@ -1,0 +1,8 @@
+:host { display:block; min-width:0; }
+mat-form-field { width:100%; }
+.target-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:12px; }
+.target-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:24px; margin:20px 0; }
+.target-toolbar mat-form-field { flex:1; min-width:200px; }
+fieldset { min-width:0; }
+details { margin:16px 0; } summary { cursor:pointer; color:var(--primary, #315e99); }
+button[aria-pressed="true"] { background:var(--primary-soft, #e7eef8); color:var(--primary, #315e99); border-color:currentColor; }

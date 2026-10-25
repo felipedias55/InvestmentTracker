@@ -29,8 +29,15 @@ namespace InvestmentTracker.Application.Movements
         public int? CorrectionId { get; init; }
         public int? ReplacesMovementId { get; init; }
     }
+    public sealed record MovementPageQuery(int PageIndex = 0, int PageSize = 10, string? Search = null,
+        string? Kind = null, string? Status = null, DateOnly? From = null, DateOnly? To = null);
+    public sealed record MovementListItemDto(int Id, DateOnly Date, string Kind, string Description, string CurrencyCode,
+        [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal Amount, int? ReversalOfId, int? ReversedById);
+    public sealed record MovementPageDto(IReadOnlyList<MovementListItemDto> Items, int Total, int PageIndex, int PageSize);
     public interface IMovementService
     {
+        Task<MovementPageDto> PageAsync(int portfolioId, MovementPageQuery query, CancellationToken ct);
+        Task<MovementDto?> DetailAsync(int portfolioId, int id, CancellationToken ct);
         Task<IReadOnlyList<MovementDto>> ListAsync(int portfolioId, CancellationToken ct);
         Task<MovementDto?> SaveAsync(int portfolioId, SaveMovementDto dto, CancellationToken ct);
         Task<MovementDto?> CorporateEventAsync(int portfolioId, SaveCorporateEventDto dto, CancellationToken ct);
@@ -38,6 +45,8 @@ namespace InvestmentTracker.Application.Movements
     }
     public interface IMovementRepository
     {
+        Task<MovementPageDto> PageAsync(int portfolioId, MovementPageQuery query, CancellationToken ct);
+        Task<int?> ReversalIdAsync(int portfolioId, int id, CancellationToken ct);
         Task<IReadOnlyList<FinancialMovement>> ListAsync(int portfolioId, CancellationToken ct);
         Task<FinancialMovement?> ExecuteAsync(int portfolioId, Guid requestId,
             Func<Portfolio, FinancialMovement?, CancellationToken, Task<FinancialMovement>> apply, CancellationToken ct);

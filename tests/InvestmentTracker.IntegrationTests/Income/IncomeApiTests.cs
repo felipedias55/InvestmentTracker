@@ -59,6 +59,36 @@ namespace InvestmentTracker.IntegrationTests.Income
             { Calls++; RequestedDate = date; return Task.FromResult<ExchangeRate?>(new ExchangeRate { BaseCode = b, QuoteCode = q, Rate = Rate, RateDate = date.AddDays(-2) }); }
         }
         [Fact]
+        public async Task Page_ShouldFilterPendingInCurrentBaseBeforePaging_AndPreserveReversalStatus()
+        {
+            var (portfolio, asset, _) = await Seed(true); using var client = Client();
+            await using var db = fixture.Database.CreateContext();
+            var position = await db.PortfolioAssets.SingleAsync();
+            var records = Enumerable.Range(1, 23).Select(i => new IncomeReceipt {
+                PortfolioId = portfolio, AssetId = asset, PositionId = position.Id, RequestId = Guid.NewGuid(),
+                Date = Today, Ticker = "TRADE", CurrencyCode = "USD", BaseCurrencyCode = "USD", Amount = i
+            }).ToList();
+            records[0].CurrencyCode = "BRL";
+            records[1].Conversions.Add(new IncomeConversion { Revision = 1, RequestId = Guid.NewGuid(), BaseCurrencyCode = "BRL", BaseAmount = 10, Source = "manual", RateDate = Today, Reason = "Extrato" });
+            db.AddRange(records); await db.SaveChangesAsync();
+            var original = new FinancialMovement { PortfolioId = portfolio, RequestId = Guid.NewGuid(), Date = Today, Kind = "income", IncomeReceiptId = records[2].Id, CurrencyCode = "USD" };
+            db.Add(original); await db.SaveChangesAsync();
+            var reversal = new FinancialMovement { PortfolioId = portfolio, RequestId = Guid.NewGuid(), Date = Today, Kind = "reversal", ReversalOfId = original.Id, CurrencyCode = "USD" };
+            db.Add(reversal); await db.SaveChangesAsync();
+            var path = $"/api/portfolios/{portfolio}/income/page";
+            var page = (await client.GetFromJsonAsync<IncomePageDto>(path + "?pendingOnly=true&pageIndex=1"))!;
+            Assert.Equal(21, page.Total);
+            Assert.Equal(records.Skip(3).Take(10).Reverse().Select(x => x.Id), page.Items.Select(x => x.Id));
+            var last = (await client.GetFromJsonAsync<IncomePageDto>(path + "?pendingOnly=true&pageIndex=999"))!;
+            Assert.Equal(2, last.PageIndex); Assert.Single(last.Items); Assert.Equal(reversal.Id, last.Items[0].ReversedById);
+            Assert.Empty((await client.GetFromJsonAsync<IncomePageDto>(path + "?search=OTHER"))!.Items);
+            Assert.Empty((await client.GetFromJsonAsync<IncomePageDto>(path + "?from=2026-09-09"))!.Items);
+            Assert.Empty((await client.GetFromJsonAsync<IncomePageDto>($"/api/portfolios/{portfolio + 1000}/income/page"))!.Items);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "?pageSize=1000")).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "?from=2026-10-21&to=2026-01-01")).StatusCode);
+        }
+
+        [Fact]
         public async Task AutomaticConversion_ShouldFreezeOnRetryAndPreserveOnReversal()
         {
             var (portfolio, asset, cash) = await Seed(true); var rates = new HistoricalRates();

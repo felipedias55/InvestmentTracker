@@ -61,7 +61,7 @@ describe('HistoryPage', () => {
   });
   afterEach(() => http.verify());
   function flush(history: PortfolioHistory = data) {
-    http.expectOne('/api/portfolios/1/history').flush(history);
+    http.expectOne('/api/portfolios/1/history?includeCashFlows=false').flush(history);
     http.expectOne('/api/currencies').flush([
       { id: 1, name: 'Real', code: 'BRL' },
       { id: 2, name: 'Dólar', code: 'USD' },
@@ -119,13 +119,14 @@ describe('HistoryPage', () => {
   });
   it('requires a confirmation before replacing the current photograph', () => {
     const fixture = initialize();
+    fixture.componentInstance.showSection('photos'); fixture.detectChanges();
     fixture.nativeElement.querySelector('.capture-panel button').click();
     fixture.detectChanges();
     http.expectNone('/api/portfolios/1/history/snapshots/current');
     expect(fixture.nativeElement.querySelector('.confirmation').textContent).toContain(
       'Substituir',
     );
-    fixture.nativeElement.querySelector('.confirmation button').click();
+    fixture.nativeElement.querySelector('.confirmation button.primary').click();
     const request = http.expectOne('/api/portfolios/1/history/snapshots/current');
     expect(request.request.method).toBe('PUT');
     request.flush({});
@@ -190,7 +191,7 @@ describe('HistoryPage', () => {
     fixture.componentInstance.select(2);
     expect(oldRequest.cancelled).toBe(true);
     http
-      .expectOne('/api/portfolios/2/history')
+      .expectOne('/api/portfolios/2/history?includeCashFlows=false')
       .flush({ ...data, portfolio: { ...testPortfolio, id: 2 } });
     http.expectOne('/api/currencies').flush([{ id: 1, name: 'Real', code: 'BRL' }]);
     fixture.componentInstance.pendingDelete.set(flow);
@@ -203,12 +204,55 @@ describe('HistoryPage', () => {
   it('requires a reason for reopening and shows outdated photographs', () => {
     const fixture = initialize({ ...data, months: [{ ...row, isOutdated: true, isReopened: true, revision: 1 }] });
     const component = fixture.componentInstance;
+    component.showSection('photos'); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Reaberta / desatualizada');
     component.reopenForm.patchValue({ date: '2026-09-01' }); component.reopen(); http.expectNone('/api/portfolios/1/movements');
     component.reopenForm.patchValue({ reason: 'Lançamento atrasado' }); component.reopen();
     const request = http.expectOne('/api/portfolios/1/movements'); expect(request.request.body.kind).toBe('reopen');
     expect(request.request.body.amount).toBe('0'); expect(request.request.body.reason).toBe('Lançamento atrasado');
     request.flush({}); flush();
+  });
+
+  it('loads only the selected page of flows, cancels stale queries and keeps analysis independent', () => {
+    const fixture = initialize(); const component = fixture.componentInstance;
+    component.showSection('flows');
+    const stale = http.expectOne(r => r.url.endsWith('/cash-flows/page'));
+    component.flowYear.set('2025'); component.flowKind.set('withdrawal'); component.filterFlows();
+    expect(stale.cancelled).toBe(true);
+    const first = http.expectOne(r => r.url.endsWith('/cash-flows/page'));
+    expect(first.request.params.get('year')).toBe('2025');
+    expect(first.request.params.get('kind')).toBe('withdrawal');
+    expect(first.request.params.get('pageIndex')).toBe('0');
+    first.flush({ items: [flow], total: 11, pageIndex: 0, pageSize: 10 });
+    component.changeFlowPage({ pageIndex: 1, pageSize: 10 });
+    http.expectOne(r => r.url.endsWith('/cash-flows/page') && r.params.get('pageIndex') === '1')
+      .flush({ items: [], total: 10, pageIndex: 0, pageSize: 10 });
+    expect(component.flowIndex()).toBe(0);
+    expect(component.rows()[0].totalWealth).toBe('1234.50');
+    component.showSection('evolution'); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-history-chart')).not.toBeNull();
+  });
+
+  it('keeps photograph versions accessible and cancels detail requests when closing', () => {
+    const fixture = initialize(); const component = fixture.componentInstance;
+    component.openSnapshot(4);
+    const oldVersion = { id: 4, month: '2026-09-01', snapshotDate: '2026-09-01', capturedAtUtc: '2026-09-01T12:00:00Z', payloadVersion: 1, revision: 1, dashboard: testDashboard };
+    http.expectOne('/api/portfolios/1/history/snapshots/4').flush({ ...oldVersion, revision: 2, previousVersions: [oldVersion] });
+    component.selectRevision('1'); expect(component.detail()?.revision).toBe(1);
+    component.selectRevision('2'); expect(component.detail()?.revision).toBe(2);
+    component.closeSnapshot(); expect(component.snapshotOpen()).toBe(false);
+    component.openSnapshot(4); const pending = http.expectOne('/api/portfolios/1/history/snapshots/4');
+    component.closeSnapshot(); expect(pending.cancelled).toBe(true);
+  });
+
+  it('paginates photograph metadata without truncating chart rows and preserves currency on refresh', () => {
+    const many = { ...data, months: Array.from({length: 12}, (_, i) => ({ ...row, period: '2026-' + String(i + 1).padStart(2, '0'), currencyCode: 'USD' })) };
+    const fixture = initialize(many); const component = fixture.componentInstance;
+    component.showSection('photos'); component.photoIndex.set(1); fixture.detectChanges();
+    expect(component.photoPage()).toHaveLength(2); expect(component.rows()).toHaveLength(12);
+    component.chartCurrency.set('USD'); component.load(); flush(many);
+    expect(component.chartCurrency()).toBe('USD'); expect(component.photoIndex()).toBe(1);
+    component.setYear('2025'); expect(component.photoIndex()).toBe(0); expect(component.photoPage()).toHaveLength(0);
   });
 
 });

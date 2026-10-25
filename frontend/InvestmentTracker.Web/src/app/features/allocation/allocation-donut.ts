@@ -7,17 +7,17 @@ import { PrivateCurrencyPipe } from '../../core/value-privacy';
   selector: 'app-allocation-donut', standalone: true, imports: [PercentPipe, PrivateCurrencyPipe],
   template: `
     @if (valid()) {
-      <div class="distribution">
+      <div class="distribution" [class.compact]="compact()">
         <svg viewBox="0 0 200 200" role="img" aria-label="Distribuição dos grupos exibidos em relação à carteira inteira">
-          <circle cx="100" cy="100" r="72" fill="none" stroke="#e8eaed" stroke-width="26" />
+          <circle cx="100" cy="100" r="72" fill="none" stroke="var(--border)" stroke-width="26" />
           @for (slice of slices(); track slice.row.groupId) {
             <circle cx="100" cy="100" r="72" fill="none" [attr.stroke]="slice.color" stroke-width="26" pathLength="100" [attr.stroke-dasharray]="slice.size + ' ' + (100 - slice.size)" [attr.stroke-dashoffset]="-slice.offset" transform="rotate(-90 100 100)"><title>{{ slice.row.name }}: {{ slice.row.currentPercentage | percent:'1.2-2' }}</title></circle>
           }
           <text x="100" y="96" text-anchor="middle" class="center">{{ share() | percent:'1.1-1' }}</text>
           <text x="100" y="116" text-anchor="middle" class="caption">da carteira</text>
         </svg>
-        <ul>@for (slice of slices(); track slice.row.groupId) {
-          <li><span class="swatch" [style.background]="slice.color" aria-hidden="true"></span><div><strong>{{ slice.row.name }}</strong><small>{{ slice.row.currentValue | currency:currency():'code' }}</small></div><b>{{ slice.row.currentPercentage | percent:'1.2-2' }}</b></li>
+        <ul>@for (slice of legend(); track slice.row.groupId) {
+          <li><span class="swatch" [style.background]="slice.color" aria-hidden="true"></span><div><strong [title]="slice.row.name">{{ slice.row.name }}</strong>@if (!compact()) { <small>{{ slice.row.currentValue | currency:currency():'code' }}</small> }</div><b>{{ slice.row.currentPercentage | percent:'1.2-2' }}</b></li>
         }</ul>
       </div>
       @if (share() < 0.9999) { <p class="hint">A área cinza representa a participação não exibida pelos filtros. Os percentuais não são recalculados.</p> }
@@ -31,15 +31,23 @@ import { PrivateCurrencyPipe } from '../../core/value-privacy';
     li div { flex: 1; min-width: 0; overflow-wrap: anywhere; } small { display: block; color: var(--muted); margin-top: 5px; }
     .swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     @media(max-width: 600px) { .distribution { grid-template-columns: 1fr; gap: 8px; } }
+    .distribution.compact { grid-template-columns: minmax(100px,var(--dashboard-donut-size,160px)) minmax(0,1fr); gap: 16px; }
+    .compact svg { max-width: var(--dashboard-donut-size,160px); }
+    .compact ul { min-width: 0; }
+    .compact li { padding: 4px 0; font-size: 13px; }
+    .compact li strong { display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+    @media(max-width: 600px) { .distribution.compact { grid-template-columns: minmax(0,1fr); gap: 8px; } .compact svg { max-width: min(var(--dashboard-donut-size,140px),140px); } }
   `],
 })
 export class AllocationDonut {
   readonly rows = input.required<AllocationRow[]>();
   readonly currency = input.required<string>();
+  readonly compact = input(false);
+  readonly legend = computed(() => this.compact() ? this.slices().slice(0, 5) : this.slices());
   readonly share = computed(() => this.rows().reduce((sum, r) => sum + Number(r.currentPercentage ?? 0), 0));
   readonly valid = computed(() => this.rows().length > 0 && this.rows().every(r => r.currentPercentage !== null && Number(r.currentPercentage) >= 0) && this.share() > 0 && this.share() <= 1.0001);
   readonly slices = computed(() => {
-    const colors = ['#ac893c', '#536c86', '#c4a75d', '#766285', '#527a78', '#929ba8', '#67728b'];
+    const colors = Array.from({ length: 7 }, (_, i) => `var(--donut-${i})`);
     let offset = 0;
     return this.rows().map(row => {
       const size = Math.min(100 - offset, Number(row.currentPercentage ?? 0) * 100);

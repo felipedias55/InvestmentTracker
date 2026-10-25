@@ -102,7 +102,7 @@ describe('PortfolioPage', () => {
     expect(page.filteredPositions().map(p => p.ticker)).toEqual(['MSFT']);
     page.openQuotes(); fixture.detectChanges();
     const consult = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-      .find(button => button.textContent?.includes('Consultar cotações gratuitas'))!;
+      .find(button => button.textContent?.includes('Buscar cotações'))!;
     consult.click();
     const quotes = http.expectOne('/api/portfolios/1/quotes/preview');
     expect(quotes.request.body.positionIds).toEqual([5]);
@@ -173,6 +173,7 @@ describe('PortfolioPage', () => {
       ],
     });
     expect(fixture.nativeElement.textContent).toContain('Usando a última cotação armazenada');
+    fixture.componentInstance.detailsId.set(5); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('04/09/2026');
   });
   it('rejects negatives without sending a request and preserves state on conflict', () => {
@@ -218,5 +219,28 @@ describe('PortfolioPage', () => {
     const fixture = initialize();
     fixture.componentInstance.newPortfolio();
     expect(fixture.componentInstance.portfolioForm.controls.baseCurrencyId.value).toBe(1);
+  });
+  it('paginates after filtering and keeps batch scope and totals independent of the visible page', () => {
+    const positions = Array.from({ length: 32 }, (_, i) => ({ ...sample.positions[0], id: i + 1, ticker: `TEST${String(i).padStart(2,'0')}`, assetCategoryName: i < 30 ? 'Exterior' : 'Outros' }));
+    const fixture = initialize({ ...sample, positions }), page = fixture.componentInstance;
+    page.pageSize.set(25);
+    expect(page.pagedPositions()).toHaveLength(25);
+    page.pageIndex.set(1); fixture.detectChanges();
+    expect(page.pagedPositions()).toHaveLength(7);
+    expect(fixture.nativeElement.querySelectorAll('tr.position-card')).toHaveLength(7);
+    page.openQuotes();
+    expect(page.batchPositions()).toHaveLength(32);
+    expect(page.summary()?.currentValue).toBe(sample.currentValue);
+    page.batchPositions.set(null);
+    page.category.set('Exterior');
+    expect(page.effectivePage()).toBe(0);
+    expect(page.filteredPositions()).toHaveLength(30);
+    page.pageIndex.set(1);
+    page.select(1);
+    http.expectOne('/api/portfolios/1').flush({ ...sample, positions });
+    expect(page.effectivePage()).toBe(1);
+    page.summary.set({ ...sample, positions: positions.slice(0, 3) });
+    expect(page.effectivePage()).toBe(0);
+    expect(page.pagedPositions()).toHaveLength(3);
   });
 });

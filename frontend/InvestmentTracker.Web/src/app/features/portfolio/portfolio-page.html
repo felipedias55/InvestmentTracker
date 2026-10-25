@@ -1,8 +1,9 @@
 <header class="page-header">
   <p class="eyebrow">SEUS INVESTIMENTOS</p>
   <h1>Carteira</h1>
-  <p>Acompanhe suas posições na moeda original ou na moeda-base da carteira.</p>
+
 </header>
+<nav class="section-links" aria-label="Seções da Carteira"><a appSectionLink href="#portfolio-positions">Ir para posições e filtros</a></nav>
 @if (error()) {
   <div class="notice error" role="alert">{{ error() }}</div>
 }
@@ -11,48 +12,47 @@
 }
 <div class="portfolio-toolbar">
   @if (portfolios().length) {
-    <label for="portfolio-select"
-      >Carteira<select
+    <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Carteira</mat-label><select matNativeControl
         id="portfolio-select"
         #portfolioSelect
         [value]="selectedId()"
-        (change)="select(+portfolioSelect.value)"
+        (change)="select(+portfolioSelect.value); portfolioSelect.value = '' + selectedId()"
         [disabled]="saving() || loading()"
       >
         @for (p of portfolios(); track p.id) {
-          <option [value]="p.id">{{ p.name }} · {{ p.baseCurrencyCode }}</option>
+          <option [value]="p.id" [selected]="'' + (selectedId()) === '' + (p.id)">{{ p.name }} · {{ p.baseCurrencyCode }}</option>
         }
-      </select></label
-    >
+      </select></mat-form-field>
   }
-  <button (click)="newPortfolio()" [disabled]="saving() || loading()">Nova carteira</button>
-  <button (click)="load()" [disabled]="saving() || loading()">Recarregar dados</button>
-  <a routerLink="/external-assets">Patrimônio externo</a>
-  <a routerLink="/income">Registrar proventos</a>
-  <a routerLink="/history">Evolução e aportes realizados</a>
+  <button mat-stroked-button (click)="load()" [disabled]="saving() || loading()">Recarregar dados</button>
+  <button mat-stroked-button [matMenuTriggerFor]="portfolioActions">Mais ações <app-icon name="more" /></button>
+  <mat-menu #portfolioActions="matMenu">
+    <button mat-menu-item (click)="newPortfolio()" [disabled]="saving() || loading()">Nova carteira</button>
+    <button mat-menu-item (click)="editPortfolio()" [disabled]="saving() || !summary()">Editar carteira</button>
+    <a mat-menu-item routerLink="/external-assets">Patrimônio externo</a>
+    <a mat-menu-item routerLink="/income">Registrar proventos</a>
+    <a mat-menu-item routerLink="/history">Evolução e aportes realizados</a>
+  </mat-menu>
 </div>
 @if (showPortfolioForm()) {
   <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Carteira" (closed)="showPortfolioForm.set(false)"><section class="panel portfolio-editor">
     <h2>{{ editingPortfolio() === null ? 'Criar carteira' : 'Editar carteira' }}</h2>
-    <form [formGroup]="portfolioForm" (ngSubmit)="savePortfolio()">
+    <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="portfolioForm" (ngSubmit)="savePortfolio()">
       <fieldset [disabled]="saving()">
         <div class="form-grid">
           <div>
-            <label for="portfolio-name">Nome</label
-            ><input id="portfolio-name" formControlName="name" maxlength="100" />
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Nome</mat-label><input matInput id="portfolio-name" formControlName="name" maxlength="100" /></mat-form-field>
           </div>
           <div>
-            <label for="base-currency">Moeda-base</label
-            ><select id="base-currency" formControlName="baseCurrencyId">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Moeda-base</mat-label><select matNativeControl id="base-currency" formControlName="baseCurrencyId">
               <option [ngValue]="0">Selecione</option>
               @for (c of currencies(); track c.id) {
                 <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
               }
-            </select>
+            </select></mat-form-field>
           </div>
           <div>
-            <label for="description">Descrição (opcional)</label
-            ><input id="description" formControlName="description" maxlength="500" />
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Descrição (opcional)</mat-label><input matInput id="description" formControlName="description" maxlength="500" /></mat-form-field>
           </div>
         </div>
         @if (portfolioForm.touched && portfolioForm.invalid) {
@@ -65,10 +65,8 @@
           Alterar a moeda-base muda a conversão para exibição, sem modificar os valores originais.
         </p>
         <div class="actions">
-          <button class="primary" type="submit">Salvar carteira</button>
-          @if (portfolios().length) {
-            <button type="button" (click)="showPortfolioForm.set(false)">Cancelar</button>
-          }
+          <button data-discard  mat-stroked-button type="button" (click)="showPortfolioForm.set(false)">Cancelar</button>
+<button mat-flat-button class="primary" type="submit">{{ saving() ? 'Salvando…' : 'Salvar carteira' }}</button>
         </div>
       </fieldset>
     </form>
@@ -78,12 +76,6 @@
   <p class="empty" role="status">Carregando carteira e cotações…</p>
 }
 @if (summary(); as s) {
-  <div class="section-title">
-    <h2>
-      {{ s.portfolio.name }} <span class="badge">Base {{ s.portfolio.baseCurrencyCode }}</span>
-    </h2>
-    <button (click)="editPortfolio()" [disabled]="saving()">Editar carteira</button>
-  </div>
   @if (!s.conversionAvailable) {
     <div class="notice error" role="alert">
       Cotação indisponível para uma ou mais moedas. Os valores originais continuam disponíveis; o
@@ -128,13 +120,13 @@
     </section>
   </div>
   <div class="display-mode" role="group" aria-label="Moeda de exibição">
-    <button
+    <button mat-stroked-button
       [class.primary]="view() === 'base'"
       [attr.aria-pressed]="view() === 'base'"
       (click)="view.set('base')"
     >
       Moeda-base ({{ s.portfolio.baseCurrencyCode }})</button
-    ><button
+    ><button mat-stroked-button
       [class.primary]="view() === 'original'"
       [attr.aria-pressed]="view() === 'original'"
       (click)="view.set('original')"
@@ -160,19 +152,19 @@
       >
     </section>
   }
-  <section class="panel" style="margin: 20px 0"><h2>Vai comprar ou vender?</h2><p><a routerLink="/trades">Registrar compra ou venda →</a> atualiza a posição e registra o movimento automaticamente.</p><p class="hint">O formulário abaixo serve para saldo inicial, correção ou atualização de valores e proventos. Ele não representa uma compra ou venda.</p></section>
-  <div class="workspace">
-    <app-edit-panel [editing]="editingPosition() !== null" [busy]="saving()" [error]="error()" title="Ajustar posição" (closed)="cancelPosition()"><section class="panel editor">
+  <div class="portfolio-actions"><a mat-stroked-button routerLink="/trades">Registrar compra ou venda</a><button mat-stroked-button (click)="startPosition()" [disabled]="saving()"><app-icon name="plus" /> Cadastrar saldo inicial</button>
+    <details class="context-help"><summary>Como funciona</summary><p>Compras e vendas registram o movimento automaticamente. O ajuste de posição serve para saldo inicial ou correção de valores. Os totais representam a carteira inteira, independentemente da página ou dos filtros.</p><p>Câmbio de referência: Frankfurter. Os valores originais mantêm sua precisão; a conversão não inclui tarifas ou spread.</p></details>
+  </div>  <div class="portfolio-workspace">
+    @if (showPositionForm() || editingPosition() !== null) { <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Ajustar posição" (closed)="cancelPosition()"><section class="panel editor">
       <h2>{{ editingPosition() === null ? 'Cadastrar saldo inicial' : 'Ajustar posição' }}</h2>
-      <form [formGroup]="positionForm" (ngSubmit)="savePosition()">
+      <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="positionForm" (ngSubmit)="savePosition()">
         <fieldset [disabled]="saving()">
-          <label for="position-asset">Ativo</label
-          ><select id="position-asset" formControlName="assetId">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Ativo</mat-label><select matNativeControl id="position-asset" formControlName="assetId">
             <option [ngValue]="0">Selecione</option>
             @for (asset of availableAssets(); track asset.id) {
               <option [ngValue]="asset.id">{{ asset.ticker }} — {{ asset.name }}</option>
             }
-          </select>
+          </select></mat-form-field>
           @if (!assets().length) {
             <p><a routerLink="/assets">Cadastre um ativo</a> para adicionar uma posição.</p>
           }
@@ -180,34 +172,30 @@
             <strong>Entrada sempre em {{ originalCurrency() }}.</strong> Os valores abaixo são
             totais da posição, não preços por unidade.
           </p>
-          <label for="quantity">Quantidade</label
-          ><input
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Quantidade</mat-label><input matInput
             id="quantity"
             inputmode="decimal"
             formControlName="quantity"
             (blur)="formatInput('quantity')"
-          />
-          <label for="invested">Valor investido ({{ originalCurrency() }})</label
-          ><input
+          /></mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Valor investido ({{ originalCurrency() }})</mat-label><input matInput
             id="invested"
             inputmode="decimal"
             formControlName="investedAmount"
             (blur)="formatInput('investedAmount')"
-          />
-          <label for="current">Valor atual ({{ originalCurrency() }})</label
-          ><input
+          /></mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Valor atual ({{ originalCurrency() }})</mat-label><input matInput
             id="current"
             inputmode="decimal"
             formControlName="currentValue"
             (blur)="formatInput('currentValue')"
-          />
-          <label for="income">Proventos acumulados ({{ originalCurrency() }})</label>
-          <input
+          /></mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Proventos acumulados ({{ originalCurrency() }})</mat-label><input matInput
             id="income"
             inputmode="decimal"
             formControlName="income"
             (blur)="formatInput('income')"
-          />
+          /></mat-form-field>
           <p class="hint">
             Informe o total recebido nesta posição. Proventos são acompanhados separadamente e não
             são somados automaticamente ao patrimônio.
@@ -219,25 +207,22 @@
             </p>
           }
           <div class="actions">
-            <button class="primary" type="submit">Salvar posição</button>
-            @if (editingPosition() !== null) {
-              <button type="button" (click)="cancelPosition()">Cancelar</button>
-            }
+            <button data-discard  mat-stroked-button type="button" (click)="cancelPosition()">Cancelar</button>
+<button mat-flat-button class="primary" type="submit">{{ saving() ? 'Salvando…' : 'Salvar posição' }}</button>
           </div>
         </fieldset>
       </form>
-    </section></app-edit-panel>
+    </section></app-edit-panel> }
     <section class="panel list">
-      <h2>
+      <h2 id="portfolio-positions">
         Posições <span class="count">{{ s.positions.length }}</span>
       </h2>
       @if (pendingDelete(); as p) {
         <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar remoção" (closed)="pendingDelete.set(null)"><div class="confirmation" role="alert">
           <p>Remover a posição de {{ p.ticker }} desta carteira?</p>
           <div class="actions">
-            <button class="danger" (click)="remove()" [disabled]="saving()">
-              Confirmar remoção</button
-            ><button (click)="pendingDelete.set(null)" [disabled]="saving()">Cancelar</button>
+            <button mat-stroked-button (click)="pendingDelete.set(null)" [disabled]="saving()">Cancelar</button><button mat-stroked-button class="danger" (click)="remove()" [disabled]="saving()">
+              Confirmar remoção</button>
           </div>
         </div></app-edit-panel>
       }
@@ -245,28 +230,40 @@
         <p class="empty">Sua carteira ainda não possui posições. Adicione o primeiro ativo.</p>
       }
       <div class="position-filters">
-        <label for="position-search">Buscar ticker ou nome</label>
-        <input id="position-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" placeholder="Ex.: MSFT ou Microsoft" />
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Buscar ticker ou nome</mat-label><input matInput id="position-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" placeholder="Ex.: MSFT ou Microsoft" /></mat-form-field>
         <details>
           <summary>Filtros e ordenação</summary>
           <div class="form-grid">
-            <label for="position-category">Categoria<select id="position-category" [value]="category()" (change)="category.set($any($event.target).value)"><option value="">Todas</option>@for (c of categories(); track c) { <option [value]="c">{{ c }}</option> }</select></label>
-            <label for="position-sector">Setor<select id="position-sector" [value]="sector()" (change)="sector.set($any($event.target).value)"><option value="">Todos</option>@for (c of sectors(); track c) { <option [value]="c">{{ c }}</option> }</select></label>
-            <label for="position-currency">Moeda original<select id="position-currency" [value]="currency()" (change)="currency.set($any($event.target).value)"><option value="">Todas</option>@for (c of positionCurrencies(); track c) { <option [value]="c">{{ c }}</option> }</select></label>
-            <label for="position-before">Não atualizados desde<input id="position-before" type="date" [value]="updatedBefore()" (change)="updatedBefore.set($any($event.target).value)" /></label>
-            <label for="position-sort">Ordenar por<select id="position-sort" [value]="sort()" (change)="sort.set($any($event.target).value)"><option value="ticker">Ticker (A–Z)</option><option value="value">Maior valor na moeda-base</option><option value="oldest">Atualização mais antiga</option></select></label>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Categoria</mat-label><select matNativeControl id="position-category" [value]="category()" (change)="category.set($any($event.target).value)"><option value="">Todas</option>@for (c of categories(); track c) { <option [value]="c" [selected]="'' + (category()) === '' + (c)">{{ c }}</option> }</select></mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Setor</mat-label><select matNativeControl id="position-sector" [value]="sector()" (change)="sector.set($any($event.target).value)"><option value="">Todos</option>@for (c of sectors(); track c) { <option [value]="c" [selected]="'' + (sector()) === '' + (c)">{{ c }}</option> }</select></mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Moeda original</mat-label><select matNativeControl id="position-currency" [value]="currency()" (change)="currency.set($any($event.target).value)"><option value="">Todas</option>@for (c of positionCurrencies(); track c) { <option [value]="c" [selected]="'' + (currency()) === '' + (c)">{{ c }}</option> }</select></mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Não atualizados desde</mat-label><input matInput id="position-before" type="date" [value]="updatedBefore()" (change)="updatedBefore.set($any($event.target).value)" /></mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Ordenar por</mat-label><select matNativeControl id="position-sort" [value]="sort()" (change)="sort.set($any($event.target).value)"><option value="ticker">Ticker (A–Z)</option><option value="value">Maior valor na moeda-base</option><option value="oldest">Atualização mais antiga</option></select></mat-form-field>
           </div>
         </details>
         <p class="hint" role="status">{{ filteredPositions().length }} de {{ s.positions.length }} posições. Os totais acima representam a carteira inteira.</p>
         @if (query() || category() || sector() || currency() || updatedBefore()) {
           <p class="hint">Filtros ativos: {{ query() ? 'Busca: ' + query() + ' · ' : '' }}{{ category() }} {{ sector() }} {{ currency() }} {{ updatedBefore() ? 'Atualização anterior a ' + updatedBefore() + ' (inclui sem data)' : '' }}</p>
         }
-        <button (click)="clearFilters()">Limpar filtros</button>
-        <button class="primary" (click)="openQuotes()" [disabled]="loading() || saving() || !filteredPositions().length">Atualizar cotações em lote</button>
+        <button mat-stroked-button (click)="clearFilters()">Limpar filtros</button>
+        <button mat-flat-button class="primary" (click)="openQuotes()" [disabled]="loading() || saving() || !filteredPositions().length">Atualizar cotações dos {{ filteredPositions().length }} resultados filtrados</button>
         @if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
       </div>
-      @if (s.positions.length && !filteredPositions().length) { <p class="empty">Nenhuma posição corresponde aos filtros.</p> }
-      @for (p of filteredPositions(); track p.id) {
+      @if (s.positions.length && !filteredPositions().length) { <p class="empty">Nenhuma posição corresponde aos filtros. Use Limpar filtros para voltar a consultar a carteira inteira.</p> }
+      <div class="positions-table-scroll">
+      <table mat-table class="portfolio-table" [dataSource]="pagedPositions()" aria-label="Posições da carteira">
+        <ng-container matColumnDef="asset"><th mat-header-cell *matHeaderCellDef>Ativo</th><td mat-cell *matCellDef="let p" data-label="Ativo"><strong>{{ p.ticker }}</strong><small>{{ p.name }}</small>@if (lastSaved() === p.id) { <small role="status">Posição atualizada</small> }</td></ng-container>
+        <ng-container matColumnDef="category"><th mat-header-cell *matHeaderCellDef>Categoria</th><td mat-cell *matCellDef="let p" data-label="Categoria">{{ p.assetCategoryName || 'Não informada' }}</td></ng-container>
+        <ng-container matColumnDef="quantity"><th mat-header-cell *matHeaderCellDef>Quantidade</th><td mat-cell *matCellDef="let p" data-label="Quantidade" class="numeric">{{ formatNumber(p.quantity) }}</td></ng-container>
+        <ng-container matColumnDef="invested"><th mat-header-cell *matHeaderCellDef>Investido</th><td mat-cell *matCellDef="let p" data-label="Investido" class="numeric">{{ view() === 'original' ? (p.investedAmount | currency:p.currencyCode:'code':'1.2-2') : p.baseInvestedAmount === null ? 'Indisponível' : (p.baseInvestedAmount | currency:s.portfolio.baseCurrencyCode:'code':'1.2-2') }}</td></ng-container>
+        <ng-container matColumnDef="current"><th mat-header-cell *matHeaderCellDef>Valor atual</th><td mat-cell *matCellDef="let p" data-label="Valor atual" class="numeric">{{ view() === 'original' ? (p.currentValue | currency:p.currencyCode:'code':'1.2-2') : p.baseCurrentValue === null ? 'Indisponível' : (p.baseCurrentValue | currency:s.portfolio.baseCurrencyCode:'code':'1.2-2') }}@if (p.isFallback || p.isStale) { <small>Referência anterior</small> }</td></ng-container>
+        <ng-container matColumnDef="performance"><th mat-header-cell *matHeaderCellDef>Variação</th><td mat-cell *matCellDef="let p" data-label="Variação"><app-position-performance [performance]="p.pricePerformance" [currency]="p.currencyCode" [compact]="true" /></td></ng-container>
+        <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef>Ações</th><td mat-cell *matCellDef="let p" data-label="Ações"><button mat-icon-button [attr.aria-label]="'Detalhes de ' + p.ticker" (click)="detailsId.set(p.id)"><app-icon name="info" /></button><button mat-stroked-button [attr.aria-label]="'Editar ' + p.ticker" (click)="editPosition(p)" [disabled]="saving()"><app-icon name="edit" /> Editar</button></td></ng-container>
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns" class="position-card" [class.just-saved]="lastSaved() === row.id"></tr>
+      </table>
+      </div>
+      <app-list-paginator [length]="filteredPositions().length" [index]="effectivePage()" [size]="pageSize()" (changed)="pageIndex.set($event.pageIndex); pageSize.set($event.pageSize)" />      @if (detailsPosition(); as p) { <app-edit-panel [editing]="true" title="Detalhes da posição" (closed)="detailsId.set(null)">
         <article class="position-card" [class.just-saved]="lastSaved() === p.id">
           <div class="section-title">
             <div>
@@ -338,22 +335,19 @@
               }
             </p>
           }
-          <div class="row-actions">
-            <a routerLink="/trades" [queryParams]="{ assetId: p.assetId, kind: 'buy' }">Comprar</a>
-            <a routerLink="/trades" [queryParams]="{ assetId: p.assetId, kind: 'sell' }">Vender</a>
-            <button (click)="editPosition(p)" [disabled]="saving()">Editar {{ p.ticker }}</button
-            ><button class="text-danger" (click)="pendingDelete.set(p)" [disabled]="saving()">
-              Remover {{ p.ticker }}
+          <div class="position-context-actions">
+            <a mat-stroked-button routerLink="/trades" [queryParams]="{ portfolioId: s.portfolio.id, assetId: p.assetId, kind: 'buy' }">Comprar</a>
+            <a mat-stroked-button routerLink="/trades" [queryParams]="{ portfolioId: s.portfolio.id, assetId: p.assetId, kind: 'sell' }">Vender</a>
+            <a mat-stroked-button routerLink="/income" [queryParams]="{ portfolioId: s.portfolio.id, assetId: p.assetId }">Registrar recebimento</a>
+          </div><div class="position-record-actions">
+            <button mat-stroked-button (click)="editPosition(p)" [disabled]="saving()" [attr.aria-label]="'Editar ' + p.ticker"><app-icon name="edit" /> Editar</button
+            ><button mat-stroked-button class="text-danger" (click)="pendingDelete.set(p)" [disabled]="saving()" [attr.aria-label]="'Remover ' + p.ticker">
+              Remover
             </button>
           </div>
         </article>
-      }
-      <p class="hint">
-        Câmbio diário de referência:
-        <a href="https://frankfurter.dev/" target="_blank" rel="noopener noreferrer">Frankfurter</a
-        >. Valores exibidos com duas casas; os valores cadastrados mantêm sua precisão. Cotações não
-        incluem tarifas ou spread.
-      </p>
+      </app-edit-panel> }
+
     </section>
   </div>
 }

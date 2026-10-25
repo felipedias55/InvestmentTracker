@@ -9,9 +9,15 @@ namespace InvestmentTracker.Api.Controllers
     public sealed class HistoryController(IHistoryService service) : ControllerBase
     {
         [HttpGet]
-        public async Task<IActionResult> Get(int portfolioId, CancellationToken cancellationToken)
+        public async Task<IActionResult> Get(int portfolioId, CancellationToken cancellationToken, [FromQuery] bool includeCashFlows = true)
         {
-            var result = await service.GetAsync(portfolioId, cancellationToken);
+            var result = await service.GetAsync(portfolioId, cancellationToken, includeCashFlows);
+            return result is null ? NotFound() : Ok(result);
+        }
+        [HttpGet("cash-flows/page")]
+        public async Task<IActionResult> CashFlows(int portfolioId, [FromQuery] CashFlowPageQuery query, CancellationToken cancellationToken)
+        {
+            var result = await service.PageCashFlowsAsync(portfolioId, query, cancellationToken);
             return result is null ? NotFound() : Ok(result);
         }
         [HttpGet("snapshots/{id:int}")]

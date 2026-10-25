@@ -46,8 +46,8 @@ describe('App', () => {
     fixture.nativeElement.querySelector('.menu-toggle').click(); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.sidebar').hidden).toBe(true);
     expect(fixture.nativeElement.querySelector('.menu-toggle').getAttribute('aria-label')).toBe('Abrir menu');
-    expect(fixture.nativeElement.querySelector('.menu-toggle').textContent.trim()).toBe('☰');
-    expect(fixture.nativeElement.querySelector('a[href="/assets"] span')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.menu-toggle app-icon')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('a[href="/dashboard"] app-icon').getAttribute('name')).toBe('home');
   });
 
 });

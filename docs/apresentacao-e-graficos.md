@@ -61,3 +61,35 @@ O comparativo recolhível de proventos mostra o período civil imediatamente ant
 Movimentações recentes integra a grade e começa recolhido, inclusive na migração de preferências antigas. Ao expandir, consulta os cinco registros mais recentes por data da operação, com desempate pelo instante de criação e ID. A lista preserva identificação de estorno e substituição; ajustes administrativos não aparecem como entradas de dinheiro. A consulta atual usa o endpoint existente de listagem e seleciona cinco na interface; paginação no servidor pode ser considerada se o histórico crescer muito. Recolher cancela consulta pendente e reabrir consulta novamente.
 
 Validação automatizada: resumo parcial, virada de mês/ano, moeda incompatível, fotografia desatualizada, conversões pendentes, denominador nulo/zero, valores negativos, precisão decimal, privacidade, movimentações recentes e organização em desktop/celular com dados fictícios. Não houve alteração de dados financeiros ou migration.
+
+## Controles de organização — 23/10/2026
+
+Organizar dashboard abre uma faixa própria em cada gráfico, com posição na ordem, alça, Subir, Descer e Tamanho. Formato e Recolher/Expandir continuam junto ao título. As setas seguem a ordem de leitura salva, mesmo quando a grade combina larguras diferentes; não representam troca de células. No celular, use as setas, com tamanho na linha seguinte.
+
+Ao mover, o gráfico anuncia a nova posição e mantém o foco no seu controle; ao atingir uma extremidade, o foco passa para a outra seta habilitada. A prévia do arraste contém o título; o destino tem contorno e texto Soltar aqui. Esc cancela sem alterar a ordem. Preferências anteriores por carteira e Restaurar organização padrão mantêm o mesmo formato e comportamento. As alturas aumentam temporariamente no modo de organização para acomodar seus controles.
+
+Validação e limites, incluindo a conferência visual ainda pendente da imagem nativa de arraste no sistema operacional, estão no [registro do marco 6](plano-usabilidade-e-navegacao.md#registro-do-marco-6--23102026).
+
+## Distribuições compactas — 23/10/2026
+
+No Dashboard, categorias, setores e países apresentam até cinco itens na legenda/lista de barras. As roscas mantêm todas as fatias dos filtros atuais; o limite é apenas da legenda. Valores monetários deixam a legenda e as barras usam um marcador para a meta. Nomes completos, valores, metas e diferenças podem ser consultados em Ver detalhes, num painel separado, com todos os grupos filtrados e a mesma privacidade dos valores. Esc fecha e devolve o foco.
+
+Filtros não mudam o denominador da carteira. O formato escolhido e as preferências de organização foram preservados. O simulador e os detalhes históricos mantêm suas tabelas anteriores. Alturas gerais da grade e os outros blocos serão tratados nas próximas etapas do [refinamento do Dashboard](refinamento-dashboard.md).
+
+## Evolução resumida no Dashboard — 25/10/2026
+
+O cartão de Evolução patrimonial mantém os filtros, a linha e os avisos de revisão. Use Ver detalhes da evolução para selecionar um fechamento e consultar intervalo, aportes líquidos, valorização/outros efeitos, Dietz, XIRR, notas e tabela dos períodos. O painel fecha por Esc ou Fechar detalhes e devolve o foco. Histórico completo leva à tela de Evolução com os métodos de cálculo existentes.
+
+Essa separação reduz o conteúdo vertical do cartão; lacunas e comparações inválidas continuam explícitas. Os valores não foram recalculados, e os demais gráficos mantêm suas tabelas de apoio anteriores. Alturas da grade e limitação de períodos continuam em etapas próprias do [refinamento](refinamento-dashboard.md).
+
+## Destaques visuais e janela de proventos — 25/10/2026
+
+Destaques dos ativos resume três altas e três quedas sobre o preço médio, com barras na mesma escala e percentuais com sinal. Ver ranking completo reúne todos os ativos elegíveis e suas cotações unitárias na moeda original. A variação não representa retorno com proventos nem desempenho mensal.
+
+Proventos permite selecionar uma moeda original ou equivalentes na moeda-base, mostrando um gráfico por vez. A janela inicial tem cinco períodos com registros; Anteriores/Seguintes percorrem o histórico e a opção de 12 períodos amplia a janela. Ver detalhes dos proventos oferece a tabela completa da moeda, filtro de ano e frequência mensal/anual. Períodos ausentes não viram zero e pendências fora da janela continuam avisadas. Detalhes ficam fora dos cartões e preservam privacidade e foco. Ver [refinamento do Dashboard](refinamento-dashboard.md).
+
+## Alturas naturais e movimentações recentes — 25/10/2026
+
+A grade do Dashboard acompanha a altura do conteúdo e preserva a ordem de leitura, sem rolagem vertical interna nos cartões. Compacto reduz espaços e gráficos, Médio mantém o tamanho regular e Amplo ocupa toda a largura no desktop. Os gráficos temporais acompanham a largura disponível. Recolhimento e escolhas salvas por carteira continuam preservados; no celular, a grade tem uma coluna. Linhas com dois cartões de alturas diferentes ainda podem deixar espaço abaixo do menor.
+
+Movimentações recentes mantém cinco registros com tipo, data, nome abreviado, valor quando aplicável e vínculos de estorno/substituição. Selecione um registro para consultar descrição, nomes e efeitos completos no painel separado, com privacidade e retorno de foco. Para auditoria atualizada e ações, use Movimentações. Rolagem horizontal de séries extensas e tabelas completas continua disponível. Ver [refinamento do Dashboard](refinamento-dashboard.md).

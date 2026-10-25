@@ -5,32 +5,52 @@
 <app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
 @if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
 @if (loading()) { <p role="status">Carregando carteira…</p> }
-@if (portfolioId() && !loading()) { <button [disabled]="saving()" (click)="select(portfolioId()!)">Atualizar carteira e limpar simulação</button> }
+@if (portfolioId() && !loading()) { <button mat-stroked-button [disabled]="saving()" (click)="select(portfolioId()!)">Atualizar carteira e limpar simulação</button> }
 @if (dashboard(); as d) {
+  <nav class="section-links" aria-label="Seções do Simulador"><a appSectionLink href="#simulation-input">Aporte</a>@if (plan()) { <a appSectionLink href="#simulation-plan">Plano</a> }<a appSectionLink href="#simulation-comparison">Comparações</a></nav>
   <app-strategy-editor [portfolioId]="portfolioId()!" [categories]="d.allocation.categories" [currency]="d.summary.portfolio.baseCurrencyCode" (changed)="strategyChanged($event)" />
   <form class="panel simulation-form" [formGroup]="form" (ngSubmit)="simulate()">
-    <fieldset [disabled]="saving()">
-      <label for="contribution-amount">Aporte em {{ d.summary.portfolio.baseCurrencyCode }}</label>
-      <input id="contribution-amount" formControlName="amount" inputmode="decimal" (blur)="formatAmount()" />
+    <h2 id="simulation-input">Configurar aporte</h2><fieldset [disabled]="saving()">
+      <mat-form-field appearance="outline"><mat-label>Aporte em {{ d.summary.portfolio.baseCurrencyCode }}</mat-label>
+      <input matInput id="contribution-amount" formControlName="amount" inputmode="decimal" (blur)="formatAmount()" /></mat-form-field>
       @if (form.touched && form.invalid) { <p class="field-error">Informe um valor não negativo, com vírgula nos decimais e até duas casas.</p> }
       @if (!d.summary.conversionAvailable) { <p class="notice error">Câmbio indisponível. Atualize as cotações na carteira antes de simular.</p> }
       @if (!d.allocation.categoryTargetsConfigured || !d.allocation.sectorTargetsConfigured) {
         <p>Configure as <a routerLink="/allocation">metas</a> de {{ !d.allocation.categoryTargetsConfigured ? 'categoria' : '' }} {{ !d.allocation.sectorTargetsConfigured ? 'setor' : '' }} para completar a análise conjunta.</p>
       }
-      <div class="actions"><button class="primary" type="submit" [disabled]="!d.summary.conversionAvailable || !strategyValid() || (!strategy() && !d.allocation.categoryTargetsConfigured && !d.allocation.sectorTargetsConfigured)">{{ saving() ? 'Calculando…' : 'Simular aporte' }}</button></div>
+      <div class="actions"><button mat-flat-button class="primary" type="submit" [disabled]="!d.summary.conversionAvailable || !strategyValid() || (!strategy() && !d.allocation.categoryTargetsConfigured && !d.allocation.sectorTargetsConfigured)">{{ saving() ? 'Calculando…' : 'Simular aporte' }}</button></div>
     </fieldset>
   </form>
-  <p class="hint">Marcar como investido serve apenas para sua conferência. Nada é salvo; as marcas são limpas ao alterar o aporte, simular novamente, atualizar ou sair da página.</p>
+  <details class="simulation-help"><summary>Como usar as marcações temporárias</summary><p class="hint">Marcar como investido serve apenas para sua conferência. Nada é salvo; as marcas são limpas ao alterar o aporte, simular novamente, atualizar ou sair da página.</p></details>
   @if (strategyNotes().length) {
     <section class="panel"><h2>Como sua estratégia foi aplicada</h2>
     <p>Base elegível do restante: {{ eligibleBase() | currency:d.summary.portfolio.baseCurrencyCode:'code' }}. Os gráficos abaixo continuam mostrando a carteira completa.</p>
     @for (note of strategyNotes(); track $index) { <p class="hint">{{ note }}</p> }
     <p class="hint">As análises de metas abaixo referem-se somente ao restante após as reservas, com percentuais recalculados sobre a base elegível.</p></section>
   }
-  @if (analyses().length) {
-    <p>As duas análises representam o <strong>{{ strategy() ? 'mesmo restante do aporte' : 'mesmo aporte' }}</strong>. Não some seus valores. O plano abaixo reúne a distribuição sem duplicar o aporte.</p>
+  @if (plan(); as p) {
+    <section class="panel joint-plan">
+      <h2 id="simulation-plan">{{ strategy() ? 'Plano da estratégia' : 'Plano conjunto · setor e categoria' }}</h2>
+      <details><summary>Como o plano é escolhido</summary><p>Uma distribuição possível dos valores sugeridos, limitada às combinações das posições com quantidade positiva. Não é uma escolha de ativos nem garante atingir todas as metas. Se houver mais de uma solução, usamos a ordem dos cadastros para desempatar.</p></details>
+      @if (number(p.unallocated) > 0) { <p class="notice">Valor não distribuído: <strong>{{ p.unallocated | currency:d.summary.portfolio.baseCurrencyCode:'code':'1.2-2' }}</strong>. {{ strategy() ? 'Este valor ficou reservado ou não encontrou distribuição compatível com as regras e combinações da carteira.' : 'As metas ou as combinações existentes não permitem distribuir todo o aporte.' }}</p> }
+      @for (row of p.rows; track row.key) {
+        <article class="suggestion" [class.completed]="checked().has('joint:' + row.key)">
+          <mat-checkbox class="check" [checked]="checked().has('joint:' + row.key)" (change)="toggle('joint:' + row.key)">{{ row.sector }} → {{ row.category }} · investido</mat-checkbox>
+          <strong>{{ row.amount | currency:d.summary.portfolio.baseCurrencyCode:'code':'1.2-2' }}</strong>
+          @for (quote of row.currencies; track quote.currency) {
+            <p>Na moeda do ativo: {{ quote.amount === null ? quote.currency + ' — câmbio indisponível' : (quote.amount | currency:quote.currency:'code':'1.2-2') }}
+              @if (quote.currency !== d.summary.portfolio.baseCurrencyCode) { · {{ quote.dates || 'Data indisponível' }} {{ quote.stale ? '· Cotação anterior' : '' }} }
+            </p>
+          }
+          @if (row.currencies.length > 1) { <p class="hint">Moedas alternativas para o mesmo valor. Escolha a moeda do ativo; não some os equivalentes.</p> }
+        </article>
+      } @empty { <p>Nenhuma combinação disponível para este aporte.</p> }
+    </section>
   }
-  <div class="comparison">
+  @if (analyses().length) {
+    <p>As duas análises representam o <strong>{{ strategy() ? 'mesmo restante do aporte' : 'mesmo aporte' }}</strong>. Não some seus valores. O plano conjunto reúne a distribuição sem duplicar o aporte.</p>
+  }
+  <h2 id="simulation-comparison">Comparações da carteira inteira</h2><div class="comparison">
     @for (dimension of ['category', 'sector']; track dimension) {
       <section class="panel">
         <h2>{{ dimension === 'category' ? 'Categorias' : 'Setores' }}</h2>
@@ -42,7 +62,7 @@
             @if (number(r.unallocatedAmount) > 0) { <p>Valor sem distribuição: <strong>{{ r.unallocatedAmount | currency:r.currencyCode:'code':'1.2-2' }}</strong></p> }
             @for (row of r.rows; track row.groupId) {
               <article class="suggestion" [class.completed]="checked().has(r.dimension + ':' + row.groupId)">
-                <label class="check"><input type="checkbox" [checked]="checked().has(r.dimension + ':' + row.groupId)" (change)="toggle(r.dimension + ':' + row.groupId)" />{{ row.name }} · investido</label>
+                <mat-checkbox class="check" [checked]="checked().has(r.dimension + ':' + row.groupId)" (change)="toggle(r.dimension + ':' + row.groupId)">{{ row.name }} · investido</mat-checkbox>
                 <p>Atual {{ row.currentPercentage | percent:'1.2-2' }} · Meta {{ row.targetPercentage | percent:'1.2-2' }}</p>
                 <strong>{{ row.suggestedContribution | currency:r.currencyCode:'code':'1.2-2' }}</strong>
                 @for (quote of row.currencies || []; track quote.currency) {
@@ -57,24 +77,5 @@
       </section>
     }
   </div>
-  @if (plan(); as p) {
-    <section class="panel joint-plan">
-      <h2>{{ strategy() ? 'Plano da estratégia' : 'Plano conjunto · setor e categoria' }}</h2>
-      <p>Uma distribuição possível dos valores sugeridos, limitada às combinações das posições com quantidade positiva. Não é uma escolha de ativos nem garante atingir todas as metas. Se houver mais de uma solução, usamos a ordem dos cadastros para desempatar.</p>
-      @if (number(p.unallocated) > 0) { <p class="notice">Valor não distribuído: <strong>{{ p.unallocated | currency:d.summary.portfolio.baseCurrencyCode:'code':'1.2-2' }}</strong>. {{ strategy() ? 'Este valor ficou reservado ou não encontrou distribuição compatível com as regras e combinações da carteira.' : 'As metas ou as combinações existentes não permitem distribuir todo o aporte.' }}</p> }
-      @for (row of p.rows; track row.key) {
-        <article class="suggestion" [class.completed]="checked().has('joint:' + row.key)">
-          <label class="check"><input type="checkbox" [checked]="checked().has('joint:' + row.key)" (change)="toggle('joint:' + row.key)" />{{ row.sector }} → {{ row.category }} · investido</label>
-          <strong>{{ row.amount | currency:d.summary.portfolio.baseCurrencyCode:'code':'1.2-2' }}</strong>
-          @for (quote of row.currencies; track quote.currency) {
-            <p>Na moeda do ativo: {{ quote.amount === null ? quote.currency + ' — câmbio indisponível' : (quote.amount | currency:quote.currency:'code':'1.2-2') }}
-              @if (quote.currency !== d.summary.portfolio.baseCurrencyCode) { · {{ quote.dates || 'Data indisponível' }} {{ quote.stale ? '· Cotação anterior' : '' }} }
-            </p>
-          }
-          @if (row.currencies.length > 1) { <p class="hint">Moedas alternativas para o mesmo valor. Escolha a moeda do ativo; não some os equivalentes.</p> }
-        </article>
-      } @empty { <p>Nenhuma combinação disponível para este aporte.</p> }
-    </section>
-  }
-  <p class="hint">Peso ajustado = diferença positiva entre meta e atual. Cada análise distribui o aporte proporcionalmente aos pesos. Conversões são estimativas arredondadas a centavos, sem taxas de compra ou câmbio. Para registrar os investimentos, use <a routerLink="/trades">Compras e vendas</a>.</p>
+  <details class="simulation-help"><summary>Cálculo, conversões e registro dos investimentos</summary><p class="hint">Peso ajustado = diferença positiva entre meta e atual. Cada análise distribui o aporte proporcionalmente aos pesos. Conversões são estimativas arredondadas a centavos, sem taxas de compra ou câmbio. Para registrar os investimentos, use <a routerLink="/trades">Compras e vendas</a>.</p></details>
 }

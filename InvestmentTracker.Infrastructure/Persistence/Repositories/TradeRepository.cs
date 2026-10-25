@@ -9,6 +9,26 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
 {
     public sealed class TradeRepository(InvestmentTrackerDbContext db) : ITradeRepository
     {
+        public async Task<TradePageDto> PageAsync(int portfolioId, TradePageQuery query, CancellationToken ct)
+        {
+            var filtered = db.Set<PortfolioTrade>().AsNoTracking().Where(x => x.PortfolioId == portfolioId);
+            if (!string.IsNullOrEmpty(query.Search)) filtered = filtered.Where(x => x.Ticker.Contains(query.Search));
+            if (!string.IsNullOrEmpty(query.Kind)) filtered = filtered.Where(x => x.Kind == query.Kind);
+            if (query.From.HasValue) filtered = filtered.Where(x => x.Date >= query.From.Value);
+            if (query.To.HasValue) filtered = filtered.Where(x => x.Date <= query.To.Value);
+            var total = await filtered.CountAsync(ct);
+            var page = Math.Min(query.PageIndex, Math.Max(0, (total - 1) / query.PageSize));
+            var movements = db.Set<FinancialMovement>().Where(x => x.PortfolioId == portfolioId);
+            var items = await filtered.OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
+                .Skip(page * query.PageSize).Take(query.PageSize)
+                .Select(x => new TradeHistoryItemDto(new TradeDto(x.Id, x.Date, x.Kind, x.Ticker, x.CurrencyCode,
+                    x.Quantity, x.UnitPrice, x.Amount, x.CashAssetName, x.Fees),
+                    movements.Where(m => m.TradeId == x.Id && m.ReversalOfId == null).Select(m => (int?)m.Id).FirstOrDefault(),
+                    movements.Where(r => movements.Any(m => m.TradeId == x.Id && m.ReversalOfId == null && r.ReversalOfId == m.Id))
+                        .Select(r => (int?)r.Id).FirstOrDefault()))
+                .ToListAsync(ct);
+            return new TradePageDto(items, total, page, query.PageSize);
+        }
         public async Task<IReadOnlyList<PortfolioTrade>> ListAsync(int portfolioId, CancellationToken ct)
             => await db.Set<PortfolioTrade>().AsNoTracking().Where(x => x.PortfolioId == portfolioId)
                 .OrderByDescending(x => x.Date).ThenByDescending(x => x.Id).ToListAsync(ct);

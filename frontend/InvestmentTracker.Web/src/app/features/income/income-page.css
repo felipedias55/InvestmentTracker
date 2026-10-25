@@ -1,0 +1,8 @@
+.income-filters, .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.income-filters mat-form-field, .toolbar > div { flex: 1 1 170px; min-width: 0; }
+mat-form-field { width: 100%; }
+.income-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 8px 20px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.income-row p { margin: 4px 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.income-details { grid-column: 1 / -1; }
+button[aria-pressed="true"] { background: var(--selected, #e8f0fb); }
+@media (max-width: 800px) { .income-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .income-row > div:first-child { grid-column: 1 / -1; } .income-row > button { grid-column: 1 / -1; justify-self: start; } }

@@ -1,0 +1,9 @@
+.trade-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.trade-filters mat-form-field { flex: 1 1 150px; min-width: 0; }
+mat-form-field { width: 100%; }
+.trade-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px 24px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.trade-row p { margin: 4px 0; overflow-wrap: anywhere; }
+.trade-value { text-align: right; font-variant-numeric: tabular-nums; }
+.trade-status { font-size: .85rem; color: var(--muted); }
+.trade-details[open] { grid-column: 1 / -1; }
+@media (max-width: 700px) { .trade-row { grid-template-columns: minmax(0, 1fr) auto; } .trade-row > div:first-child { grid-column: 1 / -1; } .trade-details { grid-column: 1 / -1; } }

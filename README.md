@@ -4,7 +4,7 @@ O **Investment Tracker** é uma aplicação web para acompanhar uma carteira pes
 
 Criado a partir de uma planilha, o projeto evoluiu para uma aplicação full stack com cálculos financeiros no backend, persistência relacional e interface responsiva. O foco atual é o uso local/privado: o núcleo do MVP já está em uso e as entregas seguintes ampliam análise, automação e usabilidade. Ainda não há autenticação ou preparação completa para publicação pública.
 
-Documentação revisada em **15/10/2026**.
+Documentação revisada em **23/10/2026**.
 
 ## Stack e arquitetura
 
@@ -13,7 +13,7 @@ Documentação revisada em **15/10/2026**.
 | Backend | C# 14 / .NET 10, ASP.NET Core Web API com controllers, injeção de dependência e tratamento de erros com Problem Details |
 | Persistência | Entity Framework Core 10, SQL Server e migrations; LocalDB como opção de desenvolvimento no Windows |
 | Frontend | Angular 22, TypeScript 6, componentes standalone, Signals, RxJS 7.8 e Reactive Forms |
-| Interface | HTML/CSS, gráficos próprios, layout responsivo, formatação brasileira, moeda original/base e ocultação de valores |
+| Interface | Angular Material/CDK 22 na navegação e telas, incluindo Dashboard, Carteira, Movimentações/correções, Compras/vendas/eventos, Proventos, Evolução/fechamentos, Ativos/cadastros/patrimônio externo e Metas/estratégias/simulador; tema azul próprio, gráficos próprios, layout responsivo, formatação brasileira, moeda original/base e ocultação de valores. |
 | Integrações | Frankfurter v2 para câmbio; brapi para cotações brasileiras; Alpha Vantage para fechamento de ativos dos EUA |
 | Testes .NET | xUnit, Moq, ASP.NET Core MVC Testing e Coverlet; integração com SQL Server em bancos temporários |
 | Testes web | Vitest e jsdom; Playwright para fluxos E2E e apresentação em desktop/celular emulado |
@@ -37,7 +37,7 @@ Abra InvestmentTracker.slnx no Visual Studio. A organização atual da solução
 
 - Cadastros: tipos, países, moedas, categorias, setores e ativos; referências em uso são protegidas.
 - Carteiras com moeda-base própria, posições e patrimônio externo; valores originais ou convertidos, no padrão brasileiro.
-- Dashboard com distribuições, metas, filtros e gráficos recolhíveis/reordenáveis; interface responsiva com identidade dourada/prateada e controle de privacidade dos valores.
+- Dashboard com distribuições, metas, filtros e gráficos recolhíveis/reordenáveis; interface responsiva com controles Material, destaques em azul discreto, logo original, temas claro/escuro/sistema e controle de privacidade dos valores.
 - Estratégias com modelos de metas, aportes regulares, buy and hold, renda, núcleo/complementos, faixas, imobiliário fixo e personalizada; reservas, exclusões da base do restante e configurações versionadas por carteira.
 - Metas por categoria e setor somando 100%; simulador lado a lado com gráficos, combinação de setor/categoria já presente na carteira, valores na moeda correspondente e marcações visuais de itens já atendidos. O cálculo ocorre no backend e a simulação não altera saldos.
 - Compras/vendas com taxas, reinvestimento, proventos e movimentos de dinheiro, com atualização automática dos saldos.
@@ -100,13 +100,31 @@ A migration `IncomeHistoricalConversions` cria `IncomeConversion` e os campos de
 
 **Instalação vazia:** cadastre os ativos e informe as posições e saldos iniciais que já possui. Configure metas. Confira o Dashboard e registre a primeira fotografia. Não registre compras antigas que já estejam incluídas no saldo inicial.
 
+A tela de Movimentações oferece paginação na API, busca e filtros por tipo, status e período. Use **Ver detalhes** para consultar a auditoria, estornar ou corrigir um lançamento. **Movimentar saldo** abre o formulário de depósito, retirada, transferência ou ajuste, sem ocupar permanentemente o histórico.
+
+Compras e vendas também possui histórico paginado, filtros por ativo/tipo/período e indicação de estornos. Os botões **Registrar compra**, **Registrar venda** e **Registrar evento societário** abrem os formulários sob demanda. Preço unitário, taxas e origem/destino ficam disponíveis em **Ver detalhes**.
+
+Proventos separa **Recebimentos** de **Análises**, com filtros independentes. O histórico é paginado e permite localizar conversões pendentes na moeda-base atual. Registro e revisão do câmbio abrem sob demanda; a análise mantém os totais históricos completos, independentemente da página consultada.
+
+Evolução e fechamentos separa **Evolução**, **Fotografias** e **Aportes/retiradas**. Fotografias têm lista mensal paginada e detalhes com versões anteriores em painel; fechar/reabrir períodos exige confirmação. Aportes e retiradas usam paginação na API e filtros de ano/tipo. Os gráficos e métricas consideram o histórico completo, independentemente da página da lista. Registros históricos antigos não alteram saldos.
+
+Ativos e cadastros auxiliares têm busca, paginação e formulários Material sob demanda. Ativos podem ser filtrados por categoria/setor. Patrimônio externo inclui busca e filtro de moeda, mantendo o total integral da carteira; ajustes de saldo continuam auditáveis em Movimentações. A paginação dessas listas é local, sem limitar os totais nem as opções de referência.
+
+Metas e regras de estratégia têm busca e paginação sem limitar o conjunto salvo ou seus totais. A configuração da estratégia abre em painel; o simulador destaca primeiro o plano conjunto e mantém gráficos por categoria/setor lado a lado no desktop. Marcações de investido são temporárias e não registram operações.
+
 **Rotina:** use Compras e vendas para novas operações; Proventos para recebimentos; Movimentações para depósitos, retiradas, transferências, ajustes e estornos. Uma compra com dinheiro novo gera aporte; reinvestir saldo existente não gera outro aporte. Atualize os preços e registre/atualize a fotografia do mês.
 
 A edição manual das posições atende a saldos iniciais, ajustes e atualização de valores. Ela não substitui o registro de novas compras/vendas. A edição de patrimônio externo altera nome/descrição; mudanças de saldo usam Movimentações.
 
+Filtros, ordenação, página e rolagem das consultas são recuperados ao navegar na mesma sessão, separados por tela e carteira. Recarregar a página reinicia esse contexto. Comprar/Vender/Registrar recebimento nos detalhes de uma posição leva a carteira e o ativo; **Voltar à Carteira** recupera a consulta anterior. Trocar de carteira usa o contexto da carteira de destino.
+
+Formulários alterados pedem confirmação ao cancelar, fechar ou sair; recusar mantém os campos. Durante processamento, a saída é bloqueada. Formulários intocados e alterações apenas visuais não pedem confirmação. Rascunhos financeiros não são recuperados após recarga. No simulador, resultados e marcas de investido são temporários e também desaparecem ao sair da tela.
+
+Em **Organizar dashboard**, cada gráfico oferece alça, **Subir**, **Descer** e tamanho em uma faixa própria. As setas seguem a ordem de leitura e funcionam no celular e por teclado; Esc cancela o arraste. Ordem, formato, tamanho e recolhimento ficam salvos por carteira neste navegador. **Restaurar organização padrão** reinicia essas preferências. A organização não altera valores financeiros. Veja o [registro de usabilidade e suas limitações de validação](docs/plano-usabilidade-e-navegacao.md).
+
 ## Atualização de cotações
 
-Na página **Carteira**, filtre as posições e use **Atualizar cotações em lote → Consultar cotações gratuitas → Revisar → Confirmar atualização do lote**. Só são consultados campos vazios de posições com quantidade positiva.
+Na página **Carteira**, filtre as posições e use **Atualizar cotações em lote → Buscar cotações → Revisar → Confirmar atualização do lote**. Só são consultados campos vazios de posições com quantidade positiva.
 
 - Brasil + BRL utiliza **brapi**; Estados Unidos + USD utiliza **Alpha Vantage**. Não são chamadas as duas APIs para cada ativo.
 - Brasil utiliza a cotação disponível com atraso; EUA utiliza fechamento diário. Não se trata de acompanhamento em tempo real.
@@ -141,10 +159,13 @@ No diretório do frontend:
 ```powershell
 npm test -- --watch=false
 npm run build
+npm run test:presentation
 npm run test:e2e
 ```
 
 O E2E usa Playwright, API real e banco temporário próprio, em desktop e celular emulado. Inclui carteira vazia, cadastros, operações, fechamentos, conversões auditáveis, metas e simulador. Veja [execução e diagnóstico](docs/testes-e2e.md).
+
+A suíte `test:presentation` intercepta os endpoints com dados fictícios e executa jornadas de interface em desktop/celular e temas claro/escuro. Não inicia API nem usa banco de dados. Inclui contexto após salvar, descarte de alterações, auditoria, retorno do simulador, privacidade e organização dos gráficos; emulação não substitui aparelho físico nem valida a imagem nativa de arraste do sistema operacional.
 
 ## Acesso pelo celular
 
@@ -182,6 +203,7 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - [Métricas de rentabilidade: Dietz e XIRR](docs/metricas-de-rentabilidade.md).
 - [Apresentação, gráficos e testes visuais](docs/apresentacao-e-graficos.md).
 - [Plano de migração da interface, padrões e modo escuro](docs/entregas-layout.md).
+- [Plano de usabilidade e navegação: inventário e padronização das ações](docs/plano-usabilidade-e-navegacao.md).
 - [Atualização manual de cotações em lote](docs/cotacoes-manuais-em-lote.md).
 - [Cotações automáticas: provedores gratuitos e configuração](docs/cotacoes-automaticas.md).
 - [Recebimentos e câmbio histórico](docs/recebimento-de-proventos.md).

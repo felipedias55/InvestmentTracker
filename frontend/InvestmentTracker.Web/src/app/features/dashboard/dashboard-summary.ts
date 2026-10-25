@@ -1,3 +1,6 @@
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { Component, computed, input, signal } from '@angular/core';
 import { DatePipe, PercentPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -28,14 +31,14 @@ export function incomeTotal(rows: IncomeTotal[] | undefined, period: string, cur
 }
 @Component({
   selector: 'app-dashboard-summary', standalone: true,
-  imports: [PrivateCurrencyPipe, DatePipe, PercentPipe, RouterLink],
+  imports: [MatButtonModule, MatFormFieldModule, MatInputModule, PrivateCurrencyPipe, DatePipe, PercentPipe, RouterLink],
   template: `
     <section class="panel period-summary" aria-label="Resumo por período">
       <div class="heading"><h2>Resumo por período</h2>
-        <label>Frequência<select [value]="mode()" (change)="mode.set($any($event.target).value); period.set('')"><option value="months">Mensal</option><option value="years">Anual</option></select></label>
-        <label>Período<select [value]="selectedPeriod()" (change)="period.set($any($event.target).value)">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Frequência</mat-label><select matNativeControl [value]="mode()" (change)="mode.set($any($event.target).value); period.set('')"><option value="months">Mensal</option><option value="years">Anual</option></select></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Período</mat-label><select matNativeControl [value]="selectedPeriod()" (change)="period.set($any($event.target).value)">
           @for (p of options(); track p) { <option [value]="p">{{ p }}</option> }
-        </select></label>
+        </select></mat-form-field>
       </div>
       @if (!history() && !historyError()) { <p role="status">Carregando resumo histórico…</p> }
       @if (historyError()) { <p class="notice error">{{ historyError() }} <a routerLink="/history">Consultar histórico →</a></p> }
@@ -60,12 +63,14 @@ export function incomeTotal(rows: IncomeTotal[] | undefined, period: string, cur
     </section>
   `,
   styles: [`
+    mat-form-field { min-width: 0; width: 100%; margin: 4px 0 12px; }
+    .heading mat-form-field { width: 150px; }
     .period-summary { margin: 16px 0; padding: 16px; }
     .heading { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
     h2 { flex: 1; font-size: 18px; margin: 0 0 10px; }
     label { font-size: 12px; } select { min-width: 100px; }
     .metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 12px 0; }
-    .metrics > div { background: #f5f6f8; padding: 12px; border-radius: 8px; font-size: 12px; }
+    .metrics > div { background: var(--surface-soft); padding: 12px; border-radius: 8px; font-size: 12px; }
     strong { display: block; margin: 8px 0; font-size: 18px; overflow-wrap: anywhere; }
     small { color: var(--muted); } summary { cursor: pointer; }
     @media(max-width: 1000px) { .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }

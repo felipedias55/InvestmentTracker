@@ -4,9 +4,10 @@
   <a routerLink="/history">Acompanhar evolução e aportes realizados →</a>
   <p>Acompanhe o patrimônio da carteira, sua distribuição e a distância até suas metas.</p>
 </header>
+<nav class="section-links" aria-label="Seções do Dashboard"><a appSectionLink href="#dashboard-analyses">Ir para análises e gráficos</a></nav>
 <app-portfolio-picker (selectedId)="select($event)" />
 @if (portfolioId()) {
-  <button (click)="load()" [disabled]="loading()">Atualizar dashboard</button>
+  <button mat-stroked-button (click)="load()" [disabled]="loading()">Recarregar dados</button>
 }
 @if (error()) {
   <p class="notice error" role="alert">{{ error() }}</p>
@@ -114,19 +115,19 @@
       Configure as <a routerLink="/allocation">metas de alocação</a> para completar a comparação.
     </p>
   }
-  <p>
+  <details class="reference-details"><summary>Como interpretar as metas</summary><p>
     Diferença positiva: abaixo da meta. Diferença negativa: acima da meta. Diferenças em pontos
     percentuais.
-  </p>
+  </p></details>
   <section class="panel dashboard-filters" aria-label="Filtros dos gráficos">
-    <div class="section-title"><h2>Análises da carteira</h2><button (click)="toggleOrganizing()" [attr.aria-pressed]="organizing()">{{ organizing() ? 'Concluir organização' : 'Organizar dashboard' }}</button></div>
-    @if (organizing()) { <p class="hint">Arraste pela alça ou use as setas para mover os gráficos. Escolha o tamanho de cada bloco. As preferências ficam salvas neste navegador por carteira.</p><button (click)="resetLayout()">Restaurar organização padrão</button> }
+    <div class="section-title"><h2 id="dashboard-analyses">Análises da carteira</h2><button mat-stroked-button (click)="toggleOrganizing()" [attr.aria-pressed]="organizing()">{{ organizing() ? 'Concluir organização' : 'Organizar dashboard' }}</button></div>
+    @if (organizing()) { <p id="dashboard-organization-help" class="hint">Arraste pela alça ou use as setas para mover os gráficos. Compacto reduz espaços e gráficos; Amplo ocupa a largura da grade. A altura acompanha o conteúdo. As setas seguem a ordem de leitura, não trocam células da grade. As preferências ficam salvas neste navegador por carteira.</p><button mat-stroked-button (click)="resetLayout()">Restaurar organização padrão</button> }
     <details><summary>Filtrar grupos {{ query() || status() !== 'all' || sort() !== 'value' ? '· filtros ativos' : '' }}</summary>
     <div class="filter-grid">
-      <div><label for="chart-search">Buscar grupo</label><input id="chart-search" type="search" placeholder="Categoria, setor ou país" [value]="query()" (input)="query.set($any($event.target).value)" /></div>
-      <div><label for="chart-status">Situação das metas</label><select id="chart-status" [value]="status()" (change)="status.set($any($event.target).value)"><option value="all">Todas</option><option value="below">Abaixo da meta</option><option value="above">Acima da meta</option><option value="missing">Sem meta configurada</option></select></div>
-      <div><label for="chart-sort">Ordenar grupos</label><select id="chart-sort" [value]="sort()" (change)="sort.set($any($event.target).value)"><option value="value">Maior valor primeiro</option><option value="name">Nome (A–Z)</option></select></div>
-      <button (click)="clearFilters()">Limpar filtros</button>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Buscar grupo</mat-label><input matInput id="chart-search" type="search" placeholder="Categoria, setor ou país" [value]="query()" (input)="query.set($any($event.target).value)" /></mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Situação das metas</mat-label><select matNativeControl id="chart-status" [value]="status()" (change)="status.set($any($event.target).value)"><option value="all">Todas</option><option value="below">Abaixo da meta</option><option value="above">Acima da meta</option><option value="missing">Sem meta configurada</option></select></mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Ordenar grupos</mat-label><select matNativeControl id="chart-sort" [value]="sort()" (change)="sort.set($any($event.target).value)"><option value="value">Maior valor primeiro</option><option value="name">Nome (A–Z)</option></select></mat-form-field>
+      <button mat-stroked-button (click)="clearFilters()">Limpar filtros</button>
     </div>
     <p class="hint">Os filtros alteram apenas os grupos exibidos. Totais e percentuais continuam referentes à carteira inteira. O filtro de metas se aplica a categorias e setores.</p>
     </details>
@@ -134,32 +135,36 @@
   <p class="sr-only" role="status">{{ announcement() }}</p>
   <div class="dashboard-grid" [class.organizing]="organizing()">
   @for (id of order(); track id; let first = $first; let last = $last) {
-    <section class="chart-card panel" [class.compact]="sizes()[id] === 'compact'" [class.wide]="sizes()[id] === 'wide'" [class.is-collapsed]="collapsed().includes(id)" [class.drop-target]="dropTarget() === id" [class.dragging]="dragged() === id" (dragover)="overChart($event, id)" (drop)="dropChart($event, id)">
+    <section class="chart-card panel" [attr.data-chart-id]="id" [attr.aria-labelledby]="'chart-title-' + id" [class.compact]="sizes()[id] === 'compact'" [class.wide]="sizes()[id] === 'wide'" [class.is-collapsed]="collapsed().includes(id)" [class.drop-target]="dropTarget() === id" [class.dragging]="dragged() === id" (dragover)="overChart($event, id)" (drop)="dropChart($event, id)">
+      @if (organizing()) {
+      <div class="chart-organization" role="group" [attr.aria-label]="'Organizar ' + titles[id]">
+        <span class="organization-position">Organização · {{ $index + 1 }} de {{ order().length }}</span>
+        <button mat-icon-button type="button" class="drag-handle" draggable="true" (dragstart)="startDrag($event, id)" (dragend)="endDrag()" [attr.aria-label]="'Arrastar ' + titles[id]" aria-describedby="dashboard-organization-help"><app-icon name="drag" /></button>
+        <button mat-stroked-button type="button" data-move="up" (click)="moveChart(id, -1)" [disabled]="first" [attr.aria-label]="'Mover ' + titles[id] + ' para cima'"><app-icon name="up" /> Subir</button>
+        <button mat-stroked-button type="button" data-move="down" (click)="moveChart(id, 1)" [disabled]="last" [attr.aria-label]="'Mover ' + titles[id] + ' para baixo'"><app-icon name="down" /> Descer</button>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Tamanho</mat-label><select matNativeControl [attr.aria-label]="'Tamanho de ' + titles[id]" [value]="sizes()[id]" (change)="setSize(id, $any($event.target).value)"><option value="compact">Compacto</option><option value="medium">Médio</option><option value="wide">Amplo</option></select></mat-form-field>
+      </div>
+      }
       <div class="section-title chart-heading">
-        @if (organizing()) { <button class="drag-handle" draggable="true" (dragstart)="startDrag($event, id)" (dragend)="endDrag()" [attr.aria-label]="'Arrastar ' + titles[id]" title="Arrastar gráfico">⠿</button> }
-        <h2>{{ titles[id] }}</h2>
+        <h2 [id]="'chart-title-' + id">{{ titles[id] }}</h2>
         <div class="chart-controls">
-          @if (isAllocation(id)) { <label [for]="'chart-type-' + id"><span class="sr-only">Formato de {{ titles[id] }}</span><select [id]="'chart-type-' + id" [value]="chartTypes()[id]" (change)="setChartType(id, $any($event.target).value)"><option value="donut">Distribuição · rosca</option><option value="bars">{{ id === 'countries' ? 'Comparar · barras' : 'Atual × meta · barras' }}</option></select></label> }
-          @if (organizing()) {
-          <label><span class="sr-only">Tamanho de {{ titles[id] }}</span><select [attr.aria-label]="'Tamanho de ' + titles[id]" [value]="sizes()[id]" (change)="setSize(id, $any($event.target).value)"><option value="compact">Compacto</option><option value="medium">Médio</option><option value="wide">Amplo</option></select></label>
-          <button (click)="moveChart(id, -1)" [disabled]="first" [attr.aria-label]="'Mover ' + titles[id] + ' para cima'">↑</button>
-          <button (click)="moveChart(id, 1)" [disabled]="last" [attr.aria-label]="'Mover ' + titles[id] + ' para baixo'">↓</button>
-          }
-          <button (click)="toggleChart(id)" [attr.aria-expanded]="!collapsed().includes(id)" [attr.aria-controls]="'chart-' + id">{{ collapsed().includes(id) ? 'Expandir' : 'Recolher' }}</button>
+          @if (isAllocation(id)) { <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Formato</mat-label><select matNativeControl [attr.aria-label]="'Formato de ' + titles[id]" [id]="'chart-type-' + id" [value]="chartTypes()[id]" (change)="setChartType(id, $any($event.target).value)"><option value="donut">Distribuição · rosca</option><option value="bars">{{ id === 'countries' ? 'Comparar · barras' : 'Atual × meta · barras' }}</option></select></mat-form-field> }
+
+          <button mat-stroked-button (click)="toggleChart(id)" [attr.aria-expanded]="!collapsed().includes(id)" [attr.aria-controls]="'chart-' + id">{{ collapsed().includes(id) ? 'Expandir' : 'Recolher' }}</button>
         </div>
       </div>
-      <div class="chart-body" tabindex="0" [attr.aria-label]="titles[id]" [id]="'chart-' + id" [hidden]="collapsed().includes(id)">
+      <div class="chart-body" [id]="'chart-' + id" [hidden]="collapsed().includes(id)">
         @if (isAllocation(id)) {
         <p class="hint" role="status">{{ filteredRows(id).length }} de {{ d.allocation[id].length }} grupos</p>
         @if (d.allocation[id].length && !filteredRows(id).length) {
           <p class="empty">Nenhum grupo corresponde aos filtros.</p>
         } @else {
-          <app-allocation-table [title]="titles[id]" [rows]="filteredRows(id)" [currency]="d.summary.portfolio.baseCurrencyCode" [showTargets]="id !== 'countries'" [visual]="true" [chartType]="chartTypes()[id]" />
+          <app-allocation-table class="dashboard-distribution" [compact]="true" [title]="titles[id]" [rows]="filteredRows(id)" [currency]="d.summary.portfolio.baseCurrencyCode" [showTargets]="id !== 'countries'" [visual]="true" [chartType]="chartTypes()[id]" />
         }
         } @else if (id === 'movements') {
           <app-dashboard-movements [portfolioId]="portfolioId()!" [active]="!collapsed().includes(id)" />
         } @else {
-          <app-dashboard-analysis (historyLoaded)="periodHistory.set($event)" (incomeLoaded)="periodIncome.set($event)" (loadFailed)="analysisError(id, $event)" [kind]="id" [portfolioId]="portfolioId()!" [currency]="d.summary.portfolio.baseCurrencyCode" [positions]="d.summary.positions" />
+          <app-dashboard-analysis [compact]="sizes()[id] === 'compact'" (historyLoaded)="periodHistory.set($event)" (incomeLoaded)="periodIncome.set($event)" (loadFailed)="analysisError(id, $event)" [kind]="id" [portfolioId]="portfolioId()!" [currency]="d.summary.portfolio.baseCurrencyCode" [positions]="d.summary.positions" />
         }
       </div>
     </section>

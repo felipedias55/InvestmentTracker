@@ -5,6 +5,8 @@ export default defineConfig({
   testDir: './e2e', testMatch: 'presentation.spec.ts', workers: 1,
   reporter: 'list', use: { baseURL: 'http://127.0.0.1:65455', screenshot: 'only-on-failure' },
   projects: [{ name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } } },
-    { name: 'celular', use: { ...devices['Pixel 7'] } }],
+    { name: 'celular', use: { ...devices['Pixel 7'] } },
+    { name: 'desktop-escuro', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 }, colorScheme: 'dark' } },
+    { name: 'celular-escuro', use: { ...devices['Pixel 7'], colorScheme: 'dark' } }],
   webServer: { command: 'npm run start -- --port=65455', url: 'http://127.0.0.1:65455', reuseExistingServer: false, timeout: 120000 },
 });

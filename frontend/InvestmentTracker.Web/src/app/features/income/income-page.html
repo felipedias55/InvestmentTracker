@@ -1,27 +1,34 @@
 <header class="page-header">
   <p class="eyebrow">RENDIMENTOS DA CARTEIRA</p><h1>Proventos</h1>
-  <p>Registre cada recebimento pelo valor líquido total. O acumulado do ativo será atualizado automaticamente.</p>
-  <a routerLink="/movements">Histórico unificado e estornos</a> · <a routerLink="/portfolio">Ver carteira</a> · <a routerLink="/history">Evolução da carteira</a>
+
+  <a mat-button routerLink="/movements">Histórico unificado e estornos</a> <a mat-button routerLink="/portfolio" [queryParams]="{ portfolioId: id() }">Voltar à Carteira</a> <a mat-button routerLink="/history">Evolução da carteira</a>
 </header>
 <app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
-@if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (error() && !formOpen() && !pendingConversion()) { <p class="notice error" role="alert">{{ error() }}</p> }
 @if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
 @if (loading()) { <p role="status">Carregando recebimentos…</p> }
-@if (id()) { <button [disabled]="loading() || saving()" (click)="load()">Atualizar recebimentos</button> }
+@if (id()) { <button mat-button [disabled]="loading() || saving()" (click)="load()">Recarregar dados</button> }
 @if (summary(); as s) {
-  <section class="panel section-gap"><h2>Total de proventos acumulados</h2>
+  <section class="panel section-gap"><h2>Total de proventos acumulados</h2><p class="scope-note">Carteira inteira · independente dos filtros e da paginação do histórico.</p>
     <strong class="metric-value">{{ s.totalIncome === null ? 'Conversão indisponível' : (s.totalIncome | currency: s.portfolio.baseCurrencyCode : 'code' : '1.2-2') }}</strong>
     <details><summary>O que está incluído neste total?</summary><p>Inclui o saldo inicial informado na carteira e os novos recebimentos, convertidos pelo câmbio atual. A análise abaixo usa os equivalentes históricos de cada recebimento e pode apresentar outro total. Valores antigos não são transformados em recebimentos fictícios.</p></details>
   </section>
+  <div class="actions section-gap"><button mat-flat-button (click)="openReceipt()">Registrar recebimento</button></div>
+  <div class="section-navigation" role="group" aria-label="Seções de Proventos">
+    <button mat-stroked-button [attr.aria-pressed]="section() === 'receipts'" (click)="section.set('receipts')">Recebimentos</button>
+    <button mat-stroked-button [attr.aria-pressed]="section() === 'analysis'" (click)="section.set('analysis')">Análises</button>
+  </div>
+  @if (section() === 'analysis') {
   <section class="panel section-gap"><h2>Análise dos recebimentos</h2>
     <div class="toolbar">
-      <div><label for="income-view">Exibir valores</label><select id="income-view" [value]="valueMode()" (change)="valueMode.set($any($event.target).value)"><option value="original">Moedas originais</option><option value="base">Moeda-base · {{ s.portfolio.baseCurrencyCode }}</option></select></div>
-      <div><label for="income-group">Agrupar recebimentos</label><select id="income-group" [value]="analysisMode()" (change)="analysisMode.set($any($event.target).value)"><option value="months">Mês a mês, por ativo</option><option value="years">Ano a ano, por ativo</option><option value="assets">Por ativo · todo o histórico</option></select></div>
-      @if (analysisMode() !== 'assets') { <div><label for="income-year">Ano dos recebimentos</label><select id="income-year" [value]="analysisYear()" (change)="analysisYear.set($any($event.target).value)"><option value="">Todos</option>@for (year of analysisYears(); track year) { <option [value]="year">{{ year }}</option> }</select></div> }
-      @if (valueMode() === 'original') { <div><label for="income-currency">Moeda dos recebimentos</label><select id="income-currency" [value]="analysisCurrency()" (change)="analysisCurrency.set($any($event.target).value)"><option value="">Todas, separadamente</option>@for (code of analysisCurrencies(); track code) { <option [value]="code">{{ code }}</option> }</select></div> }
+      <div><mat-form-field appearance="outline"><mat-label>Exibir valores</mat-label><select matNativeControl id="income-view" [value]="valueMode()" (change)="valueMode.set($any($event.target).value)"><option value="original">Moedas originais</option><option value="base">Moeda-base · {{ s.portfolio.baseCurrencyCode }}</option></select></mat-form-field></div>
+      <div><mat-form-field appearance="outline"><mat-label>Agrupar recebimentos</mat-label><select matNativeControl id="income-group" [value]="analysisMode()" (change)="analysisMode.set($any($event.target).value)"><option value="months">Mês a mês, por ativo</option><option value="years">Ano a ano, por ativo</option><option value="assets">Por ativo · todo o histórico</option></select></mat-form-field></div>
+      @if (analysisMode() !== 'assets') { <div><mat-form-field appearance="outline"><mat-label>Ano dos recebimentos</mat-label><select matNativeControl id="income-year" [value]="analysisYear()" (change)="analysisYear.set($any($event.target).value)"><option value="">Todos</option>@for (year of analysisYears(); track year) { <option [value]="year" [selected]="'' + (analysisYear()) === '' + (year)">{{ year }}</option> }</select></mat-form-field></div> }
+      @if (valueMode() === 'original') { <div><mat-form-field appearance="outline"><mat-label>Moeda dos recebimentos</mat-label><select matNativeControl id="income-currency" [value]="analysisCurrency()" (change)="analysisCurrency.set($any($event.target).value)"><option value="">Todas, separadamente</option>@for (code of analysisCurrencies(); track code) { <option [value]="code" [selected]="'' + (analysisCurrency()) === '' + (code)">{{ code }}</option> }</select></mat-form-field></div> }
     </div>
-    <label for="income-analysis-search">Filtrar análise por ativo</label><input id="income-analysis-search" type="search" placeholder="Ex.: código do ativo" [value]="query()" (input)="query.set($any($event.target).value)" />
-    <details><summary>Moedas, estornos e diferenças entre totais</summary><p class="hint">O filtro por ativo também se aplica ao histórico abaixo. Na visualização original, moedas diferentes ficam separadas. Na moeda-base, usamos os equivalentes históricos registrados. Totais com conversão faltante aparecem como pendentes. Estornos aparecem na data da correção e podem deixar o mês negativo. O saldo inicial acumulado não faz parte dos recebimentos mensais.</p></details>
+    <mat-form-field appearance="outline"><mat-label>Filtrar análise por ativo</mat-label><input matInput id="income-analysis-search" type="search" placeholder="Ex.: código do ativo" [value]="query()" (input)="query.set($any($event.target).value)" /></mat-form-field>
+    <p class="scope-note">A análise considera todos os recebimentos que correspondem aos filtros abaixo, sem limitar à página do histórico.</p><button mat-stroked-button type="button" (click)="query.set(''); analysisYear.set(''); analysisCurrency.set('')">Limpar filtros da análise</button>
+    <details><summary>Moedas, estornos e diferenças entre totais</summary><p class="hint">Os filtros desta análise são independentes da lista de recebimentos. Na visualização original, moedas diferentes ficam separadas. Na moeda-base, usamos os equivalentes históricos registrados. Totais com conversão faltante aparecem como pendentes. Estornos aparecem na data da correção e podem deixar o mês negativo. O saldo inicial acumulado não faz parte dos recebimentos mensais.</p></details>
     <div class="analysis-grid">
       @for (group of chartGroups(); track group.currency) {
         <section class="analysis-card">
@@ -32,7 +39,7 @@
         </section>
       }
     </div>
-    <p class="hint">Cada moeda tem sua própria escala. Períodos sem recebimentos registrados não são desenhados. Valores negativos aparecem abaixo de zero nas colunas.</p>
+    <details><summary>Como ler os gráficos</summary><p class="hint">Cada moeda tem sua própria escala. Períodos sem recebimentos registrados não são desenhados. Valores negativos aparecem abaixo de zero nas colunas.</p></details>
     <details><summary>Detalhamento por período e ativo</summary>
     <div class="table-scroll"><table aria-label="Detalhamento dos recebimentos"><thead><tr><th>Período / ativo</th><th>Recebido</th><th>Estornado</th><th>Líquido após estornos</th></tr></thead><tbody>
       @for (r of analysisRows(); track r.period + ':' + r.assetId + ':' + r.currencyCode) {
@@ -41,63 +48,82 @@
       }
     </tbody></table></div>
     </details>
-    @if (!analysisRows().length) { <p class="empty">Nenhum recebimento para estes filtros.</p> }
+    @if (!analysisRows().length) { <p class="empty">Nenhum recebimento para estes filtros. Use Limpar filtros da análise para ampliar a consulta.</p> }
   </section>
-  <div class="workspace section-gap">
-    <section class="panel"><h2>Novo recebimento</h2>
-      <form [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="saving()">
-        <label for="income-date">Data do recebimento</label><input id="income-date" type="date" formControlName="date" [max]="today" min="1900-01-01" />
-        <label for="income-asset">Ativo</label><select id="income-asset" formControlName="assetId" (change)="form.patchValue({ cashAssetId: 0, baseAmount: '' })">
+  } @else {
+    <section class="panel section-gap"><h2>Histórico de recebimentos</h2>
+      <form class="income-filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+        <mat-form-field appearance="outline"><mat-label>Filtrar por ativo</mat-label><input matInput type="search" formControlName="search" maxlength="120" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Conversão na moeda-base</mat-label><select matNativeControl formControlName="pendingOnly"><option value="">Todas</option><option value="true">Somente pendentes</option></select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>De</mat-label><input matInput type="date" formControlName="from" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Até</mat-label><input matInput type="date" formControlName="to" /></mat-form-field>
+        <button mat-stroked-button type="submit">Aplicar filtros</button><button mat-button type="button" (click)="clearFilters()">Limpar filtros</button>
+      </form>
+    <app-filter-summary [filters]="activeFilters()" [pending]="filtersPending()" (cleared)="clearFilters()" />
+      @if (listError()) { <p class="notice error" role="alert">{{ listError() }}</p><button mat-stroked-button type="button" (click)="loadPage()">Tentar novamente</button> }
+      @if (listLoading()) { <p role="status">Carregando histórico…</p> }
+      @else if (!listError()) {
+        <p class="hint">{{ total() }} registros no conjunto filtrado · Mais recentes primeiro. A paginação muda apenas os registros exibidos.</p>
+        @for (r of receipts(); track r.id) {
+          <article class="income-row">
+            <div><strong>{{ r.ticker }} · #{{ r.id }}</strong><p>{{ r.date | date:'dd/MM/yyyy':'UTC' }}</p>
+              @if (r.reversedById) { <span>Estornado pelo lançamento #{{ r.reversedById }}</span> }
+            </div>
+            <div><span class="hint">Recebido</span><p>{{ r.amount | currency:r.currencyCode:'code':'1.2-4' }}</p></div>
+            <div><span class="hint">Equivalente em {{ s.portfolio.baseCurrencyCode }}</span><p>{{ equivalent(r) === null ? 'Conversão pendente' : (equivalent(r) | currency:s.portfolio.baseCurrencyCode:'code':'1.2-4') }}</p></div>
+            <button mat-button (click)="openConversion(r)" [disabled]="saving()">{{ equivalent(r) === null ? 'Completar conversão' : 'Revisar conversão' }} #{{ r.id }}</button>
+            <details class="income-details"><summary>Ver detalhes do recebimento #{{ r.id }}</summary>
+              <p>Destino: {{ r.cashAssetName || 'Fora dos saldos da carteira' }}</p><p>{{ r.notes || 'Sem observação' }}</p>
+              @if (conversionFor(r); as c) { <p>{{ sourceLabel(c.source) }} · Referência {{ c.rateDate | date:'dd/MM/yyyy':'UTC' }} · v{{ c.revision }}</p> }
+              @if (r.conversions?.length) { <details><summary>Versões da conversão</summary>@for (c of r.conversions; track c.id) {
+                <p>{{ c.baseCurrencyCode }} · v{{ c.revision }} · {{ c.baseAmount | currency:c.baseCurrencyCode:'code':'1.2-4' }} · {{ sourceLabel(c.source) }} · referência {{ c.rateDate | date:'dd/MM/yyyy':'UTC' }}<br />{{ c.reason }}<br />Registrada em {{ c.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</p>
+              }</details> }
+              <a mat-button routerLink="/movements">Consultar auditoria e estornos</a>
+            </details>
+          </article>
+        } @empty { <div class="empty">@if (hasAppliedFilters()) { <p>Nenhum resultado para os filtros aplicados. Limpe os filtros para ampliar a consulta.</p> } @else { <p>Nenhum registro neste histórico. Use a ação de registro acima para começar.</p> }</div> }
+        <app-list-paginator [length]="total()" [index]="pageIndex()" [size]="pageSize()" (changed)="changePage($event)" />
+      }
+    </section>
+  }
+  @if (formOpen()) {
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Registrar recebimento" (closed)="formOpen.set(false)"><section class="panel">
+      <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="saving()">
+        <mat-form-field appearance="outline"><mat-label>Data do recebimento</mat-label><input matInput id="income-date" type="date" formControlName="date" [max]="today" min="1900-01-01" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Ativo</mat-label><select matNativeControl id="income-asset" formControlName="assetId" (change)="form.patchValue({ cashAssetId: 0, baseAmount: '' })">
           <option [ngValue]="0">Selecione</option>
           @for (p of positions(); track p.id) { <option [ngValue]="p.assetId">{{ p.ticker }} — {{ p.name }}</option> }
-        </select>
+        </select></mat-form-field>
         <p class="hint">Inclui posições zeradas, para recebimentos após a venda do ativo.</p>
-        <label for="income-amount">Valor líquido total ({{ currency() || 'moeda do ativo' }})</label>
-        <input id="income-amount" formControlName="amount" inputmode="decimal" placeholder="Ex.: 123,45" (blur)="formatInput()" />
+        <mat-form-field appearance="outline"><mat-label>Valor líquido total ({{ currency() || 'moeda do ativo' }})</mat-label><input matInput id="income-amount" formControlName="amount" inputmode="decimal" placeholder="Ex.: 123,45" (blur)="formatInput()" /></mat-form-field>
         @if (currency() && currency() !== s.portfolio.baseCurrencyCode) {
-          <label for="income-base">Equivalente líquido em {{ s.portfolio.baseCurrencyCode }} (opcional)</label><input id="income-base" formControlName="baseAmount" inputmode="decimal" placeholder="Ex.: 123,45" />
+          <mat-form-field appearance="outline"><mat-label>Equivalente líquido em {{ s.portfolio.baseCurrencyCode }} (opcional)</mat-label><input matInput id="income-base" formControlName="baseAmount" inputmode="decimal" placeholder="Ex.: 123,45" /></mat-form-field>
           <p class="hint">Se informado, preservamos o valor real. Caso contrário, consultamos o câmbio da data do recebimento. Pode ser usada referência anterior de até 7 dias, com data visível. Sem cotação adequada, o recebimento fica com conversão pendente; seus saldos são registrados normalmente.</p>
         }
-        <label for="income-cash">Destino do recebimento</label><select id="income-cash" formControlName="cashAssetId">
+        <mat-form-field appearance="outline"><mat-label>Destino do recebimento</mat-label><select matNativeControl id="income-cash" formControlName="cashAssetId">
           <option [ngValue]="0">Recebido fora dos saldos desta carteira</option>
           @for (b of cashOptions(); track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.value | currency: b.currencyCode : 'code' : '1.2-2' }}</option> }
-        </select>
+        </select></mat-form-field>
         <p class="hint">Ao escolher um saldo, o valor será creditado nele e poderá ser reinvestido. Proventos não são novos aportes. <a routerLink="/external-assets">Cadastrar saldo disponível</a>.</p>
-        <label for="income-notes">Observação (opcional)</label><input id="income-notes" formControlName="notes" maxlength="500" placeholder="Ex.: dividendos, JCP ou rendimento de FII" />
-        <p class="hint">Informe apenas recebimentos ainda não incluídos no acumulado. Para atrasos em períodos fechados, reabra o período em Evolução e fechamentos. Operações posteriores dependentes precisam ser estornadas primeiro. Fotografias afetadas ficam desatualizadas.</p>
+        <mat-form-field appearance="outline"><mat-label>Observação (opcional)</mat-label><input matInput id="income-notes" formControlName="notes" maxlength="500" placeholder="Ex.: dividendos, JCP ou rendimento de FII" /></mat-form-field>
+        <details><summary>Recebimentos anteriores e correções</summary><p class="hint">Informe apenas recebimentos ainda não incluídos no acumulado. Para operações atrasadas, consulte a simulação de correções em Movimentações. Fotografias afetadas ficam desatualizadas.</p></details>
         @if (form.touched && form.invalid) { <p class="field-error">Preencha data, ativo e valor no padrão brasileiro, com até quatro casas decimais.</p> }
-        <div class="actions"><button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Registrar recebimento' }}</button></div>
+        <div class="actions"><div class="form-actions"><button mat-stroked-button type="button" [disabled]="saving()" (click)="draftForm.cancel()">Cancelar</button> <button mat-flat-button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Registrar recebimento' }}</button></div></div>
       </fieldset></form>
-    </section>
-    <section class="panel"><h2>Histórico de recebimentos</h2>
-      <label for="income-search">Filtrar por ativo</label><input id="income-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" />
-      <div class="table-scroll"><table><thead><tr><th>Data / ativo</th><th>Valor líquido</th><th>Destino</th><th>Observação</th><th>Equivalente em {{ s.portfolio.baseCurrencyCode }}</th><th>Câmbio histórico</th></tr></thead><tbody>
-        @for (r of filteredIncomeReceipts(); track r.id) { <tr><th scope="row">{{ r.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ r.ticker }}</th><td>{{ r.amount | currency: r.currencyCode : 'code' : '1.2-4' }}</td><td>{{ r.cashAssetName || 'Fora dos saldos da carteira' }}</td><td>{{ r.notes || '—' }}</td>
-          <td>{{ equivalent(r) === null ? 'Conversão pendente' : (equivalent(r) | currency:s.portfolio.baseCurrencyCode:'code':'1.2-4') }}
-            @if (conversionFor(r); as c) { <small>{{ sourceLabel(c.source) }} · referência {{ c.rateDate | date:'dd/MM/yyyy':'UTC' }} · v{{ c.revision }}</small> }
-          </td><td><button (click)="openConversion(r)" [disabled]="saving()">Conversão #{{ r.id }}</button>
-            @if (r.conversions?.length) { <details><summary>Versões da conversão</summary>@for (c of r.conversions; track c.id) {
-              <p>{{ c.baseCurrencyCode }} · v{{ c.revision }} · {{ c.baseAmount | currency:c.baseCurrencyCode:'code':'1.2-4' }} · {{ sourceLabel(c.source) }} · referência {{ c.rateDate | date:'dd/MM/yyyy':'UTC' }}<br />{{ c.reason }}<br />Registrada em {{ c.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</p>
-            }</details> }
-          </td></tr> }
-      </tbody></table></div>
-      @if (!filteredIncomeReceipts().length) { <p class="empty">Nenhum recebimento para este filtro.</p> }
-      <p class="hint">Valores exibidos na moeda original. Os recebimentos confirmados são preservados; confira os dados antes de registrar.</p>
-    </section>
-  </div>
+    </section></app-edit-panel>
+  }
 }
-
 @if (pendingConversion(); as receipt) {
   <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Conversão do provento" (closed)="pendingConversion.set(null)">
     <section class="panel"><h2>Conversão do recebimento #{{ receipt.id }}</h2>
       <p>{{ receipt.ticker }} · {{ receipt.date | date:'dd/MM/yyyy':'UTC' }} · {{ receipt.amount | currency:receipt.currencyCode:'code':'1.2-4' }}</p>
       <p>Uma nova versão preserva as anteriores e atualiza as análises, inclusive do estorno. Não altera o valor recebido, o saldo ou o conteúdo das fotografias.</p>
-      <form [formGroup]="conversionForm" (ngSubmit)="saveConversion()"><fieldset [disabled]="saving()">
-        <label for="conversion-currency">Moeda do equivalente</label><select id="conversion-currency" formControlName="baseCurrencyCode">@for (c of currencies(); track c.id) { <option [value]="c.code">{{ c.code }} — {{ c.name }}</option> }</select>
-        <label for="conversion-amount">Equivalente real (opcional)</label><input id="conversion-amount" formControlName="baseAmount" inputmode="decimal" />
+      <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="conversionForm" (ngSubmit)="saveConversion()"><fieldset [disabled]="saving()">
+        <mat-form-field appearance="outline"><mat-label>Moeda do equivalente</mat-label><select matNativeControl id="conversion-currency" formControlName="baseCurrencyCode">@for (c of currencies(); track c.id) { <option [value]="c.code">{{ c.code }} — {{ c.name }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Equivalente real (opcional)</mat-label><input matInput id="conversion-amount" formControlName="baseAmount" inputmode="decimal" /></mat-form-field>
         <p class="hint">Deixe vazio para consultar a referência histórica do Frankfurter. Se não houver cotação adequada, nenhuma versão será gravada.</p>
-        <label for="conversion-reason">Motivo da complementação ou correção</label><input id="conversion-reason" formControlName="reason" maxlength="400" />
-        <button class="primary" type="submit" [disabled]="conversionForm.invalid">Salvar conversão</button>
+        <mat-form-field appearance="outline"><mat-label>Motivo da complementação ou correção</mat-label><input matInput id="conversion-reason" formControlName="reason" maxlength="400" /></mat-form-field>
+        <div class="form-actions"><button mat-stroked-button type="button" [disabled]="saving()" (click)="draftForm.cancel()">Cancelar</button> <button mat-flat-button class="primary" type="submit" [disabled]="conversionForm.invalid">{{ saving() ? 'Salvando…' : 'Salvar conversão' }}</button></div>
       </fieldset></form>
     </section>
   </app-edit-panel>

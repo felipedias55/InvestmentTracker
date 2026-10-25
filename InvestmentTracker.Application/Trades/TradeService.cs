@@ -10,6 +10,14 @@ namespace InvestmentTracker.Application.Trades
     public sealed class TradeService(ITradeRepository repository, IAssetRepository assets,
         IExternalAssetRepository cash, ICurrencyRepository currencies, IExchangeRateService rates, TimeProvider clock) : ITradeService
     {
+        public Task<TradePageDto> PageAsync(int portfolioId, TradePageQuery query, CancellationToken ct)
+        {
+            if (query.PageIndex < 0 || query.PageSize is not (10 or 25 or 50) || query.Search?.Length > 120
+                || query.Kind is not (null or "" or "buy" or "sell")
+                || (query.From.HasValue && query.To.HasValue && query.From > query.To))
+                throw new InputValidationException("Informe filtros e paginação válidos.");
+            return repository.PageAsync(portfolioId, query with { Search = query.Search?.Trim() }, ct);
+        }
         private const decimal MaxMoney = 999999999999999.9999m;
         private DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(),
             TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo")).DateTime);

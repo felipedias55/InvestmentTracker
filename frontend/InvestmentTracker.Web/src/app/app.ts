@@ -1,18 +1,30 @@
+import { Theme } from './core/theme';
+import { MatMenuModule } from '@angular/material/menu';
 import { afterNextRender, Component, ElementRef, HostListener, Injector, ViewChild, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catalogs } from './features/catalogs/catalog.models';
 import { ValuePrivacy } from './core/value-privacy';
+import { MatButtonModule } from '@angular/material/button';
+import { AppIcon } from './shared/app-icon';
 @Component({
   selector: 'app-root', standalone: true, templateUrl: './app.html', styleUrl: './app.css',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [MatMenuModule, RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, AppIcon],
 })
 export class App {
+  constructor() {
+    history.scrollRestoration = 'manual';
+    inject(Router).events.pipe(takeUntilDestroyed()).subscribe(event => {
+      if (event instanceof NavigationEnd) window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+  }
+  readonly theme = inject(Theme);
   readonly privacy = inject(ValuePrivacy);
   private readonly injector = inject(Injector);
   readonly catalogs = catalogs;
   readonly mobile = signal(window.innerWidth <= 900);
   readonly menuOpen = signal(window.innerWidth > 900);
-  @ViewChild('menuButton') menuButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild('menuButton', { read: ElementRef }) menuButton?: ElementRef<HTMLButtonElement>;
   @ViewChild('sidebar') sidebar?: ElementRef<HTMLElement>;
   toggleMenu() {
     if (this.menuOpen()) this.closeMenu();
@@ -27,14 +39,13 @@ export class App {
   navigate(event: Event) {
     if (!(event.target instanceof Element) || !event.target.closest('a')) return;
     if (this.mobile()) this.closeMenu();
-    window.scrollTo({ top: 0, behavior: 'instant' });
   }
   @HostListener('window:resize') resize() {
     const mobile = window.innerWidth <= 900;
     if (mobile !== this.mobile()) { this.mobile.set(mobile); this.menuOpen.set(!mobile); }
   }
   @HostListener('document:keydown', ['$event']) keyboard(event: KeyboardEvent) {
-    if (!this.menuOpen() || event.defaultPrevented || (event.target instanceof Element && event.target.closest('dialog'))) return;
+    if (!this.menuOpen() || event.defaultPrevented || (event.target instanceof Element && event.target.closest('dialog, .cdk-overlay-container'))) return;
     if (event.key === 'Escape') { event.preventDefault(); this.closeMenu(); return; }
     if (!this.mobile() || event.key !== 'Tab') return;
     const sidebar = this.sidebar?.nativeElement;

@@ -1,7 +1,7 @@
 <header class="page-header">
   <p class="eyebrow">CADASTROS</p>
   <h1>{{ config.label }}</h1>
-  <p>{{ config.description }}</p>
+  <details><summary>Sobre este cadastro</summary><p>{{ config.description }}</p></details>
 </header>
 @if (error()) {
   <div class="notice error" role="alert">{{ error() }}</div>
@@ -9,53 +9,50 @@
 @if (success()) {
   <div class="notice success" role="status">{{ success() }}</div>
 }
-<div class="workspace">
-  <app-edit-panel [editing]="editing() !== null" [busy]="saving()" [error]="error()" title="Editar cadastro" (closed)="cancel()"><section class="panel editor">
-    <h2>{{ editing() === null ? 'Novo cadastro' : 'Editar cadastro' }}</h2>
-    <form [formGroup]="form" (ngSubmit)="save()">
+<div class="registration-actions"><button mat-flat-button class="primary" (click)="newItem()" [disabled]="loading() || saving()">Novo cadastro</button></div>
+<div class="registration-workspace">
+  @if (formOpen()) {
+  <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" [title]="editing() === null ? 'Novo cadastro' : 'Editar cadastro'" (closed)="cancel()"><section class="panel editor">
+    <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="form" (ngSubmit)="save()">
       <fieldset [disabled]="saving()">
         @if (isCurrency) {
-          <label for="code">Código da moeda</label
-          ><input
+          <mat-form-field appearance="outline"><mat-label>Código da moeda</mat-label><input matInput
             id="code"
             formControlName="code"
             maxlength="3"
             placeholder="Ex.: BRL"
             autocomplete="off"
-          />
+          /></mat-form-field>
           @if (form.controls.code.touched && form.controls.code.invalid) {
             <small class="field-error">Informe três letras, como BRL ou USD.</small>
           }
         }
-        <label for="name">Nome</label
-        ><input id="name" formControlName="name" maxlength="100" autocomplete="off" />
+        <mat-form-field appearance="outline"><mat-label>Nome</mat-label><input matInput id="name" formControlName="name" maxlength="100" autocomplete="off" /></mat-form-field>
         @if (form.controls.name.touched && form.controls.name.invalid) {
           <small class="field-error">Informe um nome com até 100 caracteres.</small>
         }
         @if (isCurrency) {
-          <label for="symbol">Símbolo <span>(opcional)</span></label
-          ><input id="symbol" formControlName="symbol" maxlength="10" placeholder="Ex.: R$" />
+          <mat-form-field appearance="outline"><mat-label>Símbolo <span>(opcional)</span></mat-label><input matInput id="symbol" formControlName="symbol" maxlength="10" placeholder="Ex.: R$" /></mat-form-field>
         }
         <div class="actions">
-          <button class="primary" type="submit" [disabled]="saving()">
+          <button data-discard  mat-stroked-button type="button" (click)="cancel()">Cancelar</button>
+<button mat-flat-button class="primary" type="submit" [disabled]="saving()">
             {{ saving() ? 'Salvando…' : 'Salvar cadastro' }}
           </button>
-          @if (editing() !== null) {
-            <button type="button" (click)="cancel()">Cancelar edição</button>
-          }
         </div>
       </fieldset>
     </form>
   </section></app-edit-panel>
+  }
   <section class="panel list">
-    <label for="registration-search">Buscar cadastro</label><input id="registration-search" type="search" placeholder="Digite nome ou código" [value]="query()" (input)="query.set($any($event.target).value)" />
+    <mat-form-field appearance="outline"><mat-label>Buscar cadastro</mat-label><input matInput id="registration-search" type="search" placeholder="Digite nome ou código" [value]="query()" (input)="search($any($event.target).value)" /></mat-form-field>
     <p class="hint" role="status">{{ filteredItems().length }} de {{ items().length }} registros</p>
     @if (items().length && !filteredItems().length) { <p class="empty">Nenhum cadastro corresponde à busca.</p> }
     <div class="section-title">
       <h2>
         Registros <span class="count">{{ items().length }}</span>
       </h2>
-      <button type="button" (click)="load()" [disabled]="loading() || saving()">Atualizar</button>
+      <button mat-stroked-button type="button" (click)="load()" [disabled]="loading() || saving()">Recarregar dados</button>
     </div>
     @if (pendingDelete(); as item) {
       <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar remoção" (closed)="pendingDelete.set(null)"><div class="confirmation" role="alert">
@@ -65,8 +62,7 @@
         </p>
         <p>Registros em uso não podem ser excluídos.</p>
         <div class="actions">
-          <button class="danger" (click)="remove()" [disabled]="saving()">Confirmar exclusão</button
-          ><button (click)="pendingDelete.set(null)" [disabled]="saving()">Cancelar</button>
+          <button mat-stroked-button (click)="pendingDelete.set(null)" [disabled]="saving()">Cancelar</button><button mat-stroked-button class="danger" (click)="remove()" [disabled]="saving()">Confirmar exclusão</button>
         </div>
       </div></app-edit-panel>
     }
@@ -75,7 +71,7 @@
     } @else if (!items().length) {
       <div class="empty">
         <h3>Nenhum registro cadastrado</h3>
-        <p>Use o formulário para adicionar o primeiro.</p>
+        <p>Use Novo cadastro para adicionar o primeiro.</p>
       </div>
     } @else {
       <div class="table-scroll">
@@ -89,12 +85,12 @@
               @if (isCurrency) {
                 <th>Símbolo</th>
               }
-              <th>Ações</th>
+              <th class="registration-row-actions">Ações</th>
             </tr>
           </thead>
           <tbody>
-            @for (item of filteredItems(); track item.id) {
-              <tr>
+            @for (item of pageItems(); track item.id) {
+              <tr [class.record-saved]="lastSaved() === item.id">
                 @if (isCurrency) {
                   <td>
                     <strong>{{ item.code }}</strong>
@@ -104,15 +100,15 @@
                 @if (isCurrency) {
                   <td>{{ item.symbol || '—' }}</td>
                 }
-                <td>
+                <td class="registration-row-actions">
                   <div class="row-actions">
-                    <button
+                    <button mat-stroked-button
                       (click)="edit(item)"
                       [disabled]="saving()"
                       [attr.aria-label]="'Editar ' + item.name"
                     >
-                      Editar</button
-                    ><button
+                      <app-icon name="edit" /> Editar</button
+                    ><button mat-stroked-button
                       class="text-danger"
                       (click)="pendingDelete.set(item)"
                       [disabled]="saving()"
@@ -128,5 +124,6 @@
         </table>
       </div>
     }
+    <app-list-paginator [length]="filteredItems().length" [index]="currentPage()" [size]="pageSize()" (changed)="changePage($event)" />
   </section>
 </div>

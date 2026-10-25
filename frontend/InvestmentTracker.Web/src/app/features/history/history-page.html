@@ -1,127 +1,56 @@
 <header class="page-header">
-  <p class="eyebrow">SUA TRAJETÓRIA</p>
-  <h1>Evolução e fechamentos</h1><a routerLink="/income">Consultar recebimentos de proventos</a> · <a routerLink="/trades">Consultar compras e vendas →</a>
-  <p>
-    Compare as fotografias da carteira e acompanhe o dinheiro que entrou e saiu ao longo do tempo.
-  </p>
+  <p class="eyebrow">SUA TRAJETÓRIA</p><h1>Evolução e fechamentos</h1>
 </header>
 <app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
-@if (error()) {
-  <p class="notice error" role="alert">{{ error() }}</p>
-}
-@if (success()) {
-  <p class="notice success" role="status">{{ success() }}</p>
-}
-@if (loading()) {
-  <p role="status">Carregando histórico…</p>
-}
-@if (portfolioId()) {
-  <button (click)="load()" [disabled]="loading() || saving()">Atualizar histórico</button>
-}
+@if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
+<div class="history-navigation">
+  <div class="actions" role="group" aria-label="Visão do histórico">
+    <button mat-stroked-button [attr.aria-pressed]="section() === 'evolution'" (click)="showSection('evolution')">Evolução</button>
+    <button mat-stroked-button [attr.aria-pressed]="section() === 'photos'" (click)="showSection('photos')">Fotografias</button>
+    <button mat-stroked-button [attr.aria-pressed]="section() === 'flows'" (click)="showSection('flows')">Aportes e retiradas</button>
+  </div>
+  <button mat-stroked-button (click)="load()" [disabled]="!portfolioId() || loading() || saving()">Recarregar dados</button>
+</div>
+@if (loading()) { <p role="status">Carregando histórico…</p> }
 @if (data(); as h) {
-  <p class="hint">Compras com dinheiro novo e vendas com retirada geram movimentos automaticamente em <a routerLink="/trades">Compras e vendas</a>. Use o registro manual apenas para outros movimentos ou registros antigos, sem duplicar os automáticos.</p>
-  <section class="panel capture-panel">
-    <div>
-      <h2>Fotografia de {{ h.today | date: 'MM/yyyy' : 'UTC' }}</h2>
-      <p>
-        Atualize os valores em <a routerLink="/portfolio">Carteira</a> e
-        <a routerLink="/external-assets">Patrimônio externo</a> antes de registrar. A fotografia
-        inclui os saldos até {{ h.today | date: 'dd/MM/yyyy' : 'UTC' }}.
-      </p>
-      <p class="hint">
-        Uma fotografia por mês. Somente a do mês corrente pode ser substituída. Não há preenchimento
-        automático de meses passados.
-      </p>
-    </div>
-    <button class="primary" [disabled]="saving()" (click)="captureConfirmation.set(true)">
-      {{ currentSnapshot() === null ? 'Registrar fotografia' : 'Atualizar fotografia deste mês' }}
-    </button>
-  </section>
-  <details class="panel">
-    <summary>Reabrir período para lançamentos atrasados</summary>
-    <p>As fotografias a partir da data informada ficarão desatualizadas. Havendo operações posteriores no mesmo ativo ou saldo, estorne-as da mais recente para a mais antiga e relance em ordem de data. Os estornos continuam visíveis na data em que foram feitos.</p>
-    <p>Uma nova fotografia encerra a reabertura do mês atual. Meses antigos ficam preservados com o aviso; os valores de hoje não representam o passado.</p>
-    <form [formGroup]="reopenForm" (ngSubmit)="reopen()"><fieldset [disabled]="saving()">
-      <label for="reopen-date">Reabrir a partir de</label><input id="reopen-date" type="date" formControlName="date" [max]="h.today" />
-      <label for="reopen-reason">Motivo da reabertura</label><input id="reopen-reason" formControlName="reason" maxlength="400" />
-      <button type="submit" [disabled]="reopenForm.invalid">Confirmar reabertura</button>
-    </fieldset></form>
-  </details>
-  @if (captureConfirmation()) {
-    <div class="confirmation" role="alert">
-      <p>
-        {{
-          currentSnapshot() === null
-            ? 'Registrar a fotografia com os saldos atuais?'
-            : 'Substituir a fotografia deste mês pelos saldos atuais? A versão anterior será preservada para consulta.'
-        }}
-      </p>
-      <p>
-        Ela representará a carteira até a data de hoje. Confira se os aportes e retiradas desse dia
-        já estão refletidos nos saldos.
-      </p>
-      <div class="actions">
-        <button class="primary" [disabled]="saving()" (click)="capture()">
-          Confirmar fotografia</button
-        ><button [disabled]="saving()" (click)="captureConfirmation.set(false)">Cancelar</button>
-      </div>
+  @if (section() !== 'flows') {
+    <div class="toolbar period-filters">
+      @if (section() === 'evolution') {
+        <div role="group" aria-label="Agrupamento do histórico" class="actions">
+          <button mat-stroked-button [attr.aria-pressed]="mode() === 'months'" (click)="mode.set('months')">Mês a mês</button>
+          <button mat-stroked-button [attr.aria-pressed]="mode() === 'years'" (click)="mode.set('years')">Ano a ano</button>
+        </div>
+      }
+      @if (section() === 'photos' || mode() === 'months') {
+        <mat-form-field appearance="outline"><mat-label>Ano</mat-label>
+          <select matNativeControl id="history-year" [value]="selectedYear()" (change)="setYear($any($event.target).value)">
+            <option value="">Todos</option>@for (y of years(); track y) { <option [value]="y" [selected]="'' + (selectedYear()) === '' + (y)">{{ y }}</option> }
+          </select>
+        </mat-form-field>
+      }
+      @if (section() === 'evolution') {
+        <mat-form-field appearance="outline"><mat-label>Moeda dos gráficos</mat-label>
+          <select matNativeControl id="chart-currency" [value]="chartCurrency()" (change)="chartCurrency.set($any($event.target).value)">
+            @for (c of chartCurrencies(); track c) { <option [value]="c" [selected]="'' + (chartCurrency()) === '' + (c)">{{ c }}</option> }
+          </select>
+        </mat-form-field>
+      }
     </div>
   }
-  <section class="panel">
-    <div class="toolbar">
-      <div role="group" aria-label="Agrupamento do histórico" class="actions">
-        <button
-          [class.primary]="mode() === 'months'"
-          [attr.aria-pressed]="mode() === 'months'"
-          (click)="mode.set('months')"
-        >
-          Mês a mês</button
-        ><button
-          [class.primary]="mode() === 'years'"
-          [attr.aria-pressed]="mode() === 'years'"
-          (click)="mode.set('years')"
-        >
-          Ano a ano
-        </button>
-      </div>
-      <div>
-        <label for="history-year">Ano dos meses e movimentos</label
-        ><select
-          id="history-year"
-          #year
-          [value]="selectedYear()"
-          (change)="selectedYear.set(year.value)"
-        >
-          <option value="">Todos</option>
-          @for (y of years(); track y) {
-            <option [value]="y">{{ y }}</option>
-          }
-        </select>
-      </div>
-      <div>
-        <label for="chart-currency">Moeda do gráfico</label
-        ><select
-          id="chart-currency"
-          #chart
-          [value]="chartCurrency()"
-          (change)="chartCurrency.set(chart.value)"
-        >
-          @for (c of chartCurrencies(); track c) {
-            <option [value]="c">{{ c }}</option>
-          }
-        </select>
-      </div>
-    </div>
+  @if (section() === 'evolution') {
+    <section class="panel evolution-panel">
     <h2 class="section-gap">De onde veio a evolução</h2>
-    <label for="breakdown-period">Intervalo da composição patrimonial</label>
-    <select id="breakdown-period" [value]="breakdownRow()?.period ?? ''" (change)="breakdownPeriod.set($any($event.target).value)">
+    <mat-form-field appearance="outline"><mat-label>Intervalo da composição patrimonial</mat-label>
+    <select matNativeControl id="breakdown-period" [value]="breakdownRow()?.period ?? ''" (change)="breakdownPeriod.set($any($event.target).value)">
       @for (r of rows(); track r.period) { @if (r.currencyCode === chartCurrency()) { <option [value]="r.period" [selected]="r.period === breakdownRow()?.period">{{ r.period }}</option> } }
-    </select>
+    </select></mat-form-field>
     @if (breakdownRow(); as r) {
       <p class="hint">{{ r.comparisonStart | date:'dd/MM/yyyy':'UTC' }} → {{ r.snapshotDate | date:'dd/MM/yyyy':'UTC' }} · {{ r.currencyCode }}</p>
       @if (breakdown().length) { <app-money-chart [points]="breakdown()" [currency]="r.currencyCode" title="Composição da variação patrimonial" kind="waterfall" /> }
       @else { <p class="notice">{{ r.comparisonNote || 'Sem comparação válida para este intervalo.' }}</p> }
     }
+    <details><summary>Detalhar composição e metodologia</summary>
     <p class="hint">Entre fotografias válidas: variação patrimonial = aportes líquidos + proventos retidos + valorização e outros efeitos. Proventos recebidos fora da carteira são somados apenas ao resultado econômico. O residual inclui câmbio, taxas e ajustes; não representa apenas oscilação de preços.</p>
     <div class="table-scroll"><table><thead><tr><th>Período</th><th>Aportes líquidos entre fotos</th><th>Proventos retidos</th><th>Proventos fora da carteira</th><th>Valorização e outros efeitos</th><th>Resultado econômico</th></tr></thead><tbody>
       @for (r of rows(); track r.period) { <tr><th>{{ r.period }}</th>
@@ -132,8 +61,8 @@
         <td>{{ r.economicResult == null ? '—' : (r.economicResult | currency:r.currencyCode:'code') }}</td>
       </tr> }
     </tbody></table></div>
+    </details>
     <h2 class="section-gap">Rentabilidade entre fotografias</h2>
-    <p class="hint">O cálculo começa no patrimônio da fotografia inicial, incluindo o patrimônio externo. Depende de todos os aportes, retiradas e proventos do intervalo estarem registrados. Ajustes manuais de saldo sem aporte são tratados como resultado. Não representa a rentabilidade desde a primeira compra.</p>
     <div class="table-scroll"><table aria-label="Rentabilidade entre fotografias">
       <thead><tr><th scope="col">Período / intervalo real</th><th scope="col">Moeda</th><th scope="col">Dietz estimado no intervalo</th><th scope="col">XIRR anualizada</th><th scope="col">Observações</th></tr></thead>
       <tbody>@for (r of rows(); track r.period) {
@@ -145,21 +74,39 @@
         <td>{{ r.returns?.note ?? 'Calculado sobre os registros disponíveis.' }}</td></tr>
       }</tbody>
     </table></div>
-    <details><summary>Como interpretar rentabilidade</summary>
+    <details><summary>Como interpretar rentabilidade</summary>    <p class="hint">O cálculo começa no patrimônio da fotografia inicial, incluindo o patrimônio externo. Depende de todos os aportes, retiradas e proventos do intervalo estarem registrados. Ajustes manuais de saldo sem aporte são tratados como resultado. Não representa a rentabilidade desde a primeira compra.</p>
+
       <p>Dietz estima o retorno do intervalo ponderando o dinheiro pelo número de dias que permaneceu na carteira. XIRR mede o retorno anualizado dos fluxos datados, usando anos de 365 dias. Uma XIRR de um intervalo curto pode ser muito elevada; não é previsão nem o ganho daquele mês. O agrupamento anual usa as datas reais das fotografias, que podem não coincidir com o ano calendário.</p>
       <p>Proventos retidos já estão no patrimônio. Os recebidos fora da carteira são considerados uma distribuição ao investidor. Custos, câmbio e ajustes de valores afetam o resultado. O cálculo considera os fluxos após a data inicial até a data final, inclusive, com convenção de fim do dia. Valores e equivalentes devem estar completos; lançamentos omitidos podem distorcer as taxas.</p>
       <p>TWR exato exige avaliações em cada fluxo externo e ainda não está disponível. Dietz é uma estimativa, especialmente sensível a aportes elevados e grandes oscilações. XIRR fica indisponível quando os fluxos alternam sinais mais de uma vez, pois a taxa pode não ser única, ou quando não há solução no intervalo numérico suportado. Fotografias reabertas, desatualizadas ou com moedas diferentes suspendem as métricas. Conversões históricas faltantes devem ser complementadas em Proventos ou nos movimentos.</p>
     </details>
     <h2 class="section-gap">Patrimônio registrado</h2>
-    <p class="hint">
+    <details><summary>Como ler o patrimônio registrado</summary><p class="hint">
       Use os botões abaixo do gráfico para abrir a fotografia. Anos usam a última fotografia disponível, sem
       somar saldos mensais. Lacunas e moedas diferentes não são tratadas como patrimônio zero.
-    </p>
+    </p></details>
+    <p class="scope-note">Gráficos e métricas consideram todo o período selecionado, independentemente da página de fotografias ou movimentos.</p>
     <app-history-chart
       [rows]="rows()"
       [currency]="chartCurrency()"
       (openSnapshot)="openSnapshot($event)"
     />
+
+    </section>
+  }
+  @if (section() === 'photos') {
+    <section class="panel capture-panel">
+      <div><h2>Fechamento de {{ h.today | date:'MM/yyyy':'UTC' }}</h2>
+        <p>{{ currentSnapshot() === null ? 'Fotografia deste mês ainda não registrada.' : 'Este mês já possui uma fotografia.' }}</p>
+      </div>
+      <button mat-flat-button class="primary" [disabled]="saving()" (click)="openCapture()">{{ currentSnapshot() === null ? 'Registrar fotografia' : 'Atualizar fotografia deste mês' }}</button>
+    </section>
+    <section class="panel section-gap">
+      <div class="section-title"><h2>Fotografias por mês</h2><button mat-stroked-button [disabled]="saving()" (click)="openReopen()">Reabrir período</button></div>
+      <details><summary>Fechamento, lacunas e comparações</summary>
+        <p>Atualize os valores em <a routerLink="/portfolio">Carteira</a> e <a routerLink="/external-assets">Patrimônio externo</a> antes de registrar. Uma fotografia por mês; somente a do mês corrente pode ser atualizada. Não há preenchimento automático de meses passados.</p>
+        <p>Variação sem movimentos = patrimônio final − inicial − aportes + retiradas entre as datas das fotografias. Pode incluir câmbio, atualização de valores e movimentos não registrados; não é rentabilidade. Aportes e retiradas nas colunas do período abrangem o mês calendário.</p>
+      </details>
     <div class="table-scroll">
       <table>
         <thead>
@@ -174,7 +121,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (r of rows(); track r.period) {
+          @for (r of photoPage(); track r.period) {
             <tr>
               <th scope="row">
                 {{ r.period
@@ -183,7 +130,7 @@
                 }}</small>
                 @if (r.isOutdated) { <small class="notice">{{ r.isReopened ? 'Reaberta / desatualizada' : 'Desatualizada' }} · versão {{ r.revision }}</small> }
                 @if (r.snapshotId !== null) {
-                  <button class="photo-link" (click)="openSnapshot(r.snapshotId)">
+                  <button mat-stroked-button class="photo-link" (click)="openSnapshot(r.snapshotId)">
                     Ver fotografia
                   </button>
                 }
@@ -242,30 +189,203 @@
         </tbody>
       </table>
     </div>
-    <p class="hint">
-      Variação sem movimentos = patrimônio final − inicial − aportes + retiradas entre as datas das
-      fotografias. Não é rentabilidade: pode incluir câmbio, atualização de valores e movimentos não
-      registrados. Os proventos não são somados novamente. Aportes e retiradas nas colunas do
-      período abrangem o mês/ano calendário.
-    </p>
-  </section>
-  @if (detailLoading()) {
-    <p role="status">Abrindo fotografia…</p>
+
+      <app-list-paginator [length]="photos().length" [index]="photoIndex()" [size]="photoSize()" (changed)="photoIndex.set($event.pageIndex); photoSize.set($event.pageSize)" />
+    </section>
   }
-  @if (detail(); as photo) {
-  @if (photo.isOutdated) { <p class="notice">Fotografia desatualizada: valores preservados para auditoria.</p> }
-  @if (photo.previousVersions?.length) {
-    <details class="panel"><summary>Versões anteriores deste mês</summary>
-      @for (v of photo.previousVersions; track v.revision) {
-        <button (click)="detail.set(v)">Consultar versão {{ v.revision }} · {{ v.capturedAtUtc | date: 'dd/MM/yyyy HH:mm' }}</button>
-      }
-    </details>
+  @if (section() === 'flows') {
+    <section class="panel section-gap">
+      <div class="section-title"><h2>Aportes e retiradas</h2><button mat-stroked-button (click)="newFlow()" [disabled]="saving()">Registrar histórico antigo</button></div>
+      <div class="toolbar">
+        <mat-form-field appearance="outline"><mat-label>Ano dos movimentos</mat-label>
+          <select matNativeControl [value]="flowYear()" (change)="flowYear.set($any($event.target).value); filterFlows()">
+            <option value="">Todos</option>@for (y of years(); track y) { <option [value]="y" [selected]="'' + (flowYear()) === '' + (y)">{{ y }}</option> }
+          </select>
+        </mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Tipo</mat-label>
+          <select matNativeControl [value]="flowKind()" (change)="flowKind.set($any($event.target).value); filterFlows()">
+            <option value="">Todos</option><option value="contribution">Aportes</option><option value="withdrawal">Retiradas</option>
+          </select>
+        </mat-form-field>
+        <a mat-button routerLink="/movements">Novos depósitos e retiradas</a>
+      </div>
+      <p role="status" class="scope-note">{{ flowTotal() }} registros no conjunto filtrado · {{ flowYear() ? 'Ano: ' + flowYear() : 'Todos os anos' }} · {{ flowKind() === 'withdrawal' ? 'Retiradas' : flowKind() === 'contribution' ? 'Aportes' : 'Todos os tipos' }}.</p><button mat-stroked-button type="button" (click)="flowYear.set(''); flowKind.set(''); filterFlows()">Limpar filtros dos movimentos</button>
+      <details><summary>Quais movimentos aparecem aqui?</summary>
+        <p>Compras com dinheiro novo e vendas com retirada geram movimentos automaticamente. Transferências internas e proventos não são novos aportes. Registros históricos antigos não alteram saldos; evite duplicar os automáticos.</p>
+      </details>
+      @if (flowLoading()) { <p role="status">Carregando movimentos…</p> }
+      @if (flowError()) { <p class="notice error" role="alert">{{ flowError() }}</p><button mat-stroked-button (click)="loadFlows()">Tentar novamente</button> }
+        @if (!flowLoading() && !flowError() && !flows().length) {
+          <p>Nenhum movimento neste conjunto. Limpe os filtros para ampliar a consulta ou use Registrar histórico antigo para um registro ainda não incluído.</p>
+        }
+        <div class="table-scroll">
+          <table class="flow-table" aria-label="Aportes e retiradas">
+            <thead>
+              <tr>
+                <th scope="col">Data / tipo</th>
+                <th scope="col">Valor original</th>
+                <th scope="col">Equivalente informado</th>
+                <th scope="col">Observação</th>
+                <th scope="col">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (flow of flows(); track flow.id) {
+                <tr>
+                  <th scope="row">
+                    {{ flow.date | date: 'dd/MM/yyyy' : 'UTC'
+                    }}<small>{{ flow.isReversal ? 'Estorno de ' : '' }}{{ flow.kind === 'contribution' ? 'Aporte' : 'Retirada' }}</small>
+                  </th>
+                  <td data-label="Valor original">{{ flow.amount | currency: flow.currencyCode : 'code' : '1.2-2' }}</td>
+                  <td data-label="Equivalente">
+                    {{
+                      flow.baseAmount === null
+                        ? 'Não informado'
+                        : (flow.baseAmount | currency: flow.baseCurrencyCode : 'code' : '1.2-2')
+                    }}
+                  </td>
+                  <td data-label="Detalhes">@if (flow.notes) { <details><summary>Observação</summary><p>{{ flow.notes }}</p></details> }</td>
+                  <td data-label="Ações">
+                    @if (flow.movementId) { <a routerLink="/movements">Movimentação #{{ flow.movementId }} — consultar ou estornar</a> } @else if (flow.tradeId) { <a routerLink="/trades">Gerado pela operação #{{ flow.tradeId }}</a> } @else {
+                    <div class="row-actions">
+                      <button mat-stroked-button [disabled]="saving()" (click)="editFlow(flow)">Editar</button
+                      ><button mat-stroked-button
+                        class="text-danger"
+                        [disabled]="saving()"
+                        (click)="pendingDelete.set(flow)"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+      <app-list-paginator [length]="flowTotal()" [index]="flowIndex()" [size]="flowSize()" (changed)="changeFlowPage($event)" />
+    </section>
+  }
+  @if (captureConfirmation()) {
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar fotografia" (closed)="captureConfirmation.set(false)"><div class="confirmation" role="alert">
+      <p>
+        {{
+          currentSnapshot() === null
+            ? 'Registrar a fotografia com os saldos atuais?'
+            : 'Substituir a fotografia deste mês pelos saldos atuais? A versão anterior será preservada para consulta.'
+        }}
+      </p>
+      <p>
+        Ela representará a carteira até a data de hoje. Confira se os aportes e retiradas desse dia
+        já estão refletidos nos saldos.
+      </p>
+      <div class="actions">
+        <button mat-stroked-button [disabled]="saving()" (click)="captureConfirmation.set(false)">Cancelar</button><button mat-flat-button class="primary" [disabled]="saving()" (click)="capture()">
+          Confirmar fotografia</button>
+      </div>
+    </div></app-edit-panel>
   }
 
+  @if (reopenOpen()) {
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Reabrir período" (closed)="reopenOpen.set(false)">
+      <section class="panel">
+    <p>As fotografias a partir da data informada ficarão desatualizadas. Havendo operações posteriores no mesmo ativo ou saldo, estorne-as da mais recente para a mais antiga e relance em ordem de data. Os estornos continuam visíveis na data em que foram feitos.</p>
+    <p>Uma nova fotografia encerra a reabertura do mês atual. Meses antigos ficam preservados com o aviso; os valores de hoje não representam o passado.</p>
+    <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="reopenForm" (ngSubmit)="reopen()"><fieldset [disabled]="saving()">
+      <mat-form-field appearance="outline"><mat-label>Reabrir a partir de</mat-label><input matInput id="reopen-date" type="date" formControlName="date" [max]="h.today" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Motivo da reabertura</mat-label><input matInput id="reopen-reason" formControlName="reason" maxlength="400" /></mat-form-field>
+      <div class="form-actions"><button mat-stroked-button type="button" [disabled]="saving()" (click)="draftForm.cancel()">Cancelar</button> <button mat-stroked-button type="submit" [disabled]="reopenForm.invalid">{{ saving() ? 'Reabrindo…' : 'Confirmar reabertura' }}</button></div>
+    </fieldset></form>
+
+
+      </section>
+    </app-edit-panel>
+  }
+  @if (flowOpen()) {
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" [title]="editingFlow() ? 'Editar histórico antigo' : 'Registrar histórico antigo'" (closed)="cancelFlow()">
+      <section class="panel"><p class="notice">Este registro afeta as comparações históricas, mas não atualiza os saldos. Para movimentar dinheiro, use Movimentações.</p>
+      <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="form" (ngSubmit)="saveFlow()">
+        <fieldset [disabled]="saving()">
+          <mat-form-field appearance="outline"><mat-label>Data</mat-label><input matInput
+            id="flow-date"
+            type="date"
+            min="1900-01-01"
+            [max]="h.today"
+            formControlName="date"
+          /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Tipo</mat-label><select matNativeControl id="flow-kind" formControlName="kind">
+            <option value="contribution">Aporte</option>
+            <option value="withdrawal">Retirada</option>
+          </select></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Moeda</mat-label><select matNativeControl id="flow-currency" formControlName="currencyId">
+            <option [ngValue]="0">Selecione</option>
+            @for (c of currencies(); track c.id) {
+              <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
+            }
+          </select></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Valor original</mat-label><input matInput
+            id="flow-amount"
+            inputmode="decimal"
+            formControlName="amount"
+            (blur)="formatInput('amount')"
+          /></mat-form-field>
+          @if (foreignCurrency()) {
+            <mat-form-field appearance="outline"><mat-label>Equivalente em {{ flowBaseCode() }} (opcional)</mat-label><input matInput
+              id="flow-base"
+              inputmode="decimal"
+              formControlName="baseAmount"
+              (blur)="formatInput('baseAmount')"
+            /></mat-form-field>
+            <p class="hint">
+              Informe o equivalente efetivo da época, sem usar o câmbio de hoje. Se não souber,
+              deixe vazio; as comparações que dependem desse valor ficarão indisponíveis.
+            </p>
+          }
+          <mat-form-field appearance="outline"><mat-label>Observação (opcional)</mat-label><input matInput id="flow-notes" formControlName="notes" maxlength="500" /></mat-form-field>
+          @if (form.touched && form.invalid) {
+            <p class="field-error">
+              Informe data, moeda e valor no padrão brasileiro, com até quatro casas decimais.
+            </p>
+          }
+          <div class="actions">
+            <button data-discard  mat-stroked-button type="button" (click)="cancelFlow()">Cancelar</button>
+<button mat-flat-button class="primary" type="submit">{{ saving() ? 'Salvando…' : 'Salvar movimento' }}</button>
+          </div>
+        </fieldset>
+      </form>
+
+      </section>
+    </app-edit-panel>
+  }
+  @if (pendingDelete(); as flow) {
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Remover histórico antigo" (closed)="pendingDelete.set(null)">
+      <section class="panel confirmation">
+        <p>Remover este movimento de {{ flow.date | date:'dd/MM/yyyy':'UTC' }}? As comparações históricas serão recalculadas.</p>
+        <div class="actions"><button mat-stroked-button [disabled]="saving()" (click)="pendingDelete.set(null)">Cancelar</button><button mat-stroked-button [disabled]="saving()" (click)="deleteFlow()">Confirmar remoção</button></div>
+      </section>
+    </app-edit-panel>
+  }
+  @if (snapshotOpen()) {
+    <app-edit-panel [editing]="true" [wide]="true" [error]="error()" title="Consultar fotografia" (closed)="closeSnapshot()">
+      @if (detailLoading()) { <p role="status" class="panel">Abrindo fotografia…</p> }
+      @if (detail(); as photo) {
+        @if (rootSnapshot(); as current) {
+          @if (current.previousVersions?.length) {
+            <div class="panel version-picker"><mat-form-field appearance="outline"><mat-label>Versão da fotografia</mat-label>
+              <select matNativeControl [value]="photo.revision" (change)="selectRevision($any($event.target).value)">
+                <option [value]="current.revision" [selected]="'' + (photo.revision) === '' + (current.revision)">Atual · versão {{ current.revision }}</option>
+                @for (v of current.previousVersions; track v.revision) { <option [value]="v.revision" [selected]="'' + (photo.revision) === '' + (v.revision)">Versão {{ v.revision }} · {{ v.capturedAtUtc | date:'dd/MM/yyyy HH:mm' }}</option> }
+              </select>
+            </mat-form-field></div>
+          }
+        }
+        @if (photo.isOutdated) { <p class="notice">Fotografia desatualizada: valores preservados para auditoria.</p> }
     <section class="panel section-gap" id="snapshot-detail">
       <div class="section-title">
         <h2>Fotografia de {{ photo.month | date: 'MM/yyyy' : 'UTC' }}</h2>
-        <button (click)="detail.set(null)">Fechar fotografia</button>
+
       </div>
       <p>
         {{ photo.dashboard.summary.portfolio.name }} · Capturada em
@@ -387,140 +507,8 @@
         [showTargets]="false"
       />
     </section>
+
+      }
+    </app-edit-panel>
   }
-  <section class="section-gap">
-    <h2>Aportes e retiradas realizados</h2>
-    <p>
-      Registre entradas e saídas reais de dinheiro, inclusive as do patrimônio externo.
-      Transferências internas e proventos não são novos aportes. O registro não atualiza
-      automaticamente os saldos.
-    </p>
-    <div class="workspace">
-      <section class="panel"><p>Para novos depósitos e retiradas com atualização automática dos saldos, use <a routerLink="/movements">Movimentações</a>.</p><details><summary>Registrar apenas um movimento histórico antigo</summary>
-      <form [formGroup]="form" (ngSubmit)="saveFlow()">
-        <fieldset [disabled]="saving()">
-          <h3>{{ editingFlow() === null ? 'Registrar movimento' : 'Editar movimento' }}</h3>
-          <label for="flow-date">Data</label
-          ><input
-            id="flow-date"
-            type="date"
-            min="1900-01-01"
-            [max]="h.today"
-            formControlName="date"
-          />
-          <label for="flow-kind">Tipo</label
-          ><select id="flow-kind" formControlName="kind">
-            <option value="contribution">Aporte</option>
-            <option value="withdrawal">Retirada</option>
-          </select>
-          <label for="flow-currency">Moeda</label
-          ><select id="flow-currency" formControlName="currencyId">
-            <option [ngValue]="0">Selecione</option>
-            @for (c of currencies(); track c.id) {
-              <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
-            }
-          </select>
-          <label for="flow-amount">Valor original</label
-          ><input
-            id="flow-amount"
-            inputmode="decimal"
-            formControlName="amount"
-            (blur)="formatInput('amount')"
-          />
-          @if (foreignCurrency()) {
-            <label for="flow-base"
-              >Valor equivalente em {{ flowBaseCode() }} na data do movimento (opcional)</label
-            ><input
-              id="flow-base"
-              inputmode="decimal"
-              formControlName="baseAmount"
-              (blur)="formatInput('baseAmount')"
-            />
-            <p class="hint">
-              Informe o equivalente efetivo da época, sem usar o câmbio de hoje. Se não souber,
-              deixe vazio; as comparações que dependem desse valor ficarão indisponíveis.
-            </p>
-          }
-          <label for="flow-notes">Observação (opcional)</label
-          ><input id="flow-notes" formControlName="notes" maxlength="500" />
-          @if (form.touched && form.invalid) {
-            <p class="field-error">
-              Informe data, moeda e valor no padrão brasileiro, com até quatro casas decimais.
-            </p>
-          }
-          <div class="actions">
-            <button class="primary" type="submit">Salvar movimento</button>
-            @if (editingFlow() !== null) {
-              <button type="button" (click)="cancelFlow()">Cancelar edição</button>
-            }
-          </div>
-        </fieldset>
-      </form></details></section>
-      <div class="panel">
-        <h3>Movimentos {{ selectedYear() || 'de todos os anos' }}</h3>
-        @if (pendingDelete(); as flow) {
-          <div class="confirmation" role="alert">
-            <p>
-              Remover este movimento de {{ flow.date | date: 'dd/MM/yyyy' : 'UTC' }}? As comparações
-              históricas serão recalculadas.
-            </p>
-            <div class="actions">
-              <button class="danger" [disabled]="saving()" (click)="deleteFlow()">
-                Confirmar remoção</button
-              ><button [disabled]="saving()" (click)="pendingDelete.set(null)">Cancelar</button>
-            </div>
-          </div>
-        }
-        @if (!flows().length) {
-          <p>Nenhum movimento registrado para o filtro escolhido.</p>
-        }
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Data / tipo</th>
-                <th scope="col">Valor original</th>
-                <th scope="col">Equivalente informado</th>
-                <th scope="col">Observação</th>
-                <th scope="col">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (flow of flows(); track flow.id) {
-                <tr>
-                  <th scope="row">
-                    {{ flow.date | date: 'dd/MM/yyyy' : 'UTC'
-                    }}<small>{{ flow.isReversal ? 'Estorno de ' : '' }}{{ flow.kind === 'contribution' ? 'Aporte' : 'Retirada' }}</small>
-                  </th>
-                  <td>{{ flow.amount | currency: flow.currencyCode : 'code' : '1.2-2' }}</td>
-                  <td>
-                    {{
-                      flow.baseAmount === null
-                        ? 'Não informado'
-                        : (flow.baseAmount | currency: flow.baseCurrencyCode : 'code' : '1.2-2')
-                    }}
-                  </td>
-                  <td>{{ flow.notes }}</td>
-                  <td>
-                    @if (flow.movementId) { <a routerLink="/movements">Movimentação #{{ flow.movementId }} — consultar ou estornar</a> } @else if (flow.tradeId) { <a routerLink="/trades">Gerado pela operação #{{ flow.tradeId }}</a> } @else {
-                    <div class="row-actions">
-                      <button [disabled]="saving()" (click)="editFlow(flow)">Editar</button
-                      ><button
-                        class="text-danger"
-                        [disabled]="saving()"
-                        (click)="pendingDelete.set(flow)"
-                      >
-                        Remover
-                      </button>
-                    </div>
-                    }
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </section>
 }

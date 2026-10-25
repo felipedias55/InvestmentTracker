@@ -9,3 +9,10 @@
 .completed .check { text-decoration: line-through; }
 .conversion { font-size: 12px; }
 @media (max-width: 1000px) { .comparison { grid-template-columns: 1fr; } }
+
+mat-form-field { width:100%; max-width:360px; }
+fieldset { min-width:0; }
+.simulation-help { margin:18px 0; }
+summary { cursor:pointer; color:var(--primary, #315e99); }
+.joint-plan details { margin:16px 0; }
+mat-checkbox.check { display:block; }

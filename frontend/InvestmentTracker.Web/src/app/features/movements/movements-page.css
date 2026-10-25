@@ -1,0 +1,8 @@
+.movement-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.movement-filters mat-form-field { flex: 1 1 150px; min-width: 0; }
+.movement-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 16px; align-items: center; border-bottom: 1px solid var(--border, #dde3eb); padding: 16px 0; }
+.movement-row p { margin: 4px 0; overflow-wrap: anywhere; }
+.movement-value { text-align: right; font-variant-numeric: tabular-nums; }
+.movement-status { font-size: .85rem; color: var(--text-muted, #526071); }
+mat-form-field { width: 100%; }
+@media (max-width: 700px) { .movement-row { grid-template-columns: minmax(0, 1fr) auto; } .movement-row > div:first-child { grid-column: 1 / -1; } .movement-value { text-align: left; } }

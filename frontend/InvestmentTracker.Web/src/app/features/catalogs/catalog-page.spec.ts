@@ -28,6 +28,7 @@ describe('CatalogPage', () => {
   it('shows an empty state and rejects an invalid form without sending a request', () => {
     const fixture = page();
     expect(fixture.nativeElement.textContent).toContain('Nenhum registro');
+    fixture.componentInstance.newItem(); fixture.detectChanges();
     fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Informe três letras');
@@ -94,6 +95,17 @@ describe('CatalogPage', () => {
     expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(1);
     expect(fixture.nativeElement.querySelector('tbody').textContent).toContain('USD');
     expect(fixture.componentInstance.items().length).toBe(2);
+  });
+
+  it('clamps the page after removing its last record without clearing the search', () => {
+    const items = Array.from({ length: 11 }, (_, i) => ({ id: i + 1, name: 'Moeda ' + String(i).padStart(2, '0'), code: 'AAA' }));
+    const fixture = page(items); const component = fixture.componentInstance;
+    component.search('moeda'); component.changePage({ pageIndex: 1, pageSize: 10 });
+    component.pendingDelete.set(component.pageItems()[0]); component.remove();
+    http.expectOne('/api/currencies/11').flush(null);
+    http.expectOne('/api/currencies').flush(items.slice(0, 10));
+    expect(component.currentPage()).toBe(0); expect(component.query()).toBe('moeda');
+    expect(component.pageItems()).toHaveLength(10);
   });
 
 });

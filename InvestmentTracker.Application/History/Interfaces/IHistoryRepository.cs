@@ -1,9 +1,11 @@
 using InvestmentTracker.Domain.Entities;
+using InvestmentTracker.Application.History.Dtos;
 
 namespace InvestmentTracker.Application.History.Interfaces
 {
     public interface IHistoryRepository
     {
+        Task<CashFlowPageDto> PageCashFlowsAsync(int portfolioId, CashFlowPageQuery query, CancellationToken cancellationToken);
         Task<IReadOnlyList<PortfolioSnapshot>> GetSnapshotsAsync(int portfolioId, CancellationToken cancellationToken);
         Task<PortfolioSnapshot?> GetSnapshotAsync(int portfolioId, int id, CancellationToken cancellationToken);
         Task<PortfolioSnapshot?> CaptureAsync(int portfolioId, bool replace, Func<CancellationToken, Task<PortfolioSnapshot>> create,

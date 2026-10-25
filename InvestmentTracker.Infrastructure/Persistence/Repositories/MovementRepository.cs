@@ -9,6 +9,34 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
 {
     public sealed class MovementRepository(InvestmentTrackerDbContext db) : IMovementRepository
     {
+        public Task<int?> ReversalIdAsync(int portfolioId, int id, CancellationToken ct)
+            => db.Set<FinancialMovement>().Where(x => x.PortfolioId == portfolioId && x.ReversalOfId == id)
+                .Select(x => (int?)x.Id).SingleOrDefaultAsync(ct);
+        public async Task<MovementPageDto> PageAsync(int portfolioId, MovementPageQuery query, CancellationToken ct)
+        {
+            var all = db.Set<FinancialMovement>().AsNoTracking().Where(x => x.PortfolioId == portfolioId);
+            var filtered = all;
+            if (!string.IsNullOrEmpty(query.Search))
+            {
+                var numericId = int.TryParse(query.Search.TrimStart('#'), out var id) ? id : -1;
+                filtered = filtered.Where(x => x.Id == numericId || x.Description.Contains(query.Search)
+                    || x.Effects.Any(e => e.Name.Contains(query.Search)));
+            }
+            if (!string.IsNullOrEmpty(query.Kind)) filtered = filtered.Where(x => x.Kind == query.Kind);
+            if (query.From.HasValue) filtered = filtered.Where(x => x.Date >= query.From.Value);
+            if (query.To.HasValue) filtered = filtered.Where(x => x.Date <= query.To.Value);
+            if (query.Status == "reversed") filtered = filtered.Where(x => all.Any(r => r.ReversalOfId == x.Id));
+            if (query.Status == "reversal") filtered = filtered.Where(x => x.ReversalOfId != null);
+            if (query.Status == "active") filtered = filtered.Where(x => x.ReversalOfId == null && !all.Any(r => r.ReversalOfId == x.Id));
+            var total = await filtered.CountAsync(ct);
+            var page = Math.Min(query.PageIndex, Math.Max(0, (total - 1) / query.PageSize));
+            var items = await filtered.OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
+                .Skip(page * query.PageSize).Take(query.PageSize)
+                .Select(x => new MovementListItemDto(x.Id, x.Date, x.Kind, x.Description, x.CurrencyCode, x.Amount,
+                    x.ReversalOfId, all.Where(r => r.ReversalOfId == x.Id).Select(r => (int?)r.Id).FirstOrDefault()))
+                .ToListAsync(ct);
+            return new MovementPageDto(items, total, page, query.PageSize);
+        }
         public async Task<IReadOnlyList<FinancialMovement>> ListAsync(int portfolioId, CancellationToken ct)
             => await db.Set<FinancialMovement>().AsNoTracking().Include(x => x.Effects).Where(x => x.PortfolioId == portfolioId)
                 .OrderByDescending(x => x.Id).ToListAsync(ct);

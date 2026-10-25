@@ -18,7 +18,7 @@ namespace InvestmentTracker.Application.History.Services
         private static readonly TimeZoneInfo BusinessZone = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
         private DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), BusinessZone).DateTime);
 
-        public async Task<HistoryDto?> GetAsync(int portfolioId, CancellationToken cancellationToken = default)
+        public async Task<HistoryDto?> GetAsync(int portfolioId, CancellationToken cancellationToken = default, bool includeCashFlows = true)
         {
             var portfolio = await portfolios.GetByIdAsync(portfolioId, cancellationToken);
             if (portfolio is null) return null;
@@ -29,8 +29,17 @@ namespace InvestmentTracker.Application.History.Services
             return new HistoryDto(new(portfolio.Id, portfolio.Name, portfolio.Description, portfolio.BaseCurrencyId, portfolio.BaseCurrency.Code),
                 today, HistoryCalculator.Months(snapshots, flows, today, portfolio.BaseCurrency.Code, incomeEvents),
                 HistoryCalculator.Years(snapshots, flows, today, portfolio.BaseCurrency.Code, incomeEvents),
-                flows.Select(f => new CashFlowDto(f.Id, f.Date, f.Kind, f.CurrencyId, f.Currency.Code,
-                    f.Amount, f.BaseCurrencyCode, f.BaseAmount, f.Notes) { TradeId = f.TradeId, MovementId = f.MovementId, IsReversal = f.IsReversal }).ToList());
+                includeCashFlows ? flows.Select(f => new CashFlowDto(f.Id, f.Date, f.Kind, f.CurrencyId, f.Currency.Code,
+                    f.Amount, f.BaseCurrencyCode, f.BaseAmount, f.Notes) { TradeId = f.TradeId, MovementId = f.MovementId, IsReversal = f.IsReversal }).ToList() : []);
+        }
+
+        public async Task<CashFlowPageDto?> PageCashFlowsAsync(int portfolioId, CashFlowPageQuery query, CancellationToken cancellationToken = default)
+        {
+            if (query.PageIndex < 0 || query.PageSize is not (10 or 25 or 50)
+                || query.Year is < 1900 or > 9999 || query.Kind is not (null or "" or "contribution" or "withdrawal"))
+                throw new InputValidationException("Informe filtros e paginação válidos.");
+            if (await portfolios.GetByIdAsync(portfolioId, cancellationToken) is null) return null;
+            return await repository.PageCashFlowsAsync(portfolioId, query, cancellationToken);
         }
 
         public async Task<SnapshotDetailDto?> GetSnapshotAsync(int portfolioId, int id, CancellationToken cancellationToken = default)

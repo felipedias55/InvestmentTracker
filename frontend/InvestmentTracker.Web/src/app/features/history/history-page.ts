@@ -1,3 +1,11 @@
+import { rememberContext } from '../../shared/page-context';
+import { UnsavedForm } from '../../shared/unsaved-changes';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { ListPaginator } from '../../shared/list-paginator';
+import { EditPanel } from '../../shared/edit-panel';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { createRequestId } from '../../core/request-id';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
@@ -23,7 +31,7 @@ import {
 @Component({
   standalone: true,
   selector: 'app-history-page',
-  imports: [CurrencyPipe,
+  imports: [UnsavedForm, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, EditPanel, CurrencyPipe,
     PortfolioPicker,
     HistoryChart,
     MoneyChart,
@@ -37,12 +45,59 @@ import {
   styleUrl: './history-page.css',
 })
 export class HistoryPage {
+  private readonly context = rememberContext('history', () => ({ section: this.section(), mode: this.mode(), selectedYear: this.selectedYear(), chartCurrency: this.chartCurrency(), breakdownPeriod: this.breakdownPeriod(), flowYear: this.flowYear(), flowKind: this.flowKind(), flowSize: this.flowSize(), flowIndex: this.flowIndex(), photoSize: this.photoSize(), photoIndex: this.photoIndex() }), state => { this.section.set(state.section); this.mode.set(state.mode); this.selectedYear.set(state.selectedYear); this.chartCurrency.set(state.chartCurrency); this.breakdownPeriod.set(state.breakdownPeriod); this.flowYear.set(state.flowYear); this.flowKind.set(state.flowKind); this.flowSize.set(state.flowSize); this.flowIndex.set(state.flowIndex); this.photoSize.set(state.photoSize); this.photoIndex.set(state.photoIndex); }, () => !this.loading() && !this.flowLoading());
+
   private readonly api = inject(HistoryService);
   private readonly catalogs = inject(CatalogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder).nonNullable;
   private request?: Subscription;
   private detailRequest?: Subscription;
+  private flowRequest?: Subscription;
+  readonly section = signal<'evolution' | 'photos' | 'flows'>('evolution');
+  readonly flowOpen = signal(false);
+  readonly reopenOpen = signal(false);
+  readonly snapshotOpen = signal(false);
+  readonly rootSnapshot = signal<SnapshotDetail | null>(null);
+  readonly flowYear = signal('');
+  readonly flowKind = signal('');
+  readonly flowIndex = signal(0);
+  readonly flowSize = signal(10);
+  readonly flowTotal = signal(0);
+  readonly flowLoading = signal(false);
+  readonly flowError = signal('');
+  readonly flows = signal<CashFlow[]>([]);
+  readonly photoIndex = signal(0);
+  readonly photoSize = signal(10);
+  readonly photos = computed(() => (this.data()?.months ?? []).filter(r => !this.selectedYear() || r.period.startsWith(this.selectedYear()!)).slice().reverse());
+  readonly photoPage = computed(() => this.photos().slice(this.photoIndex() * this.photoSize(), (this.photoIndex() + 1) * this.photoSize()));
+  setYear(year: string) { this.selectedYear.set(year); this.photoIndex.set(0); }
+  showSection(section: 'evolution' | 'photos' | 'flows') {
+    this.section.set(section);
+    if (section === 'flows') this.loadFlows();
+  }
+  filterFlows() { this.flowIndex.set(0); this.loadFlows(); }
+  changeFlowPage(event: { pageIndex: number; pageSize: number }) {
+    this.flowIndex.set(event.pageIndex); this.flowSize.set(event.pageSize); this.loadFlows();
+  }
+  loadFlows() {
+    if (!this.portfolioId()) return;
+    this.flowRequest?.unsubscribe(); this.flowLoading.set(true); this.flowError.set(''); this.flows.set([]);
+    this.flowRequest = this.api.flows(this.portfolioId()!, this.flowIndex(), this.flowSize(), this.flowYear(), this.flowKind())
+      .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: page => { this.flows.set(page.items); this.flowTotal.set(page.total); this.flowIndex.set(page.pageIndex); this.flowSize.set(page.pageSize); this.flowLoading.set(false); },
+        error: e => { this.flowError.set(apiError(e)); this.flowLoading.set(false); },
+      });
+  }
+  newFlow() { this.cancelFlow(); this.error.set(''); this.flowOpen.set(true); }
+  openCapture() { this.error.set(''); this.captureConfirmation.set(true); }
+  openReopen() { this.error.set(''); this.reopenOpen.set(true); }
+  selectRevision(revision: string) {
+    const current = this.rootSnapshot();
+    if (current) this.detail.set(current.revision === Number(revision) ? current : current.previousVersions?.find(v => v.revision === Number(revision)) ?? current);
+  }
+  closeSnapshot() { this.detailRequest?.unsubscribe(); this.snapshotOpen.set(false); this.detailLoading.set(false); this.detail.set(null); this.rootSnapshot.set(null); }
+
   readonly portfolioId = signal<number | null>(null);
   readonly data = signal<PortfolioHistory | null>(null);
   readonly currencies = signal<CatalogItem[]>([]);
@@ -88,11 +143,6 @@ export class HistoryPage {
           (m) => !this.selectedYear() || m.period.startsWith(this.selectedYear() ?? ''),
         ),
   );
-  readonly flows = computed(() =>
-    (this.data()?.cashFlows ?? []).filter(
-      (f) => !this.selectedYear() || f.date.startsWith(this.selectedYear() ?? ''),
-    ),
-  );
   readonly chartCurrencies = computed(() =>
     [
       ...new Set([
@@ -131,22 +181,25 @@ export class HistoryPage {
     this.saving.set(true); this.error.set('');
     const v = this.reopenForm.getRawValue();
     this.api.reopen(this.portfolioId()!, this.reopenId, v.date, v.reason.trim()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => { this.saving.set(false); this.reopenId = createRequestId(); this.reopenForm.reset();
+      next: () => { this.saving.set(false); this.reopenId = createRequestId(); this.reopenForm.reset(); this.reopenOpen.set(false);
         this.success.set('Período reaberto. As fotografias afetadas foram preservadas e marcadas como desatualizadas.'); this.load(); },
       error: e => { this.saving.set(false); this.error.set(apiError(e)); },
     });
   }
   select(id: number) {
+    this.context.save();
+    if (this.saving()) return;
+    this.flowIndex.set(0); this.photoIndex.set(0); this.flowYear.set(''); this.flowKind.set(''); this.chartCurrency.set('');
     this.portfolioId.set(id);
     this.selectedYear.set(null);
     this.success.set('');
-    this.load();
+    this.context.restore(id); this.load();
   }
   load() {
     const id = this.portfolioId();
-    if (id === null) return;
+    if (id === null || this.saving()) return;
     this.request?.unsubscribe();
-    this.detailRequest?.unsubscribe();
+    this.flowRequest?.unsubscribe(); this.closeSnapshot(); this.flowLoading.set(false); this.flows.set([]); this.flowTotal.set(0);
     this.detailLoading.set(false);
     this.detail.set(null);
     this.loading.set(true);
@@ -155,7 +208,7 @@ export class HistoryPage {
     this.captureConfirmation.set(false);
     this.pendingDelete.set(null);
     this.request = forkJoin({
-      history: this.api.get(id),
+      history: this.api.get(id, false),
       currencies: this.catalogs.list('currencies'),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -165,7 +218,9 @@ export class HistoryPage {
           this.currencies.set(currencies);
           this.loading.set(false);
           if (this.selectedYear() === null) this.selectedYear.set(history.today.slice(0, 4));
-          this.chartCurrency.set(history.portfolio.baseCurrencyCode);
+          if (!this.chartCurrencies().includes(this.chartCurrency())) this.chartCurrency.set(history.portfolio.baseCurrencyCode);
+          this.photoIndex.set(Math.min(this.photoIndex(), Math.max(0, Math.ceil(this.photos().length / this.photoSize()) - 1)));
+          if (this.section() === 'flows') this.loadFlows();
           this.cancelFlow();
         },
         error: (e) => {
@@ -177,6 +232,7 @@ export class HistoryPage {
   openSnapshot(id: number) {
     this.detailRequest?.unsubscribe();
     this.detail.set(null);
+    this.snapshotOpen.set(true); this.rootSnapshot.set(null);
     this.detailLoading.set(true);
     this.error.set('');
     this.detailRequest = this.api
@@ -184,7 +240,7 @@ export class HistoryPage {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (detail) => {
-          this.detail.set(detail);
+          this.detail.set(detail); this.rootSnapshot.set(detail);
           this.detailLoading.set(false);
         },
         error: (e) => {
@@ -214,6 +270,7 @@ export class HistoryPage {
       });
   }
   cancelFlow() {
+    this.flowOpen.set(false);
     this.editingFlow.set(null);
     this.form.reset({
       date: this.data()?.today ?? '',
@@ -225,7 +282,7 @@ export class HistoryPage {
     });
   }
   editFlow(flow: CashFlow) {
-    this.editingFlow.set(flow);
+    this.editingFlow.set(flow); this.flowOpen.set(true);
     this.pendingDelete.set(null);
     this.error.set('');
     this.success.set('');

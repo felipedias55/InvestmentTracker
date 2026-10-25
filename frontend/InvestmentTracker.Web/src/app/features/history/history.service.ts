@@ -19,6 +19,7 @@ export interface CashFlow extends CashFlowInput {
   currencyCode: string;
   baseCurrencyCode: string;
 }
+export interface CashFlowPage { items: CashFlow[]; total: number; pageIndex: number; pageSize: number; }
 export interface HistoryPeriod {
   returns?: { modifiedDietz: string | null; xirr: string | null; note: string | null };
   retainedIncome?: string | null; distributedIncome?: string | null; valuationAndOtherChanges?: string | null; economicResult?: string | null;
@@ -61,8 +62,13 @@ export interface SnapshotDetail {
 @Injectable({ providedIn: 'root' })
 export class HistoryService {
   private readonly http = inject(HttpClient);
-  get(id: number) {
-    return this.http.get<PortfolioHistory>(`/api/portfolios/${id}/history`);
+  get(id: number, includeCashFlows = true) {
+    return this.http.get<PortfolioHistory>(`/api/portfolios/${id}/history`, { params: includeCashFlows ? {} : { includeCashFlows: false } });
+  }
+  flows(id: number, pageIndex: number, pageSize: number, year: string, kind: string) {
+    return this.http.get<CashFlowPage>(`/api/portfolios/${id}/history/cash-flows/page`, {
+      params: { pageIndex, pageSize, ...(year ? { year } : {}), ...(kind ? { kind } : {}) },
+    });
   }
   snapshot(id: number, snapshotId: number) {
     return this.http.get<SnapshotDetail>(`/api/portfolios/${id}/history/snapshots/${snapshotId}`);

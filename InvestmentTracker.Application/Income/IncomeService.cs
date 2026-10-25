@@ -9,6 +9,13 @@ namespace InvestmentTracker.Application.Income
     public sealed class IncomeService(IIncomeRepository repository, IAssetRepository assets,
         ICurrencyRepository currencies, IExternalAssetRepository cash, TimeProvider clock, IIncomeConversionService conversions) : IIncomeService
     {
+        public Task<IncomePageDto> PageAsync(int portfolioId, IncomePageQuery query, CancellationToken ct)
+        {
+            if (query.PageIndex < 0 || query.PageSize is not (10 or 25 or 50) || query.Search?.Length > 120
+                || (query.From.HasValue && query.To.HasValue && query.From > query.To))
+                throw new InputValidationException("Informe filtros e paginação válidos.");
+            return repository.PageAsync(portfolioId, query with { Search = query.Search?.Trim() }, ct);
+        }
         private const decimal MaxMoney = 999999999999999.9999m;
         private DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(),
             TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo")).DateTime);

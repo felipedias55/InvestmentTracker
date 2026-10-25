@@ -22,7 +22,7 @@ describe('TradesPage', () => {
     http.expectOne('/api/currencies').flush([{ id: 1, code: 'BRL', name: 'Real' }]);
     http.expectOne(`/api/portfolios/${portfolio}/external-assets`).flush({ ...testDashboard.externalAssets,
       items: [{ id: 5, name: 'Saldo', currencyId: 1, currencyCode: 'BRL', value: '1000' }] });
-    http.expectOne(`/api/portfolios/${portfolio}/trades`).flush(trades);
+    http.expectOne(r => r.url === `/api/portfolios/${portfolio}/trades/page`).flush({ items: trades.map(trade => ({ trade, movementId: null, reversedById: null })), total: trades.length, pageIndex: 0, pageSize: 10 });
   }
   function initialize() {
     const fixture = TestBed.createComponent(TradesPage); fixture.detectChanges();
@@ -30,7 +30,7 @@ describe('TradesPage', () => {
   }
   it('submits one operation with exact Brazilian decimals and refreshes the ledger', () => {
     const fixture = initialize(); const component = fixture.componentInstance;
-    component.form.patchValue({ assetId: 10, quantity: '2', unitPrice: '10,1234' });
+    component.openTrade('buy'); component.form.patchValue({ assetId: 10, quantity: '2', unitPrice: '10,1234' });
     fixture.detectChanges(); fixture.nativeElement.querySelector('form:has(#trade-kind)').dispatchEvent(new Event('submit'));
     const request = http.expectOne('/api/portfolios/1/trades');
     expect(request.request.method).toBe('POST');
@@ -71,6 +71,30 @@ describe('TradesPage', () => {
     const requestId = event.request.body.requestId; event.error(new ProgressEvent('error'));
     component.saveEvent(); const retry = http.expectOne('/api/portfolios/1/movements/corporate-events');
     expect(retry.request.body.requestId).toBe(requestId); retry.flush({}); flush();
+  });
+
+  it('opens forms on demand and preserves the selected asset while searching', () => {
+    const fixture = initialize(); const c = fixture.componentInstance;
+    expect(fixture.nativeElement.querySelector('#trade-kind')).toBeNull();
+    c.openTrade('sell'); c.form.controls.assetId.setValue(10); c.assetSearch.set('OTHER');
+    expect(c.selectableAssets().map(a => a.id)).toEqual([10]);
+    fixture.detectChanges(); expect(fixture.nativeElement.querySelector('#trade-kind').value).toBe('sell');
+    c.panel.set(null); fixture.detectChanges(); expect(fixture.nativeElement.querySelector('#trade-kind')).toBeNull();
+    c.openEvent(); fixture.detectChanges(); expect(fixture.nativeElement.querySelector('#event-kind')).not.toBeNull();
+  });
+  it('paginates on the server, cancels old requests and applies filters before resetting the page', () => {
+    const c = initialize().componentInstance;
+    c.changePage({ pageIndex: 2, pageSize: 10 }); const previous = http.expectOne(r => r.url.endsWith('/trades/page'));
+    c.filters.patchValue({ search: 'TRA', kind: 'sell', from: '2026-01-01' }); c.applyFilters();
+    expect(previous.cancelled).toBe(true);
+    const filtered = http.expectOne(r => r.url.endsWith('/trades/page'));
+    expect(filtered.request.params.get('pageIndex')).toBe('0');
+    expect(filtered.request.params.get('kind')).toBe('sell');
+    expect(filtered.request.params.get('search')).toBe('TRA');
+    filtered.flush({ items: [{ trade, movementId: 8, reversedById: 9 }], total: 1, pageIndex: 0, pageSize: 10 });
+    expect(c.trades()[0].reversedById).toBe(9);
+    c.filters.patchValue({ from: '2026-10-20', to: '2026-01-01' }); c.applyFilters();
+    http.expectNone(r => r.url.endsWith('/trades/page')); expect(c.listError()).toContain('data inicial');
   });
 
 });

@@ -1,6 +1,9 @@
+import { inject } from '@angular/core';
+import { UnsavedChanges } from './shared/unsaved-registry';
+import { PageContexts } from './shared/page-context';
 import { Routes } from '@angular/router';
 import { catalogs } from './features/catalogs/catalog.models';
-export const routes: Routes = [
+const pageRoutes: Routes = [
   { path: 'movements', loadComponent: () => import('./features/movements/movements-page').then(m => m.MovementsPage) },
   { path: 'income', loadComponent: () => import('./features/income/income-page').then(m => m.IncomePage) },
   { path: 'trades', loadComponent: () => import('./features/trades/trades-page').then(m => m.TradesPage) },
@@ -42,3 +45,10 @@ export const routes: Routes = [
   })),
   { path: '**', redirectTo: 'dashboard' },
 ];
+
+export const routes: Routes = pageRoutes.map(route => ({ ...route, canDeactivate: [() => {
+  const contexts = inject(PageContexts);
+  if (!inject(UnsavedChanges).confirmWithin()) return false;
+  contexts.capture();
+  return true;
+}] }));

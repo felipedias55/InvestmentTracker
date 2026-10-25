@@ -43,6 +43,63 @@ namespace InvestmentTracker.IntegrationTests.History
             Assert.Contains("desatualizada", history.Years.Single(x => x.Period == "2025").Returns!.Note);
         }
 
+        [Fact]
+        public async Task CashFlowPage_FiltersBeforePagingKeepsStableOrderAndPreservesOverviewMetrics()
+        {
+            var (id, other, brl, usd, _) = await SeedAsync();
+            await using (var db = fixture.Database.CreateContext())
+            {
+                db.PortfolioCashFlows.AddRange(Enumerable.Range(1, 12).Select(i => new PortfolioCashFlow
+                {
+                    PortfolioId = id, Date = new(2025, 6, 15), Kind = "contribution", CurrencyId = brl,
+                    Amount = i, BaseAmount = i, BaseCurrencyCode = "BRL", Notes = $"Histórico {i}", CreatedAtUtc = DateTime.UtcNow
+                }));
+                db.PortfolioCashFlows.AddRange(
+                    new PortfolioCashFlow { PortfolioId = id, Date = new(2025, 6, 16), Kind = "withdrawal", CurrencyId = usd,
+                        Amount = 20.1234m, BaseAmount = null, BaseCurrencyCode = "BRL", IsReversal = true, CreatedAtUtc = DateTime.UtcNow },
+                    new PortfolioCashFlow { PortfolioId = id, Date = new(2024, 6, 15), Kind = "contribution", CurrencyId = brl,
+                        Amount = 100, BaseAmount = 100, BaseCurrencyCode = "BRL", CreatedAtUtc = DateTime.UtcNow },
+                    new PortfolioCashFlow { PortfolioId = other, Date = new(2025, 6, 15), Kind = "contribution", CurrencyId = brl,
+                        Amount = 999, BaseAmount = 999, BaseCurrencyCode = "BRL", CreatedAtUtc = DateTime.UtcNow });
+                await db.SaveChangesAsync();
+            }
+            using var client = fixture.ApiFactory.CreateClient();
+            var path = $"/api/portfolios/{id}/history";
+            var first = (await client.GetFromJsonAsync<CashFlowPageDto>(path + "/cash-flows/page?year=2025&kind=contribution"))!;
+            Assert.Equal(12, first.Total);
+            Assert.Equal(10, first.Items.Count);
+            Assert.Equal(Enumerable.Range(3, 10).Reverse().Select(x => (decimal)x), first.Items.Select(x => x.Amount));
+            var last = (await client.GetFromJsonAsync<CashFlowPageDto>(path + "/cash-flows/page?year=2025&kind=contribution&pageIndex=999"))!;
+            Assert.Equal(1, last.PageIndex);
+            Assert.Equal(new[] { 2m, 1m }, last.Items.Select(x => x.Amount));
+            Assert.Empty(first.Items.Select(x => x.Id).Intersect(last.Items.Select(x => x.Id)));
+            var withdrawals = (await client.GetFromJsonAsync<CashFlowPageDto>(path + "/cash-flows/page?kind=withdrawal"))!;
+            var withdrawal = Assert.Single(withdrawals.Items);
+            Assert.Null(withdrawal.BaseAmount);
+            Assert.True(withdrawal.IsReversal);
+            Assert.Equal(20.1234m, withdrawal.Amount);
+            var full = (await client.GetFromJsonAsync<HistoryDto>(path))!;
+            var overview = (await client.GetFromJsonAsync<HistoryDto>(path + "?includeCashFlows=false"))!;
+            Assert.Equal(14, full.CashFlows.Count);
+            Assert.Empty(overview.CashFlows);
+            Assert.Equal(full.Months, overview.Months);
+            Assert.Equal(full.Years, overview.Years);
+            Assert.Equal(78m, overview.Months.Single(x => x.Period == "2025-06").Contributions);
+        }
+
+        [Theory]
+        [InlineData("pageIndex=-1")]
+        [InlineData("pageSize=1000")]
+        [InlineData("year=0")]
+        [InlineData("kind=income")]
+        public async Task CashFlowPage_RejectsInvalidQueries(string query)
+        {
+            var (id, _, _, _, _) = await SeedAsync();
+            using var client = fixture.ApiFactory.CreateClient();
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync($"/api/portfolios/{id}/history/cash-flows/page?{query}")).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/portfolios/2147483647/history/cash-flows/page")).StatusCode);
+        }
+
         private sealed class NoRates : IExchangeRateProvider
         {
             public Task<ExchangeRate?> FetchAsync(string b, string q, CancellationToken ct) => Task.FromResult<ExchangeRate?>(null);

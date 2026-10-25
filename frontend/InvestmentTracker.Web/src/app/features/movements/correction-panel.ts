@@ -1,3 +1,9 @@
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { UnsavedForm } from '../../shared/unsaved-changes';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { Component, DestroyRef, EventEmitter, Input, OnInit, Output, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
@@ -24,8 +30,9 @@ export interface CorrectionSimulation {
   snapshots: { id: number; month: string; revision: number }[]; warnings: string[]; blockers: string[];
 }
 @Component({
-  standalone: true, selector: 'app-correction-panel', imports: [CurrencyPipe, ReactiveFormsModule, DatePipe, EditPanel],
+  standalone: true, selector: 'app-correction-panel', imports: [UnsavedForm, MatCheckboxModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, CurrencyPipe, ReactiveFormsModule, DatePipe, EditPanel],
   templateUrl: './correction-panel.html',
+  styles: ['mat-form-field { width: 100%; }'],
 })
 export class CorrectionPanel implements OnInit {
   @Input({ required: true }) portfolioId!: number;

@@ -44,4 +44,16 @@ describe('StrategyEditor', () => {
     expect(c.profileId()).toBe('');
     expect(c.remainder()).toBe('targets');
   });
+  it('retains all rules and exclusions when filtering or paging the editor', () => {
+    const f = create(), c = f.componentInstance;
+    f.componentRef.setInput('categories', Array.from({length:12}, (_, i) => ({groupId:i+1,name:'Grupo '+i,currentValue:'0',currentPercentage:'0',targetPercentage:'0',difference:'0'})));
+    c.enabled.set(true); c.rule(1, 'fixed', '20,50'); c.rule(12, 'percent', '10'); c.exclude(1,true);
+    c.pageIndex.set(1); f.detectChanges(); expect(c.pageCategories()).toHaveLength(2);
+    c.query.set('Grupo 11'); expect(c.pageCategories()).toHaveLength(1);
+    expect(c.config().rules).toEqual([{categoryId:1,kind:'fixed',value:'20.50'},{categoryId:12,kind:'percent',value:'10'}]);
+    expect(c.config().excludedCategoryIds).toEqual([1]);
+    c.open.set(true); f.detectChanges(); c.open.set(false); f.detectChanges();
+    expect(c.config().rules).toHaveLength(2); http.expectNone(r => r.method === 'POST');
+  });
+
 });

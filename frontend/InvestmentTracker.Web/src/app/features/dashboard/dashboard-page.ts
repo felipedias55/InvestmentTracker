@@ -1,10 +1,16 @@
+import { SectionLink } from '../../shared/section-link';
+import { rememberContext } from '../../shared/page-context';
+import { AppIcon } from '../../shared/app-icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { DashboardSummary } from './dashboard-summary';
 import { DashboardMovements } from './dashboard-movements';
 import type { PortfolioHistory } from '../history/history.service';
 import type { IncomeAnalysis } from '../income/income-page';
 import { DashboardAnalysis } from './dashboard-analysis';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -17,14 +23,21 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-dashboard-page',
-  imports: [DashboardSummary, DashboardMovements, DashboardAnalysis, CurrencyPipe, PortfolioPicker, AllocationTable, DatePipe, RouterLink],
+  imports: [SectionLink, AppIcon, MatButtonModule, MatFormFieldModule, MatInputModule, DashboardSummary, DashboardMovements, DashboardAnalysis, CurrencyPipe, PortfolioPicker, AllocationTable, DatePipe, RouterLink],
   templateUrl: './dashboard-page.html',
   styleUrl: './dashboard-page.css',
 
 })
 export class DashboardPage {
+  private readonly context = rememberContext('dashboard', () => ({ query: this.query(), status: this.status(), sort: this.sort() }), state => { this.query.set(state.query); this.status.set(state.status); this.sort.set(state.sort); }, () => !this.loading());
+
   private readonly api = inject(AllocationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private dragPreview: HTMLElement | null = null;
+  private dragFocus: HTMLElement | null = null;
+  constructor() { this.destroyRef.onDestroy(() => this.removePreview()); }
   private request?: Subscription;
   readonly portfolioId = signal<number | null>(null);
   readonly data = signal<Dashboard | null>(null);
@@ -56,10 +69,26 @@ export class DashboardPage {
   startDrag(event: DragEvent, id: ChartId) {
     if (!this.organizing() || window.matchMedia('(max-width: 700px)').matches) { event.preventDefault(); return; }
     this.dragged.set(id);
-    if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', id); }
+    this.dragFocus = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', id);
+      this.removePreview();
+      const preview = document.createElement('div');
+      preview.textContent = this.titles[id]; preview.setAttribute('aria-hidden', 'true');
+      Object.assign(preview.style, { position: 'fixed', left: '0', top: '0', zIndex: '9999', pointerEvents: 'none',
+        background: 'var(--surface)', color: 'var(--ink)', border: '2px solid var(--accent)', borderRadius: '8px',
+        padding: '12px 16px', font: '600 14px sans-serif', width: '280px', boxSizing: 'border-box' });
+      document.body.append(preview); this.dragPreview = preview;
+      const handle = this.dragFocus?.getBoundingClientRect();
+      const x = Math.max(0, Math.min(280, event.clientX - (handle?.left ?? event.clientX)));
+      const y = Math.max(0, Math.min(preview.getBoundingClientRect().height, event.clientY - (handle?.top ?? event.clientY)));
+      event.dataTransfer.setDragImage(preview, x, y);
+      requestAnimationFrame(() => { if (this.dragPreview === preview) this.removePreview(); });
+    }
   }
   overChart(event: DragEvent, id: ChartId) {
-    if (!this.organizing() || !this.dragged() || this.dragged() === id) return;
+    if (!this.organizing() || !this.dragged()) return;
+    if (this.dragged() === id) { this.dropTarget.set(null); return; }
     event.preventDefault(); this.dropTarget.set(id);
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
   }
@@ -73,10 +102,28 @@ export class DashboardPage {
       items.splice(destination, 0, source);
       this.order.set(items); this.saveLayout();
       this.announcement.set(`${this.titles[source]} na posição ${destination + 1} de ${items.length}.`);
+      this.focusChart(source, '.drag-handle');
     }
     this.endDrag();
   }
-  endDrag() { this.dragged.set(null); this.dropTarget.set(null); }
+  private removePreview() { this.dragPreview?.remove(); this.dragPreview = null; }
+  endDrag() {
+    const focus = this.dragFocus; this.dragFocus = null;
+    this.dragged.set(null); this.dropTarget.set(null); this.removePreview();
+    if (focus?.isConnected) focus.focus({ preventScroll: true });
+  }
+  @HostListener('document:keydown.escape') cancelDrag() { this.endDrag(); }
+  private focusChart(id: ChartId, selector: string) {
+    afterNextRender(() => {
+      let control = this.element.nativeElement.querySelector<HTMLElement>(`[data-chart-id="${id}"] ${selector}`);
+      const card = control?.closest('.chart-card');
+      if (!control || !(card instanceof HTMLElement)) return;
+      if (control instanceof HTMLButtonElement && control.disabled) control = card.querySelector<HTMLElement>('[data-move]:not(:disabled)') ?? control;
+      control.focus({ preventScroll: true });
+      const rect = control.getBoundingClientRect();
+      if (rect.top < 80 || rect.bottom > window.innerHeight) control.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    }, { injector: this.injector });
+  }
   readonly chartTypes = signal<Record<AllocationChartId, 'bars' | 'donut'>>({ categories: 'donut', sectors: 'bars', countries: 'donut' });
   readonly oldestUpdate = computed(() => this.data()?.summary.positions.map(p => p.updatedOn).filter((x): x is string => !!x).sort()[0] ?? null);
   readonly missingDates = computed(() => this.data()?.summary.positions.filter(p => !p.updatedOn).length ?? 0);
@@ -102,6 +149,7 @@ export class DashboardPage {
     this.saveLayout();
   }
   moveChart(id: ChartId, direction: number) {
+    if (!this.organizing() || (direction !== -1 && direction !== 1)) return;
     const items = [...this.order()];
     const index = items.indexOf(id);
     const destination = index + direction;
@@ -110,6 +158,7 @@ export class DashboardPage {
     this.order.set(items);
     this.saveLayout();
     this.announcement.set(`${this.titles[id]} na posição ${destination + 1} de ${items.length}.`);
+    this.focusChart(id, `[data-move="${direction === -1 ? 'up' : 'down'}"]`);
   }
   clearFilters() { this.query.set(''); this.status.set('all'); this.sort.set('value'); }
   isAllocation(id: ChartId): id is AllocationChartId { return id === 'categories' || id === 'sectors' || id === 'countries'; }
@@ -124,6 +173,7 @@ export class DashboardPage {
         a.currentValue === null ? (b.currentValue === null ? 0 : 1) : b.currentValue === null ? -1 : Number(b.currentValue) - Number(a.currentValue));
   }
   select(id: number) {
+    this.context.save();
     this.endDrag(); this.organizing.set(false);
     this.sizes.set({ categories: 'medium', sectors: 'medium', countries: 'compact', evolution: 'wide', income: 'medium', highlights: 'medium', movements: 'medium' });
     this.portfolioId.set(id);
@@ -145,7 +195,7 @@ export class DashboardPage {
         this.collapsed.set([...new Set<ChartId>([...stored.collapsed.filter(valid), ...(!stored.order.includes('movements') ? ['movements' as ChartId] : [])])]);
       }
     } catch { /* Invalid or unavailable storage uses the default layout. */ }
-    this.load();
+    this.context.restore(id); this.load();
   }
   load() {
     const id = this.portfolioId();

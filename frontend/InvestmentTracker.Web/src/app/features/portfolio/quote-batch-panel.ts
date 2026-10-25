@@ -1,3 +1,7 @@
+import { MatButtonModule } from '@angular/material/button';
+import { DraftState } from '../../shared/draft-state';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormControl } from '@angular/forms';
@@ -29,15 +33,17 @@ export function quoteTotal(quantity: string, unitPrice: string): string {
 }
 
 @Component({
-  selector: 'app-quote-batch-panel', standalone: true, imports: [EditPanel, PrivateCurrencyPipe],
+  selector: 'app-quote-batch-panel', standalone: true, imports: [DraftState, EditPanel, PrivateCurrencyPipe, MatButtonModule, MatFormFieldModule, MatInputModule],
   template: `
+    <div [appDraftState]="prices()" [draftBusy]="saving() || fetching()">
     <app-edit-panel [editing]="true" [busy]="saving() || fetching()" [error]="error()" title="Atualizar cotações em lote" (closed)="cancel()">
       <section class="panel">
         <h2>{{ review() ? 'Conferir cotações' : 'Atualizar cotações' }}</h2>
         <p>Informe a cotação <strong>unitária na moeda original</strong>. Apenas os ativos filtrados com quantidade positiva estão nesta lista. Deixe em branco os que não deseja atualizar.</p>
-        <p class="hint">Quantidade, custo investido e proventos serão preservados. A atualização será registrada com a data de hoje e poderá deixar a fotografia de hoje desatualizada.</p>
+        <details><summary>Sobre esta atualização</summary><p class="hint">Quantidade, custo investido e proventos serão preservados. A atualização será registrada com a data de hoje e poderá deixar a fotografia de hoje desatualizada.</p></details>
         @if (!review()) {
-          <button (click)="fetchQuotes()" [disabled]="saving() || fetching() || uncertain() || !rows().length || rows().length > 200">{{ fetching() ? 'Consultando provedores…' : 'Consultar cotações gratuitas' }}</button>
+          <p id="quote-query-scope" role="status">{{ positions().length }} posições capturadas pelos filtros ao abrir o lote; {{ rows().length }} com quantidade positiva. A próxima consulta enviará {{ pendingQuoteIds().length }} {{ pendingQuoteIds().length === 1 ? 'posição' : 'posições' }} com campos vazios, sem depender da página da Carteira.</p>
+          <button mat-stroked-button aria-describedby="quote-query-scope" (click)="fetchQuotes()" [disabled]="saving() || fetching() || uncertain() || !pendingQuoteIds().length || pendingQuoteIds().length > 200">{{ fetching() ? 'Consultando provedores…' : 'Buscar cotações' }}</button>
           <p class="hint">Consulta apenas campos vazios. Brasil: brapi com atraso. EUA: Alpha Vantage, fechamento diário. Chaves gratuitas devem estar configuradas na API. A consulta não salva posições.</p>
           <p class="hint">EUA: consultas espaçadas para reduzir bloqueios; um lote pode levar alguns minutos. Após uma pausa, consulte novamente: os campos já preenchidos serão preservados.</p>
         }
@@ -48,14 +54,14 @@ export function quoteTotal(quantity: string, unitPrice: string): string {
               <strong>{{ row.position.ticker }} · {{ row.position.currencyCode }}</strong>
               <small>{{ row.position.name }} · Quantidade: {{ formatNumber(row.position.quantity) }}</small>
               @if (!review()) {
-                <label [for]="'quote-' + row.position.id">Nova cotação de {{ row.position.ticker }}</label>
-                <input [id]="'quote-' + row.position.id" inputmode="decimal" autocomplete="off" placeholder="Ex.: 123,45" [value]="prices()[row.position.id] || ''" (input)="setPrice(row.position.id, $any($event.target).value)" />
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Nova cotação de {{ row.position.ticker }}</mat-label>
+                <input matInput [id]="'quote-' + row.position.id" inputmode="decimal" autocomplete="off" placeholder="Ex.: 123,45" [value]="prices()[row.position.id] || ''" (input)="setPrice(row.position.id, $any($event.target).value)" /></mat-form-field>
               }
               @if (quotes()[row.position.id]; as quote) {
 
                 @if (quote.price !== null) {
                   <span class="quote-info">
-                    <button type="button" class="quote-info-button" aria-label="Informações da cotação consultada"
+                    <button mat-stroked-button type="button" class="quote-info-button" aria-label="Informações da cotação consultada"
                       [attr.aria-expanded]="infoId() === row.position.id" [attr.aria-describedby]="'quote-info-' + row.position.id"
                       (click)="infoId.set(infoId() === row.position.id ? null : row.position.id)" (keydown.escape)="infoId.set(null)">ⓘ</button>
                     <span role="tooltip" [id]="'quote-info-' + row.position.id" [class.open]="infoId() === row.position.id">{{ quoteDetails(quote) }}</span>
@@ -77,14 +83,15 @@ export function quoteTotal(quantity: string, unitPrice: string): string {
           @if (changed().length > 200) { <p class="field-error">Atualize no máximo 200 posições por lote. Use os filtros para reduzir a seleção.</p> }
           @if (uncertain()) { <p class="notice">A resposta não confirmou o resultado. Tente novamente com os mesmos dados; o identificador evita duplicar o registro.</p> }
           @if (review()) {
-            <button class="primary" (click)="save()" [disabled]="saving() || fetching()">{{ saving() ? 'Salvando lote…' : uncertain() ? 'Tentar novamente' : 'Confirmar atualização do lote' }}</button>
-            <button (click)="review.set(false)" [disabled]="saving() || fetching() || uncertain()">Voltar à edição</button>
-          } @else { <button class="primary" (click)="review.set(true)" [disabled]="!valid() || fetching()">Revisar {{ changed().length }} cotações</button> }
-          <button (click)="cancel()" [disabled]="saving() || fetching()">Cancelar</button>
-          @if (confirmClose()) { <p>Fechar e descartar os campos preenchidos? Se houve falha de comunicação, confira a carteira antes de iniciar outro lote.</p><button (click)="closed.emit()">Fechar sem continuar</button><button (click)="confirmClose.set(false)">Continuar edição</button> }
+            <button mat-flat-button class="primary" (click)="save()" [disabled]="saving() || fetching()">{{ saving() ? 'Salvando lote…' : uncertain() ? 'Tentar novamente' : 'Confirmar atualização do lote' }}</button>
+            <button mat-stroked-button (click)="review.set(false)" [disabled]="saving() || fetching() || uncertain()">Voltar à edição</button>
+          } @else { <button mat-flat-button class="primary" (click)="review.set(true)" [disabled]="!valid() || fetching()">Revisar {{ changed().length }} cotações</button> }
+          <button mat-stroked-button (click)="cancel()" [disabled]="saving() || fetching()">Cancelar</button>
+          @if (confirmClose()) { <p>Fechar e descartar os campos preenchidos? Se houve falha de comunicação, confira a carteira antes de iniciar outro lote.</p><button mat-stroked-button (click)="closed.emit()">Fechar sem continuar</button><button mat-stroked-button (click)="confirmClose.set(false)">Continuar edição</button> }
         </div>
       </section>
     </app-edit-panel>
+    </div>
   `,
   styles: [`
     .quote-info { position: relative; display: inline-block; margin-top: 6px; }
@@ -95,8 +102,9 @@ export function quoteTotal(quantity: string, unitPrice: string): string {
     small { display: block; color: var(--muted); margin-top: 6px; }
     dl { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
     dt { color: var(--muted); font-size: 12px; } dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
-    .batch-actions { position: sticky; bottom: -24px; background: white; border-top: 1px solid var(--border); padding: 12px 0; }
+    .batch-actions { position: sticky; bottom: -24px; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 0; }
     .batch-actions button { margin: 4px; } .batch-actions p { margin: 8px 0; }
+    @media (max-width:650px) { .batch-actions { position:static; } }
   `],
 })
 export class QuoteBatchPanel {
@@ -116,7 +124,7 @@ export class QuoteBatchPanel {
   }
   fetchQuotes() {
     if (this.fetching() || this.saving() || this.uncertain() || this.review()) return;
-    const ids = this.rows().filter(r => !(this.prices()[r.position.id] || '').trim()).map(r => r.position.id);
+    const ids = this.pendingQuoteIds();
     if (!ids.length || ids.length > 200) { this.error.set('Deixe em branco os campos que deseja consultar, até 200 posições.'); return; }
     this.fetching.set(true); this.error.set(''); this.fetchSummary.set('');
     this.http.post<{ positionId: number; quote: QuoteInfo }[]>(
@@ -169,6 +177,7 @@ export class QuoteBatchPanel {
     }
     return { position, price, total, problem };
   }));
+  readonly pendingQuoteIds = computed(() => this.rows().filter(row => !(this.prices()[row.position.id] || '').trim()).map(row => row.position.id));
   readonly changed = computed(() => this.rows().filter(r => r.total !== null));
   readonly valid = computed(() => this.changed().length > 0 && this.changed().length <= 200 && this.rows().every(r => !r.problem));
   setPrice(id: number, value: string) { this.quotes.update(quotes => { const next = { ...quotes }; delete next[id]; return next; }); this.prices.update(values => ({ ...values, [id]: value })); this.review.set(false); this.error.set(''); this.requestId = createRequestId(); }

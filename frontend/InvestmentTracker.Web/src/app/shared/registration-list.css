@@ -1,0 +1,33 @@
+
+:host { display: block; min-width: 0; }
+.registration-actions { display: flex; justify-content: flex-end; margin: 16px 0; }
+.registration-workspace { display: block; margin-top: 20px; }
+mat-form-field { width: 100%; }
+.registration-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.registration-filters mat-form-field { flex: 1 1 200px; }
+.asset-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.asset-card { min-width: 0; display: flex; flex-direction: column; }
+.asset-card h3, td { overflow-wrap: anywhere; }
+.asset-card .actions, .row-actions { flex-wrap: wrap; }
+.asset-card .card-footer { justify-content: flex-end; margin-top: auto; padding-top: 12px; }
+.record-actions, .row-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 12px; }
+.record-actions > .text-danger, .row-actions > .text-danger { margin-inline-start: 8px; }
+.registration-row-actions { text-align: right; }
+.registration-row-actions .row-actions { min-width: 180px; }
+.asset-card details { margin-bottom: 20px; }
+.record-actions button, .row-actions button { min-height: 44px; }
+fieldset { min-width: 0; }
+.confirmation { padding: 24px; }
+details { margin: 12px 0; }
+summary { cursor: pointer; color: var(--primary, #315e99); }
+button[aria-pressed="true"] { background: var(--primary-soft, #e7eef8); color: var(--primary, #315e99); border-color: currentColor; }
+@media (max-width: 650px) {
+  .registration-filters { display: block; }
+  .registration-actions > button { width: 100%; }
+  .row-actions { gap: 6px; }
+  td, th { padding: 10px 6px; }
+}
+
+.record-saved { animation: record-saved 2s ease-out; }
+@keyframes record-saved { from { box-shadow: inset 4px 0 var(--accent); } to { box-shadow: inset 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .record-saved { animation: none; } }

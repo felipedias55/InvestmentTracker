@@ -4,7 +4,8 @@ namespace InvestmentTracker.Application.History.Interfaces
 {
     public interface IHistoryService
     {
-        Task<HistoryDto?> GetAsync(int portfolioId, CancellationToken cancellationToken = default);
+        Task<HistoryDto?> GetAsync(int portfolioId, CancellationToken cancellationToken = default, bool includeCashFlows = true);
+        Task<CashFlowPageDto?> PageCashFlowsAsync(int portfolioId, CashFlowPageQuery query, CancellationToken cancellationToken = default);
         Task<SnapshotDetailDto?> GetSnapshotAsync(int portfolioId, int id, CancellationToken cancellationToken = default);
         Task<SnapshotDetailDto?> CaptureAsync(int portfolioId, bool replace, CancellationToken cancellationToken = default);
         Task<int?> CreateCashFlowAsync(int portfolioId, SaveCashFlowDto dto, CancellationToken cancellationToken = default);

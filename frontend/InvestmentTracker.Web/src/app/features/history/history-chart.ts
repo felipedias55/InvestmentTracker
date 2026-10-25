@@ -1,3 +1,4 @@
+import { MatButtonModule } from '@angular/material/button';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { Component, computed, input, output, signal } from '@angular/core';
 import { MoneyChart } from '../../shared/money-chart';
@@ -7,15 +8,15 @@ import { HistoryPeriod } from './history.service';
 @Component({
   standalone: true,
   selector: 'app-history-chart',
-  imports: [CurrencyPipe, MoneyChart],
+  imports: [MatButtonModule, CurrencyPipe, MoneyChart],
   template: `
     <div class="actions" role="group" aria-label="Formato da evolução">
-      <button (click)="mode.set('line')" [class.primary]="mode() === 'line'" [attr.aria-pressed]="mode() === 'line'">Linha</button>
-      <button (click)="mode.set('columns')" [class.primary]="mode() === 'columns'" [attr.aria-pressed]="mode() === 'columns'">Colunas</button>
+      <button mat-stroked-button (click)="mode.set('line')" [class.primary]="mode() === 'line'" [attr.aria-pressed]="mode() === 'line'">Linha</button>
+      <button mat-stroked-button (click)="mode.set('columns')" [class.primary]="mode() === 'columns'" [attr.aria-pressed]="mode() === 'columns'">Colunas</button>
     </div>
     @if (mode() === 'line') {
       <app-money-chart [points]="points()" [currency]="currency()" title="Evolução do patrimônio" kind="line" />
-      <p class="hint">Pontos representam fotografias. Lacunas, fotografias desatualizadas e outras moedas interrompem a linha. Consulte os valores preservados nos botões abaixo.</p>
+      <details><summary>Como ler este gráfico</summary><p class="hint">Pontos representam fotografias. Lacunas, fotografias desatualizadas e outras moedas interrompem a linha. Consulte os valores preservados nos botões abaixo.</p></details>
     }
     <div
       class="chart-scroll"
@@ -91,12 +92,13 @@ import { HistoryPeriod } from './history.service';
         width: 75%;
         border: 0;
         padding: 0;
-        background: linear-gradient(#d0bb80, #ac893c);
+        background: var(--accent);
+        cursor: pointer;
         border-radius: 7px 7px 0 0;
       }
       .bar.outdated { background: repeating-linear-gradient(45deg, #9da4ad 0 7px, #dce0e5 7px 14px); }
       .bar:hover {
-        background: #624811;
+        background: var(--accent-hover);
       }
       .missing {
         font-size: 11px;

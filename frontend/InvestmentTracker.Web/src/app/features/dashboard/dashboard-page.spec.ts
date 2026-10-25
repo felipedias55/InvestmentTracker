@@ -33,6 +33,8 @@ describe('DashboardPage', () => {
   }
   it('shows base currency totals, Brazilian percentages and comparison tables', () => {
     const fixture = initialize();
+    (fixture.nativeElement.querySelector('app-allocation-table button') as HTMLButtonElement).click();
+    fixture.detectChanges();
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('1.234,50');
     expect(text).toContain('75,00%');
@@ -62,6 +64,8 @@ describe('DashboardPage', () => {
         ],
       },
     });
+    (fixture.nativeElement.querySelector('app-allocation-table button') as HTMLButtonElement).click();
+    fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.totals').textContent).toContain('Indisponível');
     expect(fixture.nativeElement.querySelector('table').textContent).toContain('Indisponível');
     expect(fixture.nativeElement.querySelector('meter')).toBeNull();
@@ -160,10 +164,33 @@ describe('DashboardPage', () => {
     const component = initialize().componentInstance;
     component.dragged.set('countries');
     component.dropChart({ preventDefault() {} } as DragEvent, 'categories');
+    component.moveChart('categories', 1);
     expect(component.order()[0]).toBe('categories');
     component.toggleChart('categories');
     component.setSize('categories', 'wide');
     expect(component.collapsed()).toContain('categories');
     component.toggleChart('categories');
     expect(component.sizes().categories).toBe('wide');
-  });});
+  });
+  it('anchors a title-only drag preview to the handle and cancels without persisting an order', () => {
+    const fixture = initialize(), component = fixture.componentInstance;
+    component.organizing.set(true); fixture.detectChanges();
+    const handle = fixture.nativeElement.querySelector('.drag-handle') as HTMLElement;
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false } as MediaQueryList)));
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function(this: HTMLElement) {
+      return this === handle ? { left: 100, top: 200, width: 48, height: 48 } as DOMRect : { left: 0, top: 0, width: 280, height: 48 } as DOMRect;
+    });
+    const setDragImage = vi.fn();
+    const order = [...component.order()];
+    component.startDrag({ currentTarget: handle, clientX: 116, clientY: 220, dataTransfer: { setData() {}, setDragImage } } as unknown as DragEvent, 'categories');
+    expect(setDragImage).toHaveBeenCalledWith(expect.any(HTMLElement), 16, 20);
+    expect(setDragImage.mock.calls[0][0].textContent).toBe('Distribuição por categoria');
+    component.overChart({ preventDefault() {} } as DragEvent, 'countries');
+    expect(component.dropTarget()).toBe('countries');
+    component.cancelDrag();
+    expect(component.order()).toEqual(order); expect(component.dragged()).toBeNull();
+    expect(component.dropTarget()).toBeNull(); expect(setDragImage.mock.calls[0][0].isConnected).toBe(false);
+    expect(localStorage.getItem('investment-tracker.dashboard.v1.1')).toBeNull();
+    rect.mockRestore(); vi.unstubAllGlobals();
+  });
+});

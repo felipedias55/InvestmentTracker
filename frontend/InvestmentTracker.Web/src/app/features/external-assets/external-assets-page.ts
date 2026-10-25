@@ -1,6 +1,14 @@
+import { rememberContext } from '../../shared/page-context';
+import { UnsavedForm } from '../../shared/unsaved-changes';
+import { AppIcon } from '../../shared/app-icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { ListPaginator } from '../../shared/list-paginator';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { EditPanel } from '../../shared/edit-panel';
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -24,10 +32,13 @@ import {
 @Component({
   standalone: true,
   selector: 'app-external-assets-page',
-  imports: [CurrencyPipe, EditPanel, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink],
+  imports: [UnsavedForm, AppIcon, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, CurrencyPipe, EditPanel, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink],
   templateUrl: './external-assets-page.html',
+  styleUrl: '../../shared/registration-list.css',
 })
 export class ExternalAssetsPage {
+  private readonly context = rememberContext('external', () => ({ query: this.query(), currencyFilter: this.currencyFilter(), view: this.view(), pageSize: this.pageSize(), pageIndex: this.pageIndex() }), state => { this.query.set(state.query); this.currencyFilter.set(state.currencyFilter); this.view.set(state.view); this.pageSize.set(state.pageSize); this.pageIndex.set(state.pageIndex); }, () => !this.loading());
+
   private readonly api = inject(ExternalAssetsService);
   private readonly catalogs = inject(CatalogService);
   private readonly destroyRef = inject(DestroyRef);
@@ -41,8 +52,25 @@ export class ExternalAssetsPage {
   readonly error = signal('');
   readonly success = signal('');
   readonly editingId = signal<number | null>(null);
+  readonly formOpen = signal(false);
+  readonly pageIndex = signal(0);
+  readonly pageSize = signal(10);
+  readonly currentPage = computed(() => Math.min(this.pageIndex(), Math.max(0, Math.ceil(this.filteredItems().length / this.pageSize()) - 1)));
+  readonly pageItems = computed(() => this.filteredItems().slice(this.currentPage() * this.pageSize(), (this.currentPage() + 1) * this.pageSize()));
+  search(value: string) { this.query.set(value); this.pageIndex.set(0); }
+  changePage(event: { pageIndex: number; pageSize: number }) { this.pageIndex.set(event.pageIndex); this.pageSize.set(event.pageSize); }
+  newItem() { this.cancel(); this.error.set(''); this.success.set(''); this.formOpen.set(true); }
   readonly pendingDelete = signal<ExternalAsset | null>(null);
   readonly view = signal<'base' | 'original'>('base');
+  readonly query = signal('');
+  readonly currencyFilter = signal('');
+  readonly filteredItems = computed(() => {
+    const normalize = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    const query = normalize(this.query().trim());
+    return (this.summary()?.items ?? []).filter(item => (!this.currencyFilter() || item.currencyCode === this.currencyFilter())
+      && normalize([item.name, item.description ?? '', item.currencyCode].join(' ')).includes(query))
+      .slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR') || a.id - b.id);
+  });
   readonly form = this.fb.group({
     name: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(200)]],
     currencyId: [0, Validators.min(1)],
@@ -50,10 +78,12 @@ export class ExternalAssetsPage {
     description: ['', Validators.maxLength(500)],
   });
   select(id: number) {
-    if (id !== this.portfolioId()) { this.summary.set(null); this.cancel(); }
+    this.context.save();
+    if (this.saving()) return;
+    if (id !== this.portfolioId()) { this.summary.set(null); this.cancel(); this.query.set(''); this.currencyFilter.set(''); this.pageIndex.set(0); }
     this.portfolioId.set(id);
     this.success.set('');
-    this.load();
+    this.context.restore(id); this.load();
   }
   load() {
     const id = this.portfolioId();
@@ -69,7 +99,7 @@ export class ExternalAssetsPage {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ summary, currencies }) => {
-          this.summary.set(summary);
+          this.summary.set(summary); this.pageIndex.set(this.currentPage());
           this.currencies.set(currencies);
           this.loading.set(false);
           this.cancel();
@@ -81,6 +111,7 @@ export class ExternalAssetsPage {
       });
   }
   cancel() {
+    this.formOpen.set(false);
     this.editingId.set(null);
     this.form.reset({
       name: '',
@@ -90,6 +121,7 @@ export class ExternalAssetsPage {
     });
   }
   edit(item: ExternalAsset) {
+    this.formOpen.set(true);
     this.editingId.set(item.id);
     this.pendingDelete.set(null);
     this.error.set('');

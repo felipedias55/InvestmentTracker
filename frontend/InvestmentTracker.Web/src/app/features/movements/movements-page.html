@@ -1,56 +1,88 @@
 <header class="page-header"><p class="eyebrow">DINHEIRO E AUDITORIA</p><h1>Movimentações</h1>
-  <p>Depósitos, retiradas, transferências, ajustes e operações da carteira em um único histórico.</p>
-  <a routerLink="/trades">Comprar ou vender</a> · <a routerLink="/income">Receber proventos</a> · <a routerLink="/history">Fotografias e evolução</a>
+  <div class="actions"><a mat-button routerLink="/trades">Comprar ou vender</a><a mat-button routerLink="/income">Receber proventos</a><a mat-button routerLink="/history">Fotografias e evolução</a></div>
 </header>
 <app-portfolio-picker [disabled]="saving() || executionOpen()" (selectedId)="select($event)" />
-@if (error() && !pending()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (error() && !pending() && !formOpen()) { <p class="notice error" role="alert">{{ error() }}</p> }
 @if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
-@if (loading()) { <p role="status">Carregando movimentações…</p> }
-@if (id()) { <button (click)="load()" [disabled]="saving() || loading()">Atualizar movimentações</button> }
+@if (loading()) { <p role="status">Carregando carteira…</p> }
+@if (id()) { <button mat-button (click)="load()" [disabled]="saving() || loading()">Recarregar dados</button> }
 @if (summary(); as s) {
-  <section class="panel section-gap"><h2>Correções atrasadas</h2>
-    <p>Antes de lançar uma operação esquecida, consulte quais movimentos e fechamentos podem ser afetados. Para corrigir um registro existente, use o botão de análise no histórico.</p>
-    <button [disabled]="saving() || loading()" (click)="openPreview()">Analisar lançamento atrasado</button>
-    <button [disabled]="saving() || loading()" (click)="openExecution()">Registrar operação atrasada</button>
+  <div class="actions section-gap">
+    <button mat-flat-button (click)="formOpen.set(true)" [disabled]="saving()">Movimentar saldo</button>
+    <button mat-stroked-button (click)="openExecution()" [disabled]="saving()">Registrar operação atrasada</button>
+    <button mat-button (click)="openPreview()" [disabled]="saving()">Analisar lançamento atrasado</button>
+  </div>
+  <section class="panel section-gap"><h2>Histórico unificado</h2>
+    <form class="movement-filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+      <mat-form-field appearance="outline"><mat-label>Buscar movimentação</mat-label><input matInput type="search" formControlName="search" maxlength="120" placeholder="Número, ativo ou motivo" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Tipo</mat-label><select matNativeControl formControlName="kind"><option value="">Todos</option>@for (kind of kinds; track kind[0]) { <option [value]="kind[0]">{{ kind[1] }}</option> }</select></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Status</mat-label><select matNativeControl formControlName="status"><option value="">Todos</option><option value="active">Não estornado</option><option value="reversed">Estornado</option><option value="reversal">Registro de estorno</option></select></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>De</mat-label><input matInput type="date" formControlName="from" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Até</mat-label><input matInput type="date" formControlName="to" /></mat-form-field>
+      <button mat-stroked-button type="submit">Aplicar filtros</button><button mat-button type="button" (click)="clearFilters()">Limpar filtros</button>
+    </form>
+    <app-filter-summary [filters]="activeFilters()" [pending]="filtersPending()" (cleared)="clearFilters()" />
+    @if (listError()) { <p class="notice error" role="alert">{{ listError() }}</p><button mat-stroked-button type="button" (click)="loadPage()">Tentar novamente</button> }
+    @if (listLoading()) { <p role="status">Carregando histórico…</p> }
+    @else if (!listError()) {
+      <p class="hint">{{ total() }} registros no conjunto filtrado · Mais recentes primeiro. A paginação muda apenas os registros exibidos.</p>
+      <div class="movement-list">
+        @for (m of movements(); track m.id) {
+          <article class="movement-row">
+            <div><strong>#{{ m.id }} · {{ labels[m.kind] || m.kind }}</strong><p>{{ m.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ m.description }}</p>
+              @if (m.reversedById) { <span class="movement-status">Estornado por #{{ m.reversedById }}</span> }
+              @if (m.reversalOfId) { <span class="movement-status">Estorno de #{{ m.reversalOfId }}</span> }
+            </div>
+            <div class="movement-value">@if (m.kind !== 'position-adjustment' && m.kind !== 'correction') { <strong>{{ m.amount | currency: m.currencyCode : 'code' : '1.2-4' }}</strong> }</div>
+            <button mat-button (click)="showDetail(m.id)" [attr.aria-label]="'Ver detalhes do lançamento #' + m.id">Ver detalhes</button>
+          </article>
+        } @empty { <div class="empty">@if (hasAppliedFilters()) { <p>Nenhum resultado para os filtros aplicados. Limpe os filtros para ampliar a consulta.</p> } @else { <p>Nenhum registro neste histórico. Use a ação de registro acima para começar.</p> }</div> }
+      </div>
+      <app-list-paginator [length]="total()" [index]="pageIndex()" [size]="pageSize()" (changed)="changePage($event)" />
+    }
   </section>
-  <div class="workspace section-gap">
-    <section class="panel"><h2>Movimentar saldo</h2>
-      <form [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="saving()">
-        <label for="movement-kind">Tipo de movimentação</label><select id="movement-kind" formControlName="kind" (change)="form.patchValue({ destinationId: 0, baseAmount: '' })">
+  @if (formOpen()) {
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Movimentar saldo" (closed)="formOpen.set(false)">
+    <section class="panel">
+      <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="saving()">
+        <mat-form-field appearance="outline"><mat-label>Tipo de movimentação</mat-label><select matNativeControl id="movement-kind" formControlName="kind" (change)="form.patchValue({ destinationId: 0, baseAmount: '' })">
           <option value="deposit">Depósito — gerar aporte</option><option value="withdrawal">Retirada — saída da carteira</option>
           <option value="transfer">Transferência entre saldos</option><option value="adjustment">Ajuste justificado de saldo</option>
-        </select>
-        <label for="movement-date">Data da movimentação</label><input id="movement-date" type="date" formControlName="date" [max]="today" min="1900-01-01" />
-        <label for="movement-cash">Saldo</label><select id="movement-cash" formControlName="cashAssetId" (change)="form.patchValue({ destinationId: 0, baseAmount: '' })">
+        </select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Data da movimentação</mat-label><input matInput id="movement-date" type="date" formControlName="date" [max]="today" min="1900-01-01" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Saldo</mat-label><select matNativeControl id="movement-cash" formControlName="cashAssetId" (change)="form.patchValue({ destinationId: 0, baseAmount: '' })">
           <option [ngValue]="0">Selecione</option>
           @for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.value | currency: b.currencyCode : 'code' : '1.2-2' }}</option> }
-        </select>
+        </select></mat-form-field>
         @if (form.controls.kind.value === 'transfer') {
-          <label for="movement-destination">Saldo de destino</label><select id="movement-destination" formControlName="destinationId">
+          <mat-form-field appearance="outline"><mat-label>Saldo de destino</mat-label><select matNativeControl id="movement-destination" formControlName="destinationId">
             <option [ngValue]="0">Selecione</option>@for (b of destinations(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }
-          </select><p class="hint">Entre saldos diferentes da mesma carteira e moeda, sem gerar aporte ou retirada.</p>
+          </select></mat-form-field><p class="hint">Entre saldos diferentes da mesma carteira e moeda, sem gerar aporte ou retirada.</p>
         }
-        <label for="movement-amount">{{ form.controls.kind.value === 'adjustment' ? 'Novo saldo total' : 'Valor da movimentação' }} ({{ currency() }})</label>
-        <input id="movement-amount" formControlName="amount" inputmode="decimal" (blur)="formatInput('amount')" />
+        <mat-form-field appearance="outline"><mat-label>{{ form.controls.kind.value === 'adjustment' ? 'Novo saldo total' : 'Valor da movimentação' }} ({{ currency() }})</mat-label><input matInput id="movement-amount" formControlName="amount" inputmode="decimal" (blur)="formatInput('amount')" /></mat-form-field>
         @if (['deposit', 'withdrawal'].includes(form.controls.kind.value) && currency() && currency() !== s.portfolio.baseCurrencyCode) {
-          <label for="movement-base">Equivalente em {{ s.portfolio.baseCurrencyCode }} (opcional para hoje)</label><input id="movement-base" formControlName="baseAmount" inputmode="decimal" (blur)="formatInput('baseAmount')" />
+          <mat-form-field appearance="outline"><mat-label>Equivalente em {{ s.portfolio.baseCurrencyCode }} (opcional para hoje)</mat-label><input matInput id="movement-base" formControlName="baseAmount" inputmode="decimal" (blur)="formatInput('baseAmount')" /></mat-form-field>
         }
-        <label for="movement-reason">{{ form.controls.kind.value === 'adjustment' ? 'Motivo do ajuste (obrigatório)' : 'Observação (opcional)' }}</label>
-        <input id="movement-reason" formControlName="reason" maxlength="400" />
+        <mat-form-field appearance="outline"><mat-label>{{ form.controls.kind.value === 'adjustment' ? 'Motivo do ajuste (obrigatório)' : 'Observação (opcional)' }}</mat-label><input matInput id="movement-reason" formControlName="reason" maxlength="400" /></mat-form-field>
         @if (form.controls.kind.value === 'adjustment') { <p class="hint">Corrige o saldo para o total informado e guarda os valores antes e depois. Não gera aporte. Para entrada ou saída real de dinheiro, use depósito ou retirada.</p> }
-        <p class="hint">Não registre novamente aportes já gerados por compras. <a routerLink="/external-assets">Cadastrar um saldo inicial</a>.</p>
+        <details><summary>Quando registrar uma movimentação</summary><p>Não registre novamente aportes já gerados por compras. <a routerLink="/external-assets">Cadastrar um saldo inicial</a>.</p></details>
         @if (form.touched && form.invalid) { <p class="field-error">Preencha data, saldo e valor no padrão brasileiro.</p> }
-        <button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Registrar movimentação' }}</button>
+        <div class="form-actions"><button mat-stroked-button type="button" [disabled]="saving()" (click)="draftForm.cancel()">Cancelar</button> <button mat-flat-button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Registrar movimentação' }}</button></div>
       </fieldset></form>
     </section>
-    <section class="panel"><h2>Histórico unificado</h2>
-      <label for="movement-search">Buscar movimentação</label><input id="movement-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" placeholder="Número, ativo, motivo ou tipo" />
-      <p class="hint">Estornos são registrados hoje. O original permanece no histórico. Fotografias anteriores não são recalculadas; atualize explicitamente a do mês corrente se necessário.</p>
-      @for (m of filtered(); track m.id) {
-        <article class="panel section-gap">
-          <h3>#{{ m.id }} · {{ labels[m.kind] || m.kind }}</h3>
-          <p>{{ m.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ m.description }}</p>
-          @if (m.kind !== 'position-adjustment' && m.kind !== 'correction') { <strong>{{ m.amount | currency: m.currencyCode : 'code' : '1.2-4' }}</strong> }
+    </app-edit-panel>
+  }
+}
+@if (detailOpen()) {
+  <app-edit-panel [editing]="true" [error]="detailError()" title="Detalhes da movimentação" (closed)="closeDetail()">
+    <section class="panel">
+    @if (detailLoading()) { <p role="status">Carregando auditoria…</p> }
+    @if (detail(); as m) {
+      <h2>#{{ m.id }} · {{ labels[m.kind] || m.kind }}</h2>
+      <p>{{ m.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ m.description }}</p>
+      @if (m.kind !== 'position-adjustment' && m.kind !== 'correction') { <strong>{{ m.amount | currency: m.currencyCode : 'code' : '1.2-4' }}</strong> }
+      <p>Registrado em {{ m.createdAtUtc | date: 'dd/MM/yyyy HH:mm' }}</p>
+      <details><summary>Como funciona o estorno</summary><p>O estorno é registrado hoje e preserva o original. Fotografias anteriores não são recalculadas automaticamente.</p></details>
           @if (m.correctionId) { <p>Parte da correção #{{ m.correctionId }}</p> }
           @if (m.replacesMovementId) { <p>Substitui o lançamento #{{ m.replacesMovementId }}</p> }
           @if (m.tradeId) { <p>Operação #{{ m.tradeId }}</p> } @if (m.incomeReceiptId) { <p>Recebimento #{{ m.incomeReceiptId }}</p> }
@@ -59,14 +91,13 @@
           @for (e of m.effects; track $index) { <p>{{ e.name }}: {{ e.beforeValue | currency: e.currencyCode : 'code' : '1.2-4' }} → {{ e.afterValue | currency: e.currencyCode : 'code' : '1.2-4' }}</p>
             @if (e.isPosition) { <p>Quantidade: {{ formatNumber(e.beforeQuantity) }} → {{ formatNumber(e.afterQuantity) }}</p><p>Custo: {{ e.beforeCost | currency: e.currencyCode : 'code' : '1.2-4' }} → {{ e.afterCost | currency: e.currencyCode : 'code' : '1.2-4' }}</p><p>Proventos: {{ e.beforeIncome | currency: e.currencyCode : 'code' : '1.2-4' }} → {{ e.afterIncome | currency: e.currencyCode : 'code' : '1.2-4' }}</p> }
           }
-          @if (m.canReverse) { <button (click)="confirm(m)" [disabled]="saving()">Estornar #{{ m.id }}</button> }
+          @if (m.canReverse) { <button mat-button (click)="confirm(m)" [disabled]="saving()">Estornar #{{ m.id }}</button> }
           @else { <p class="hint">{{ m.reversalBlockedReason }}</p> }
-          @if (m.kind !== 'income-conversion' && m.kind !== 'reopen' && m.kind !== 'correction') { <button (click)="openPreview(m)" [disabled]="saving()">Analisar correção #{{ m.id }}</button> }
-          @if (canCorrect(m)) { <button (click)="openExecution(m)" [disabled]="saving()">Corrigir #{{ m.id }}</button> }
-        </article>
-      } @empty { <p>Nenhuma movimentação para este filtro.</p> }
+          @if (m.kind !== 'income-conversion' && m.kind !== 'reopen' && m.kind !== 'correction') { <button mat-button (click)="openPreview(m)" [disabled]="saving()">Analisar correção #{{ m.id }}</button> }
+          @if (canCorrect(m)) { <button mat-button (click)="openExecution(m)" [disabled]="saving()">Corrigir #{{ m.id }}</button> }
+    }
     </section>
-  </div>
+  </app-edit-panel>
 }
 @if (previewOpen()) {
   <app-edit-panel [editing]="true" [error]="previewError()" title="Impactos de uma correção atrasada" (closed)="closePreview()">
@@ -74,14 +105,14 @@
       @if (previewSource(); as source) { <h2>Correção do lançamento #{{ source.id }}</h2><p>{{ labels[source.kind] || source.kind }} · {{ source.description }}</p> }
       @else { <h2>Lançamento ainda não registrado</h2> }
       <p>Esta consulta não altera saldos, não reabre períodos e não executa estornos.</p>
-      <form [formGroup]="previewForm" (ngSubmit)="analyzeCorrection()">
-        <label for="correction-date">Data pretendida para a operação</label><input id="correction-date" type="date" formControlName="date" min="1900-01-01" [max]="today" />
+      <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="previewForm" (ngSubmit)="analyzeCorrection()">
+        <mat-form-field appearance="outline"><mat-label>Data pretendida para a operação</mat-label><input matInput id="correction-date" type="date" formControlName="date" min="1900-01-01" [max]="today" /></mat-form-field>
         <p class="hint">Em correções existentes, a análise começa na mais antiga entre a data original e a informada. As referências originais já estão incluídas; selecione referências adicionais se elas também mudarem.</p>
-        <label for="correction-position">Posição envolvida (se houver)</label><select id="correction-position" formControlName="positionId"><option [ngValue]="0">Nenhuma adicional</option>@for (p of summary()?.positions ?? []; track p.id) { <option [ngValue]="p.id">{{ p.ticker }}</option> }</select>
-        <label for="correction-cash">Saldo envolvido (se houver)</label><select id="correction-cash" formControlName="cashAssetId"><option [ngValue]="0">Nenhum adicional</option>@for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }</select>
-        <label for="correction-destination">Outro saldo envolvido (transferências)</label><select id="correction-destination" formControlName="destinationId"><option [ngValue]="0">Nenhum adicional</option>@for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }</select>
+        <mat-form-field appearance="outline"><mat-label>Posição envolvida (se houver)</mat-label><select matNativeControl id="correction-position" formControlName="positionId"><option [ngValue]="0">Nenhuma adicional</option>@for (p of summary()?.positions ?? []; track p.id) { <option [ngValue]="p.id">{{ p.ticker }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Saldo envolvido (se houver)</mat-label><select matNativeControl id="correction-cash" formControlName="cashAssetId"><option [ngValue]="0">Nenhum adicional</option>@for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Outro saldo envolvido (transferências)</mat-label><select matNativeControl id="correction-destination" formControlName="destinationId"><option [ngValue]="0">Nenhum adicional</option>@for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }</select></mat-form-field>
         @if (previewForm.touched && previewForm.invalid) { <p class="field-error">Informe a data da operação.</p> }
-        <button class="primary" type="submit" [disabled]="previewLoading()">{{ previewLoading() ? 'Analisando…' : 'Consultar impactos' }}</button>
+        <div class="form-actions"><button mat-stroked-button type="button" [disabled]="saving()" (click)="draftForm.cancel()">Cancelar</button> <button mat-flat-button class="primary" type="submit" [disabled]="previewLoading()">{{ previewLoading() ? 'Analisando…' : 'Consultar impactos' }}</button></div>
       </form>
       @if (previewLoading()) { <p role="status">Consultando dependências…</p> }
       @if (preview(); as result) {
@@ -104,10 +135,10 @@
 }
 @if (pending(); as m) {
   <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar estorno" (closed)="pending.set(null)">
-    <section class="panel"><h2>Estornar lançamento #{{ m.id }}</h2>
+    <section class="panel" #reversalDraft="draftState" [appDraftState]="reverseReason()" [draftBusy]="saving()"><h2>Estornar lançamento #{{ m.id }}</h2>
       <p>{{ labels[m.kind] }} · {{ m.description }}. Os efeitos serão revertidos, sem apagar o lançamento original.</p>
-      <label for="reversal-reason">Motivo do estorno</label><input id="reversal-reason" [value]="reverseReason()" (input)="reverseReason.set($any($event.target).value)" maxlength="400" [disabled]="saving()" />
-      <div class="actions"><button class="danger" (click)="reverse()" [disabled]="saving()">Confirmar estorno</button><button (click)="pending.set(null)" [disabled]="saving()">Cancelar</button></div>
+      <mat-form-field appearance="outline"><mat-label>Motivo do estorno</mat-label><input matInput id="reversal-reason" [value]="reverseReason()" (input)="reverseReason.set($any($event.target).value)" maxlength="400" [disabled]="saving()" /></mat-form-field>
+      <div class="actions"><button mat-stroked-button (click)="reversalDraft.cancel()" [disabled]="saving()">Cancelar</button><button mat-stroked-button class="danger" (click)="reverse()" [disabled]="saving()">{{ saving() ? 'Estornando…' : 'Confirmar estorno' }}</button></div>
     </section>
   </app-edit-panel>
 }

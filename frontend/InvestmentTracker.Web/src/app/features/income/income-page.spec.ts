@@ -22,7 +22,7 @@ describe('IncomePage', () => {
     http.expectOne('/api/currencies').flush([{ id: 1, code: 'BRL', name: 'Real' }]);
     http.expectOne(`/api/portfolios/${portfolio}/external-assets`).flush({ ...testDashboard.externalAssets,
       items: [{ id: 5, name: 'Saldo', currencyId: 1, currencyCode: 'BRL', value: '1000' }] });
-    http.expectOne(`/api/portfolios/${portfolio}/income`).flush(trades);
+    http.expectOne(r => r.url === `/api/portfolios/${portfolio}/income/page`).flush({ items: trades, total: trades.length, pageIndex: 0, pageSize: 10 });
     http.expectOne(`/api/portfolios/${portfolio}/income/analysis`).flush({ months: [], years: [], assets: [] });
   }
   function initialize() {
@@ -40,8 +40,8 @@ describe('IncomePage', () => {
   });
   it('submits one operation with exact Brazilian decimals and refreshes the ledger', () => {
     const fixture = initialize(); const component = fixture.componentInstance;
-    component.form.patchValue({ assetId: 10, amount: '20,2468' });
-    fixture.detectChanges(); fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+    component.openReceipt(); component.form.patchValue({ assetId: 10, amount: '20,2468' });
+    fixture.detectChanges(); fixture.nativeElement.querySelector('form:has(#income-date)').dispatchEvent(new Event('submit'));
     const request = http.expectOne('/api/portfolios/1/income');
     expect(request.request.method).toBe('POST');
     expect(request.request.body.amount).toBe('20.2468');
@@ -106,9 +106,25 @@ describe('IncomePage', () => {
     const fixture = initialize(); const component = fixture.componentInstance;
     component.analysis.set({ months: [], years: [], assets: [], baseCurrencyCode: 'BRL',
       convertedMonths: [{ period: '2026-09', ticker: 'TEST', assetId: 1, currencyCode: 'BRL', received: null, reversed: null, net: null, missingConversions: 1 }] });
-    component.valueMode.set('base'); fixture.detectChanges();
+    component.section.set('analysis'); component.valueMode.set('base'); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Conversão pendente');
     expect(component.analysisRows()[0].net).toBeNull();
+  });
+
+  it('paginates pending receipts independently of analysis and cancels previous queries', () => {
+    const c = initialize().componentInstance;
+    const row = { period: '2026-01', ticker: 'TEST', assetId: 1, currencyCode: 'BRL', received: '10', reversed: '0', net: '10' };
+    c.analysis.set({ months: [row], years: [], assets: [] });
+    c.changePage({ pageIndex: 2, pageSize: 10 }); const old = http.expectOne(r => r.url.endsWith('/income/page'));
+    c.filters.patchValue({ search: 'OTHER', pendingOnly: 'true' }); c.applyFilters();
+    expect(old.cancelled).toBe(true);
+    const page = http.expectOne(r => r.url.endsWith('/income/page'));
+    expect(page.request.params.get('pendingOnly')).toBe('true'); expect(page.request.params.get('pageIndex')).toBe('0');
+    page.flush({ items: [], total: 0, pageIndex: 0, pageSize: 10 });
+    expect(c.chartGroups()[0].total).toBe(10);
+    c.query.set('TEST'); expect(c.analysisRows()).toEqual([row]);
+    c.filters.patchValue({ from: '2026-10-21', to: '2026-01-01' }); c.applyFilters();
+    http.expectNone(r => r.url.endsWith('/income/page')); expect(c.listError()).toContain('data inicial');
   });
 
 });

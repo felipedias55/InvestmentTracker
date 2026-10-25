@@ -1,10 +1,14 @@
 # Próximas etapas
 
-Lista atualizada em 15/10/2026. As prioridades abaixo orientam as próximas entregas; não representam autorização para implementar todos os itens de uma vez.
+Lista atualizada em 25/10/2026. As prioridades abaixo orientam as próximas entregas; não representam autorização para implementar todos os itens de uma vez.
 
 ## Prioridades
 
-A revisão de interface tem um plano próprio em [Entregas de layout](entregas-layout.md), registrado em 20/10/2026, com ordem, dificuldade, padrões de componentes, paginação e modo escuro. A paleta nova ainda está em discussão; o documento não indica implementação concluída.
+Refinamento adicional do Dashboard iniciado em 23/10/2026: [quatro etapas concluídas](refinamento-dashboard.md), incluindo distribuições compactas, evolução resumida, ranking visual, proventos com uma moeda/janela de períodos, movimentações com detalhes separados e grade com altura conforme o conteúdo. Rodada concluída em 25/10/2026 com build, 125 testes unitários e 56 cenários de apresentação validados. Rolagem horizontal de séries extensas e tabelas completas permanece disponível. Não há outra etapa definida nesta rodada; validação em aparelho físico e auditoria formal de acessibilidade continuam pendentes.
+
+A migração de interface registrada em [Entregas de layout](entregas-layout.md) foi concluída em 22/10/2026, incluindo Dashboard/gráficos, revisão global e temas claro/escuro/sistema. A rodada do [Plano de usabilidade e navegação](plano-usabilidade-e-navegacao.md) teve os marcos 1–7 concluídos em 23/10/2026: ações consistentes, proteção de formulários, contexto em memória, navegação interna, escopo de filtros e organização dos gráficos. A revisão integrada final aprovou build, 118 testes de interface e 44 cenários de apresentação em desktop/celular e claro/escuro, com evidências e limitações registradas. Não há novo marco de layout definido nesta rodada.
+
+Pendências de conferência após a revisão: toque e teclado virtual em aparelho físico, zoom real de 200%, imagem nativa do arraste no sistema operacional e auditoria formal de contraste/leitor de tela. Subcomponentes analíticos do Dashboard ainda não recuperam integralmente seus filtros entre telas. O aviso de pacote inicial (524,92 kB, limite de 500 kB) e o tamanho excessivo do logo permanecem como melhorias de desempenho, sem aumento de limites. Novos problemas do uso real devem ser registrados com tela, passos e impacto; as demais prioridades funcionais abaixo mantêm seu escopo próprio.
 
 | Ordem | Entrega | Escopo pendente |
 | --- | --- | --- |

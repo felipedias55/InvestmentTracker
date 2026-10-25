@@ -1,4 +1,4 @@
-:host { --navigation-background: var(--gold-metal); --navigation-text: #30270f; }
+:host { --navigation-background: var(--navigation); --navigation-text: #f5f7fa; }
 .app-shell {
   padding-top: 64px;
   padding-left: 0;
@@ -24,6 +24,7 @@
   color: inherit;
   text-decoration: none;
   font-size: 17px;
+  font-weight: 600;
   line-height: 1.25;
 }
 .brand-icon {
@@ -38,7 +39,7 @@
 .nav-label {
   font-size: 10px;
   letter-spacing: 1.4px;
-  color: #514017;
+  color: #b7c1cf;
   margin: 24px 0 14px;
 }
 nav {
@@ -46,30 +47,25 @@ nav {
   gap: 7px;
 }
 nav a {
-  color: #30270f;
+  color: #f5f7fa;
   text-decoration: none;
-  padding: 13px 14px;
+  padding: 10px 12px;
+  align-items: center;
   border-radius: 8px;
   display: flex;
-  justify-content: space-between;
+  gap: 12px;
 }
 nav a:hover {
-  background: #dfcfaa;
+  background: #343f4e;
 }
 nav a.active {
-  background: var(--silver-metal);
-  color: #353b43;
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 650;
 }
-.sidebar-note {
-  margin-top: auto;
-  padding-top: 28px;
-  color: #514017;
-  font-size: 13px;
-  line-height: 1.6;
-}
+
 main {
-  padding: 40px;
+  padding: 28px;
   min-width: 0;
 }
 .skip-link {
@@ -77,7 +73,7 @@ main {
   top: -100px;
   left: 16px;
   z-index: 60;
-  background: white;
+  background: var(--surface);
   padding: 12px;
 }
 .skip-link:focus {
@@ -86,10 +82,10 @@ main {
 
 .app-shell.menu-open { padding-left: 260px; }
 .sidebar[hidden] { display: none; }
-.app-toolbar { position: fixed; top: 0; left: 0; right: 0; height: 64px; z-index: 45; display: flex; align-items: center; gap: 20px; padding: 10px 20px; background: var(--navigation-background); color: var(--navigation-text); border-bottom: 1px solid #b78c25; }
-.app-toolbar .brand { color: var(--navigation-text); font-weight: 400; flex-shrink: 0; }
-.menu-toggle { display: flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; padding: 0; flex-shrink: 0; background: transparent; color: var(--navigation-text); border-color: #97721d; }
-.menu-toggle:hover { background: #dfcfaa; }
+.app-toolbar { position: fixed; top: 0; left: 0; right: 0; height: 64px; z-index: 45; display: flex; align-items: center; gap: 20px; padding: 10px 20px; background: var(--navigation-background); color: var(--navigation-text); border-bottom: 1px solid #3b4654; }
+.app-toolbar .brand { color: var(--navigation-text); flex-shrink: 0; }
+.menu-toggle { display: flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; padding: 0; flex-shrink: 0; background: transparent; color: var(--navigation-text); border-color: transparent; }
+.menu-toggle:hover { background: #343f4e; }
 .menu-toggle > [aria-hidden] { font-size: 20px; line-height: 1; }
 .menu-backdrop { position: fixed; inset: 64px 0 0; background: #171a2088; z-index: 35; touch-action: none; }
 @media (max-width: 900px) {
@@ -100,6 +96,12 @@ main {
   .app-toolbar .brand { font-size: 16px; gap: 10px; }
   .brand-icon { width: 40px; height: 40px; font-size: 29px; }
 }
-.privacy-toggle { margin-left: auto; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; }
+.privacy-toggle { margin-left: auto; color: inherit; background: transparent; border: 0; padding: 0; }
 
-.privacy-toggle:hover { background: var(--silver-metal); color: #292c31; }
+.privacy-toggle:hover { background: #343f4e; color: white; }
+
+
+
+
+.theme-toggle { color: inherit; flex-shrink: 0; }
+@media (max-width: 480px) { .app-toolbar { gap: 4px; padding: 8px; } .app-toolbar .brand { flex-shrink: 1; min-width: 0; font-size: 13px; gap: 4px; } .brand-icon { width: 30px; height: 30px; } }

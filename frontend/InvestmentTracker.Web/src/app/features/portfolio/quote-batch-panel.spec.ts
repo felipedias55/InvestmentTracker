@@ -59,6 +59,8 @@ describe('QuoteBatchPanel', () => {
     const fixture = initialize(), component = fixture.componentInstance;
     fixture.componentRef.setInput('positions', [position, { ...position, id: 3 }]);
     component.setPrice(1, '99');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#quote-query-scope').textContent).toContain('próxima consulta enviará 1 posição');
     component.fetchQuotes();
     const preview = http.expectOne('/api/portfolios/1/quotes/preview');
     expect(preview.request.body.positionIds).toEqual([3]);

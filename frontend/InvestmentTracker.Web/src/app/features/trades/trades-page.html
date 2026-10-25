@@ -1,62 +1,86 @@
 <header class="page-header">
   <p class="eyebrow">MOVIMENTE SUA CARTEIRA</p><h1>Compras e vendas</h1>
-  <p>Registre uma operação uma única vez. A quantidade, o custo da posição e o movimento do dinheiro serão atualizados juntos.</p>
-  <a routerLink="/movements">Histórico unificado e estornos</a> · <a routerLink="/portfolio">Ver carteira</a> · <a routerLink="/history">Evolução e aportes</a>
+  <div class="actions"><a mat-button routerLink="/movements">Histórico unificado e estornos</a><a mat-button routerLink="/portfolio" [queryParams]="{ portfolioId: id() }">Voltar à Carteira</a><a mat-button routerLink="/history">Evolução e aportes</a></div>
 </header>
 <app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
-@if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (error() && !panel()) { <p class="notice error" role="alert">{{ error() }}</p> }
 @if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
 @if (loading()) { <p role="status">Carregando operações e saldos…</p> }
-@if (id()) { <button [disabled]="loading() || saving()" (click)="load()">Atualizar saldos e histórico</button> }
+@if (id()) { <button mat-button [disabled]="loading() || saving()" (click)="load()">Recarregar dados</button> }
 @if (summary(); as s) {
-  <details class="panel section-gap"><summary>Registrar desdobramento, grupamento ou bonificação</summary>
-    <form [formGroup]="eventForm" (ngSubmit)="saveEvent()"><fieldset [disabled]="saving()">
-      <label for="event-kind">Evento</label><select id="event-kind" formControlName="kind"><option value="split">Desdobramento</option><option value="reverse-split">Grupamento</option><option value="bonus">Bonificação</option></select>
-      <label for="event-date">Data do evento</label><input id="event-date" type="date" formControlName="date" [max]="today" />
-      <label for="event-position">Posição do evento</label><select id="event-position" formControlName="positionId"><option [ngValue]="0">Selecione</option>@for (p of s.positions; track p.id) { <option [ngValue]="p.id">{{ p.ticker }} · {{ formatNumber(p.quantity) }} unidades</option> }</select>
-      <label for="event-quantity">{{ eventForm.controls.kind.value === 'bonus' ? 'Quantidade recebida em bonificação' : 'Quantidade total após o evento' }}</label><input id="event-quantity" formControlName="quantity" inputmode="decimal" />
-      @if (eventForm.controls.kind.value === 'bonus') { <label for="event-cost">Custo total da bonificação na moeda do ativo (conforme comunicado)</label><input id="event-cost" formControlName="cost" inputmode="decimal" /> }
-      <label for="event-reason">Comunicado ou motivo</label><input id="event-reason" formControlName="reason" maxlength="400" />
+  <div class="actions section-gap"><button mat-flat-button (click)="openTrade('buy')">Registrar compra</button><button mat-stroked-button (click)="openTrade('sell')">Registrar venda</button><button mat-button (click)="openEvent()">Registrar evento societário</button></div>
+  <section class="panel section-gap"><h2>Histórico de compras e vendas</h2>
+    <form class="trade-filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+      <mat-form-field appearance="outline"><mat-label>Filtrar por ativo</mat-label><input matInput type="search" formControlName="search" maxlength="120" placeholder="Ex.: PETR4" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Operação</mat-label><select matNativeControl formControlName="kind"><option value="">Todas</option><option value="buy">Compra</option><option value="sell">Venda</option></select></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>De</mat-label><input matInput type="date" formControlName="from" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Até</mat-label><input matInput type="date" formControlName="to" /></mat-form-field>
+      <button mat-stroked-button type="submit">Aplicar filtros</button><button mat-button type="button" (click)="clearFilters()">Limpar filtros</button>
+    </form>
+    <app-filter-summary [filters]="activeFilters()" [pending]="filtersPending()" (cleared)="clearFilters()" />
+    @if (listError()) { <p class="notice error" role="alert">{{ listError() }}</p><button mat-stroked-button type="button" (click)="loadPage()">Tentar novamente</button> }
+    @if (listLoading()) { <p role="status">Carregando histórico…</p> }
+    @else if (!listError()) {
+      <p class="hint">{{ total() }} registros no conjunto filtrado · Mais recentes primeiro. A paginação muda apenas os registros exibidos.</p>
+      @for (t of trades(); track t.id) {
+        <article class="trade-row">
+          <div><strong>{{ t.ticker }} · {{ t.kind === 'buy' ? 'Compra' : 'Venda' }}</strong><p>{{ t.date | date: 'dd/MM/yyyy' : 'UTC' }} · #{{ t.id }}</p>
+            @if (t.reversedById) { <span class="trade-status">Estornada pelo lançamento #{{ t.reversedById }}</span> }
+          </div>
+          <div><span class="hint">Quantidade</span><p>{{ formatNumber(t.quantity) }}</p></div>
+          <div class="trade-value"><span class="hint">{{ t.kind === 'buy' ? 'Total debitado' : 'Total recebido' }}</span><p><strong>{{ t.amount | currency: t.currencyCode : 'code' : '1.2-4' }}</strong></p></div>
+          <details class="trade-details"><summary [attr.aria-label]="'Detalhes da operação #' + t.id">Ver detalhes</summary>
+            <p>Preço unitário: {{ t.unitPrice | currency: t.currencyCode : 'code' : '1.2-4' }}</p>
+            <p>Taxas: {{ (t.fees || '0') | currency: t.currencyCode : 'code' : '1.2-4' }}</p>
+            <p>{{ t.kind === 'buy' ? 'Origem' : 'Destino' }}: {{ t.cashAssetName || (t.kind === 'buy' ? 'Aporte automático' : 'Retirada automática') }}</p>
+            @if (t.movementId) { <p>Lançamento #{{ t.movementId }} · <a routerLink="/movements">Consultar auditoria, corrigir ou estornar em Movimentações</a></p> }
+          </details>
+        </article>
+      } @empty { <div class="empty">@if (hasAppliedFilters()) { <p>Nenhum resultado para os filtros aplicados. Limpe os filtros para ampliar a consulta.</p> } @else { <p>Nenhum registro neste histórico. Use a ação de registro acima para começar.</p> }</div> }
+      <app-list-paginator [length]="total()" [index]="pageIndex()" [size]="pageSize()" (changed)="changePage($event)" />
+    }
+    <details><summary>Sobre este histórico</summary><p>Inclui operações estornadas, preservadas para auditoria, e reinvestimentos. Posições cadastradas como saldo inicial não geram compras retroativas. Eventos societários são consultados em <a routerLink="/movements">Movimentações</a>.</p></details>
+  </section>
+  @if (panel() === 'event') {
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Registrar evento societário" (closed)="panel.set(null)"><section class="panel">
+    <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="eventForm" (ngSubmit)="saveEvent()"><fieldset [disabled]="saving()">
+      <mat-form-field appearance="outline"><mat-label>Evento</mat-label><select matNativeControl id="event-kind" formControlName="kind"><option value="split">Desdobramento</option><option value="reverse-split">Grupamento</option><option value="bonus">Bonificação</option></select></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Data do evento</mat-label><input matInput id="event-date" type="date" formControlName="date" [max]="today" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Posição do evento</mat-label><select matNativeControl id="event-position" formControlName="positionId"><option [ngValue]="0">Selecione</option>@for (p of s.positions; track p.id) { <option [ngValue]="p.id">{{ p.ticker }} · {{ formatNumber(p.quantity) }} unidades</option> }</select></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>{{ eventForm.controls.kind.value === 'bonus' ? 'Quantidade recebida em bonificação' : 'Quantidade total após o evento' }}</mat-label><input matInput id="event-quantity" formControlName="quantity" inputmode="decimal" /></mat-form-field>
+      @if (eventForm.controls.kind.value === 'bonus') { <mat-form-field appearance="outline"><mat-label>Custo total da bonificação na moeda do ativo (conforme comunicado)</mat-label><input matInput id="event-cost" formControlName="cost" inputmode="decimal" /></mat-form-field> }
+      <mat-form-field appearance="outline"><mat-label>Comunicado ou motivo</mat-label><input matInput id="event-reason" formControlName="reason" maxlength="400" /></mat-form-field>
       <p class="hint">Desdobramento e grupamento preservam o custo total. A bonificação acrescenta somente o custo informado. O valor de mercado total permanece até você atualizar a cotação. Não há aporte nem provento em dinheiro. Inclua as frações custodiadas na quantidade; eventual venda de frações deve ser registrada separadamente.</p>
-      <button type="submit" [disabled]="eventForm.invalid">Confirmar evento</button>
+      <div class="form-actions"><button mat-stroked-button type="button" [disabled]="saving()" (click)="draftForm.cancel()">Cancelar</button> <button mat-flat-button type="submit" [disabled]="eventForm.invalid">{{ saving() ? 'Registrando…' : 'Confirmar evento' }}</button></div>
     </fieldset></form>
-  </details>
-  <div class="workspace" style="margin-top: 24px">
-    <section class="panel">
-      <h2>Nova operação</h2>
-      <form [formGroup]="form" (ngSubmit)="save()">
+    </section></app-edit-panel>
+  }
+  @if (panel() === 'trade') {
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" [title]="form.controls.kind.value === 'sell' ? 'Registrar venda' : 'Registrar compra'" (closed)="panel.set(null)"><section class="panel">
+      <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="form" (ngSubmit)="save()">
         <fieldset [disabled]="saving()">
-          <label for="trade-kind">Operação</label><select id="trade-kind" formControlName="kind"><option value="buy">Comprar / aportar</option><option value="sell">Vender</option></select>
-          <label for="trade-date">Data da operação</label><input id="trade-date" type="date" formControlName="date" [max]="today" />
-          <label for="trade-asset">Ativo</label><select id="trade-asset" formControlName="assetId" (change)="form.patchValue({ cashAssetId: 0, baseAmount: '' })"><option [ngValue]="0">Selecione</option>@for (a of assets(); track a.id) { <option [ngValue]="a.id">{{ a.ticker }} — {{ a.name }}</option> }</select>
+          <mat-form-field appearance="outline"><mat-label>Operação</mat-label><select matNativeControl id="trade-kind" formControlName="kind"><option value="buy">Comprar / aportar</option><option value="sell">Vender</option></select></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Data da operação</mat-label><input matInput id="trade-date" type="date" formControlName="date" [max]="today" /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Buscar ativo por código ou nome</mat-label><input matInput type="search" [value]="assetSearch()" (input)="assetSearch.set($any($event.target).value)" /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Ativo</mat-label><select matNativeControl id="trade-asset" formControlName="assetId" (change)="form.patchValue({ cashAssetId: 0, baseAmount: '' })"><option [ngValue]="0">Selecione</option>@for (a of selectableAssets(); track a.id) { <option [ngValue]="a.id">{{ a.ticker }} — {{ a.name }}</option> }</select></mat-form-field>
           @if (!assets().length) { <p><a routerLink="/assets">Cadastre o ativo</a> antes de registrar a compra.</p> }
           <p class="hint">Quantidade disponível: {{ formatNumber(availableQuantity()) }}. Valores em {{ currency() || 'moeda do ativo' }}.</p>
-          <label for="trade-quantity">Quantidade {{ form.controls.kind.value === 'sell' ? 'vendida' : 'comprada' }}</label><input id="trade-quantity" formControlName="quantity" inputmode="decimal" placeholder="Ex.: 10" (blur)="formatInput('quantity')" />
-          <label for="trade-price">Preço por unidade ({{ currency() }})</label><input id="trade-price" formControlName="unitPrice" inputmode="decimal" placeholder="Ex.: 25,50" (blur)="formatInput('unitPrice')" />
-          <label for="trade-fees">Taxas e custos totais ({{ currency() }})</label><input id="trade-fees" formControlName="fees" inputmode="decimal" (blur)="formatInput('fees')" />
-          <p class="hint">Na compra, as taxas aumentam o custo e o débito. Na venda, reduzem o recebimento. Informe o equivalente em moeda-base já incluindo este efeito.</p>
-          @if (form.controls.quantity.valid && form.controls.unitPrice.valid && form.controls.quantity.value && form.controls.unitPrice.value) { <p>Total estimado: <strong>{{ estimatedTotal() | currency: currency() : 'code' : '1.2-4' }}</strong></p> }
-          <label for="trade-cash">{{ form.controls.kind.value === 'buy' ? 'Origem do dinheiro' : 'Destino do dinheiro' }}</label><select id="trade-cash" formControlName="cashAssetId" (change)="form.controls.baseAmount.reset('')"><option [ngValue]="0">{{ form.controls.kind.value === 'buy' ? 'Dinheiro novo — gerar aporte' : 'Retirar da carteira — gerar retirada' }}</option>@for (b of cashOptions(); track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.value | currency: b.currencyCode : 'code' : '1.2-2' }}</option> }</select>
-          <p class="hint">Escolha um saldo de patrimônio externo para reinvestir dinheiro que já está na carteira. O saldo será debitado na compra ou creditado na venda, sem gerar novo aporte. <a routerLink="/external-assets">Cadastrar saldo disponível</a>.</p>
+          <mat-form-field appearance="outline"><mat-label>Quantidade {{ form.controls.kind.value === 'sell' ? 'vendida' : 'comprada' }}</mat-label><input matInput id="trade-quantity" formControlName="quantity" inputmode="decimal" placeholder="Ex.: 10" (blur)="formatInput('quantity')" /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Preço por unidade ({{ currency() }})</mat-label><input matInput id="trade-price" formControlName="unitPrice" inputmode="decimal" placeholder="Ex.: 25,50" (blur)="formatInput('unitPrice')" /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Taxas e custos totais ({{ currency() }})</mat-label><input matInput id="trade-fees" formControlName="fees" inputmode="decimal" (blur)="formatInput('fees')" /></mat-form-field>
+          <details><summary>Como as taxas afetam o total</summary><p class="hint">Na compra, as taxas aumentam o custo e o débito. Na venda, reduzem o recebimento. Informe o equivalente em moeda-base já incluindo este efeito.</p></details>
+          @if (form.controls.quantity.valid && form.controls.unitPrice.valid && form.controls.fees.valid && form.controls.quantity.value && form.controls.unitPrice.value) { <p>Total estimado: <strong>{{ estimatedTotal() | currency: currency() : 'code' : '1.2-4' }}</strong></p> }
+          <mat-form-field appearance="outline"><mat-label>{{ form.controls.kind.value === 'buy' ? 'Origem do dinheiro' : 'Destino do dinheiro' }}</mat-label><select matNativeControl id="trade-cash" formControlName="cashAssetId" (change)="form.controls.baseAmount.reset('')"><option [ngValue]="0">{{ form.controls.kind.value === 'buy' ? 'Dinheiro novo — gerar aporte' : 'Retirar da carteira — gerar retirada' }}</option>@for (b of cashOptions(); track b.id) { <option [ngValue]="b.id">{{ b.name }} · {{ b.value | currency: b.currencyCode : 'code' : '1.2-2' }}</option> }</select></mat-form-field>
+          <details><summary>Usar saldo ou dinheiro novo</summary><p class="hint">Escolha um saldo de patrimônio externo para reinvestir dinheiro que já está na carteira. O saldo será debitado na compra ou creditado na venda, sem gerar novo aporte. <a routerLink="/external-assets">Cadastrar saldo disponível</a>.</p></details>
           @if (!form.controls.cashAssetId.value && currency() && currency() !== s.portfolio.baseCurrencyCode) {
-            <label for="trade-base">Equivalente total em {{ s.portfolio.baseCurrencyCode }} (opcional)</label><input id="trade-base" formControlName="baseAmount" inputmode="decimal" (blur)="formatInput('baseAmount')" />
+            <mat-form-field appearance="outline"><mat-label>Equivalente total em {{ s.portfolio.baseCurrencyCode }} (opcional)</mat-label><input matInput id="trade-base" formControlName="baseAmount" inputmode="decimal" (blur)="formatInput('baseAmount')" /></mat-form-field>
             <p class="hint">Para hoje, usamos o câmbio disponível se você não informar o equivalente. Em outra data, ou se o câmbio estiver indisponível, será necessário informar o valor equivalente da época.</p>
           }
-          <p class="hint">A posição será avaliada pelo preço desta operação. Na venda, o custo remanescente será reduzido proporcionalmente à quantidade. Para lançamentos atrasados, reabra o período em Evolução e fechamentos. Operações posteriores dependentes precisam ser estornadas e relançadas em ordem.</p>
+          <details><summary>Efeitos na posição e lançamentos atrasados</summary><p class="hint">A posição será avaliada pelo preço desta operação. Na venda, o custo remanescente será reduzido proporcionalmente à quantidade. Para operações atrasadas, use a simulação de correções em Movimentações.</p></details>
           @if (form.touched && form.invalid) { <p class="field-error">Preencha data e ativo. Use valores positivos, com até 6 casas na quantidade e 4 no preço (ex.: 1.234,50).</p> }
-          <div class="actions"><button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Confirmar operação' }}</button></div>
+          <div class="actions"><div class="form-actions"><button mat-stroked-button type="button" [disabled]="saving()" (click)="draftForm.cancel()">Cancelar</button> <button mat-flat-button class="primary" type="submit">{{ saving() ? 'Registrando…' : 'Confirmar operação' }}</button></div></div>
         </fieldset>
       </form>
-    </section>
-    <section class="panel">
-      <h2>Histórico de compras e vendas</h2>
-      <label for="trade-search">Filtrar por ativo</label><input id="trade-search" type="search" [value]="query()" (input)="query.set($any($event.target).value)" placeholder="Ex.: PETR4" />
-      <p class="hint">As posições já cadastradas são o saldo inicial. Compras e vendas antigas não são inventadas. Este histórico inclui também operações com saldo reinvestido.</p>
-      <div class="table-scroll"><table><thead><tr><th>Data / ativo</th><th>Operação</th><th>Quantidade</th><th>Preço unitário</th><th>Taxas</th><th>Total líquido</th><th>Dinheiro</th></tr></thead><tbody>
-        @for (t of filteredTrades(); track t.id) { <tr><th scope="row">{{ t.date | date: 'dd/MM/yyyy' : 'UTC' }} · {{ t.ticker }}</th><td>{{ t.kind === 'buy' ? 'Compra' : 'Venda' }}</td><td>{{ formatNumber(t.quantity) }}</td><td>{{ t.unitPrice | currency: t.currencyCode : 'code' : '1.2-4' }}</td><td>{{ (t.fees || '0') | currency: t.currencyCode : 'code' : '1.2-4' }}</td><td>{{ t.amount | currency: t.currencyCode : 'code' : '1.2-4' }}</td><td>{{ t.cashAssetName || (t.kind === 'buy' ? 'Aporte automático' : 'Retirada automática') }}</td></tr> }
-      </tbody></table></div>
-      @if (!filteredTrades().length) { <p class="empty">Nenhuma operação para este filtro.</p> }
-      <p class="hint">Os registros são preservados para consulta. Confira os dados antes de confirmar. Uma venda total mantém a posição zerada e preserva os proventos acumulados.</p>
-    </section>
-  </div>
+    </section></app-edit-panel>
+  }
 }

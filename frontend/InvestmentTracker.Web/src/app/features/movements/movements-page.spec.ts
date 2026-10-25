@@ -18,7 +18,7 @@ describe('MovementsPage', () => {
     http.expectOne('/api/portfolios/1').flush(testDashboard.summary);
     http.expectOne('/api/currencies').flush([{ id: 1, code: 'BRL', name: 'Real' }]);
     http.expectOne('/api/portfolios/1/external-assets').flush({ items: [{ id: 5, name: 'Saldo', currencyId: 1, currencyCode: 'BRL', value: '1000' }] });
-    http.expectOne('/api/portfolios/1/movements').flush([]);
+    http.expectOne(r => r.url === '/api/portfolios/1/movements/page').flush({ items: [], total: 0, pageIndex: 0, pageSize: 10 });
   }
   function initialize() {
     const fixture = TestBed.createComponent(MovementsPage); fixture.detectChanges();
@@ -75,4 +75,43 @@ describe('MovementsPage', () => {
     c.closePreview(); expect(request.cancelled).toBe(true); expect(c.previewLoading()).toBe(false);
     expect(c.preview()).toBeNull(); expect(c.previewOpen()).toBe(false);
   });
+  it('filters on the server, resets the page and cancels superseded queries', () => {
+    const c = initialize().componentInstance;
+    c.changePage({ pageIndex: 2, pageSize: 10 });
+    const old = http.expectOne(r => r.url.endsWith('/movements/page'));
+    expect(old.request.params.get('pageIndex')).toBe('2');
+    c.filters.patchValue({ search: 'PETR4', kind: 'buy', status: 'active', from: '2026-01-01' }); c.applyFilters();
+    expect(old.cancelled).toBe(true);
+    const filtered = http.expectOne(r => r.url.endsWith('/movements/page'));
+    expect(filtered.request.params.get('pageIndex')).toBe('0');
+    expect(filtered.request.params.get('search')).toBe('PETR4');
+    expect(filtered.request.params.get('kind')).toBe('buy');
+    expect(filtered.request.params.get('status')).toBe('active');
+    filtered.flush({ items: [{ id: 42, kind: 'buy' }], total: 1, pageIndex: 0, pageSize: 10 });
+    expect(c.movements()[0].id).toBe(42);
+    http.expectNone('/api/portfolios/1/movements/42');
+  });
+  it('loads audit only on request and cancels it when the panel closes', () => {
+    const c = initialize().componentInstance;
+    c.showDetail(42); const first = http.expectOne('/api/portfolios/1/movements/42');
+    c.closeDetail(); expect(first.cancelled).toBe(true);
+    c.showDetail(43); http.expectOne('/api/portfolios/1/movements/43').flush({ id: 43, effects: [], canReverse: false, reversalBlockedReason: 'Já estornado.' });
+    expect(c.detail()?.id).toBe(43); expect(c.detailLoading()).toBe(false);
+    c.closeDetail(); expect(c.detail()).toBeNull();
+  });
+  it('preserves the page when reloading after a change and rejects invalid date ranges', () => {
+    const c = initialize().componentInstance;
+    c.pageIndex.set(2); c.load();
+    const page = http.expectOne(r => r.url.endsWith('/movements/page'));
+    expect(page.request.params.get('pageIndex')).toBe('2');
+    page.flush({ items: [], total: 0, pageIndex: 0, pageSize: 10 });
+    http.expectOne('/api/portfolios/1').flush(testDashboard.summary);
+    http.expectOne('/api/currencies').flush([]);
+    http.expectOne('/api/portfolios/1/external-assets').flush({ items: [] });
+    expect(c.pageIndex()).toBe(0);
+    c.filters.patchValue({ from: '2026-10-20', to: '2026-01-01' }); c.applyFilters();
+    http.expectNone(r => r.url.endsWith('/movements/page'));
+    expect(c.listError()).toContain('data inicial');
+  });
+
 });

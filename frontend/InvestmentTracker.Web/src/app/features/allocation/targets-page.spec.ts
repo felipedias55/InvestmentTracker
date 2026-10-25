@@ -74,11 +74,12 @@ describe('TargetsPage', () => {
     fixture.componentInstance.select(2);
     expect(options.cancelled).toBe(true);
     expect(oldRequest.cancelled).toBe(true);
-    http.expectOne('/api/sectors').flush([{ id: 5, name: 'Tecnologia' }]);
-    http.expectOne('/api/portfolios/2/sector-targets').flush([]);
+    // An unseen portfolio starts in its own default dimension, without inheriting the old one.
+    http.expectOne('/api/asset-categories').flush([{ id: 5, name: 'Tecnologia' }]);
+    http.expectOne('/api/portfolios/2/category-targets').flush([]);
     fixture.componentInstance.rows.at(0).controls.percentage.setValue('100');
     fixture.componentInstance.save();
-    http.expectOne('/api/portfolios/2/sector-targets').flush(null);
+    http.expectOne('/api/portfolios/2/category-targets').flush(null);
   });
   it('rejects excess precision and exposes a retry after loading fails', () => {
     const fixture = initialize();
@@ -92,4 +93,17 @@ describe('TargetsPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Tentar novamente');
     expect(fixture.componentInstance.ready()).toBe(false);
   });
+  it('keeps hidden rows in validation and in the complete payload after filtering', () => {
+    const f = initialize(), c = f.componentInstance;
+    c.rows.at(0).controls.percentage.setValue('33,3333');
+    c.rows.at(1).controls.percentage.setValue('66,6667');
+    c.search('FIIs'); f.detectChanges();
+    expect(f.nativeElement.querySelector('#target-0')).toBeNull();
+    expect(c.total()).toBe('100,0000'); c.save();
+    const request = http.expectOne('/api/portfolios/1/category-targets');
+    expect(request.request.body.targets).toHaveLength(2); request.flush(null);
+    c.rows.at(0).controls.percentage.setValue('inválido'); c.save();
+    http.expectNone('/api/portfolios/1/category-targets'); expect(c.form.invalid).toBe(true);
+  });
+
 });

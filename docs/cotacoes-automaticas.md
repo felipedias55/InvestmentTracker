@@ -33,7 +33,7 @@ Reinicie a API. Sem chave, a tela informa qual provedor falta configurar e não 
 1. Abra Carteira e filtre as posições desejadas.
 2. Entre em Atualizar cotações em lote.
 3. Deixe vazios os preços que deseja buscar.
-4. Clique em Consultar cotações gratuitas.
+4. Clique em Buscar cotações.
 5. Confira preço, fonte, data e mensagens de cada ativo.
 6. Ajuste ou apague preços que não quiser aplicar.
 7. Revise e confirme o lote.
