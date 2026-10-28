@@ -1,5 +1,7 @@
 # Revisão funcional — 18/09/2026
 
+Este documento preserva a revisão histórica de 18/09. Atualização de contexto em **27/10/2026**: Dietz estimado e XIRR foram entregues posteriormente ([métricas](metricas-de-rentabilidade.md)), assim como diagnóstico, simulação e aplicação de correções retroativas nos casos suportados ([correções atrasadas](correcoes-atrasadas.md)). TWR exato e casos bloqueados por eventos/ajustes ou auditoria insuficiente continuam com escopo próprio. Backup automático permanece adiado por decisão do usuário, e publicação depende da preparação operacional e de acesso. Para o backlog vigente, use [próximas etapas](proximas-etapas.md).
+
 ## Escopo concluído
 
 Revisão dos fluxos existentes, documentação de instalação/atualização e câmbio histórico dos proventos. Preservadas as camadas da solução, namespaces com chaves e os valores cadastrados. Backup agendado e automação de correções atrasadas permanecem para etapas seguintes.
@@ -37,6 +39,6 @@ A inicialização agora detecta alterações de modelo sem migration e migration
 - A criação do esquema foi exercitada em bancos temporários. A instalação completa em outro computador não foi executada.
 - Fotografias congeladas não são recalculadas pela complementação de câmbio; a análise usa a versão vigente do equivalente na moeda consultada.
 - Recebimentos antigos sem conversão devem ser complementados na página Proventos quando necessário. Nenhuma cotação atual foi utilizada para preencher o passado.
-- TWR/XIRR, backup automático, automação dos lançamentos atrasados e publicação continuam pendentes.
+- Na data desta revisão, TWR/XIRR, backup automático, automação dos lançamentos atrasados e publicação estavam pendentes. O estado posterior é indicado na atualização de contexto no início deste documento.
 
 Detalhes do fluxo e das regras: [recebimentos e câmbio histórico](recebimento-de-proventos.md).

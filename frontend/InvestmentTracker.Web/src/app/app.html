@@ -6,12 +6,11 @@
       ><span>InvestmentTracker</span></a
     >
   <button mat-icon-button class="privacy-toggle" type="button" (click)="privacy.toggle()" [attr.aria-pressed]="privacy.hidden()" [attr.aria-label]="privacy.hidden() ? 'Mostrar valores' : 'Ocultar valores'"><app-icon [name]="privacy.hidden() ? 'hidden' : 'eye'" /></button>
-  <button mat-icon-button class="theme-toggle" [matMenuTriggerFor]="themeMenu" aria-label="Escolher tema"><app-icon name="theme" /></button>
-  <mat-menu #themeMenu="matMenu">
-    <button mat-menu-item (click)="theme.select('light')">Claro {{ theme.preference() === 'light' ? '· selecionado' : '' }}</button>
-    <button mat-menu-item (click)="theme.select('dark')">Escuro {{ theme.preference() === 'dark' ? '· selecionado' : '' }}</button>
-    <button mat-menu-item (click)="theme.select('system')">Sistema {{ theme.preference() === 'system' ? '· selecionado' : '' }}</button>
-  </mat-menu>
+  @defer (when themeRequested()) {
+    <app-theme-picker />
+  } @placeholder {
+    <button mat-icon-button class="theme-toggle" aria-label="Escolher tema" aria-haspopup="menu" (click)="themeRequested.set(true)" (keydown.arrowdown)="$event.preventDefault(); themeRequested.set(true)" (keydown.arrowup)="$event.preventDefault(); themeRequested.set(true)"><app-icon name="theme" /></button>
+  }
 </header>
 @if (mobile() && menuOpen()) { <div class="menu-backdrop" (click)="closeMenu()" aria-hidden="true"></div> }
 <div class="app-shell" [class.menu-open]="menuOpen()" [class.mobile-menu-open]="mobile() && menuOpen()">

@@ -46,7 +46,7 @@ button:focus-visible, .chart-body:focus-visible { outline: 2px solid var(--accen
   .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
-  .dashboard-grid { display: flex; flex-direction: column; }
+  .dashboard-grid { display: flex; flex-direction: column; align-items: stretch; }
   .dashboard-grid .chart-card { max-height: none; }
   .chart-body { overflow: visible; }
   .drag-handle { display: none; }

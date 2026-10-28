@@ -58,7 +58,7 @@ export class ContributionsPage {
     this.plan.set(null); this.result.set(null); this.sectorResult.set(null); this.checked.set(new Set());
   }
   toggle(key: string) {
-    this.checked.update(current => { const next = new Set(current); next.has(key) ? next.delete(key) : next.add(key); return next; });
+    this.checked.update(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   }
   readonly strategy = signal<StrategyConfig | null>(null);
   readonly strategyValid = signal(true);

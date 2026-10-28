@@ -95,7 +95,12 @@ export class StrategyEditor {
   readonly help = computed(() => this.models.find(m => m.id === this.model())?.help ?? '');
   readonly valid = computed(() => {
     const values = Object.values(this.rules());
-    return !!this.name().trim() && this.name().length <= 100 && values.every(r => /^\d+(?:\.\d{3})*(?:,\d{1,2})?$/.test(r.value) && Number(parseBrazilianNumber(r.value)) <= (r.kind === 'percent' ? 100 : 999999999999999.99))
+    return !!this.name().trim() && this.name().length <= 100 && values.every(r => {
+      if (!/^\d+(?:\.\d{3})*(?:,\d{1,2})?$/.test(r.value)) return false;
+      const value = parseBrazilianNumber(r.value);
+      // Keep fixed amounts as decimal strings: the backend maximum is not exactly representable as a JS number.
+      return r.kind === 'percent' ? Number(value) <= 100 : value.split('.')[0].replace(/^0+/, '').length <= 15;
+    })
       && values.filter(r => r.kind === 'percent').reduce((s,r) => s + Number(parseBrazilianNumber(r.value)),0) <= 100
       && (this.model() !== 'real-estate' || Object.entries(this.rules()).some(([id,r]) => r.kind === 'fixed' && this.excluded().includes(Number(id))))
       && (this.model() !== 'core-satellite' || values.some(r => r.kind === 'percent'))

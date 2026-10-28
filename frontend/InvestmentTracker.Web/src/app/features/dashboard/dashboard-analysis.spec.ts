@@ -13,9 +13,9 @@ describe('DashboardAnalysis', () => {
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => http.verify());
-  function create(kind: string) {
+  function create(kind: string, portfolioId = 1) {
     const f = TestBed.createComponent(DashboardAnalysis);
-    f.componentRef.setInput('kind', kind); f.componentRef.setInput('portfolioId', 1); f.componentRef.setInput('currency', 'BRL');
+    f.componentRef.setInput('kind', kind); f.componentRef.setInput('portfolioId', portfolioId); f.componentRef.setInput('currency', 'BRL');
     f.detectChanges(); return f;
   }
   it('breaks evolution for stale, reopened, missing or differently denominated snapshots', () => {
@@ -122,6 +122,65 @@ describe('DashboardAnalysis', () => {
       { id: 4, ticker: 'D', quantity: '1', pricePerformance: { variation: null } }
     ]);
     expect(f.componentInstance.leaders().map(g => g.rows.map(p => p.ticker))).toEqual([['A'], ['B']]);
-    http.expectNone(req => true);
+    http.expectNone(() => true);
+  });
+  it('restores evolution filters after recreation without reopening details and isolates portfolios', () => {
+    const row = { snapshotId: 1, currencyCode: 'BRL', totalWealth: '100' };
+    const data = { months: [{ ...row, period: '2025-01' }, { ...row, period: '2025-02' }], years: [{ ...row, period: '2025' }] };
+    const f = create('evolution'); http.expectOne('/api/portfolios/1/history').flush(data);
+    f.componentInstance.mode.set('years'); f.componentInstance.year.set('2025'); f.componentInstance.period.set('2025');
+    f.componentInstance.detailsOpen.set(true); f.destroy();
+    const other = create('evolution', 2); http.expectOne('/api/portfolios/2/history').flush(data);
+    expect(other.componentInstance.mode()).toBe('months'); expect(other.componentInstance.year()).toBe(''); other.destroy();
+    const restored = create('evolution'); http.expectOne('/api/portfolios/1/history').flush(data); restored.detectChanges();
+    expect(restored.componentInstance.mode()).toBe('years'); expect(restored.componentInstance.year()).toBe('2025');
+    expect(restored.nativeElement.querySelectorAll('.analysis-options select')[1].value).toBe('2025');
+    expect(restored.componentInstance.selectedPeriod()).toBe('2025'); expect(restored.componentInstance.detailsOpen()).toBe(false);
+    restored.componentInstance.mode.set('months'); restored.componentInstance.period.set('2025-01'); restored.destroy();
+    const month = create('evolution'); http.expectOne('/api/portfolios/1/history').flush(data); month.detectChanges();
+    expect(month.componentInstance.selectedPeriod()).toBe('2025-01');
+  });
+  it('restores the income currency and older window independently of evolution, including reloads', () => {
+    const months = Array.from({ length: 14 }, (_, i) => ({ period: `${2025 + Math.floor(i / 12)}-${String(i % 12 + 1).padStart(2, '0')}`, currencyCode: 'USD', net: '20' }));
+    const data = { months, years: [], convertedMonths: [], convertedYears: [] };
+    const f = create('income'); http.expectOne('/api/portfolios/1/income/analysis').flush(data); f.detectChanges();
+    f.componentInstance.selectIncome('original:USD'); f.detectChanges();
+    f.componentInstance.shiftIncomeWindow(1); f.detectChanges();
+    expect(f.componentInstance.incomeWindow()[0].label).toBe('2025-05'); f.destroy();
+    const restored = create('income'); http.expectOne('/api/portfolios/1/income/analysis').flush(data); restored.detectChanges();
+    expect(restored.componentInstance.incomeChoice()).toBe('original:USD');
+    expect(restored.componentInstance.incomeWindow()[0].label).toBe('2025-05');
+    restored.componentInstance.retry.update(v => v + 1); restored.detectChanges();
+    http.expectOne('/api/portfolios/1/income/analysis').flush(data); restored.detectChanges();
+    expect(restored.componentInstance.incomeWindow()[0].label).toBe('2025-05');
+    const evolution = create('evolution'); http.expectOne('/api/portfolios/1/history').flush({ months: [], years: [] });
+    expect(evolution.componentInstance.mode()).toBe('months'); expect(evolution.componentInstance.year()).toBe('');
+  });
+  it('keeps the last loaded context through errors and cancelled requests, without leaking to another portfolio', () => {
+    const data = { months: [{ period: '2025-01', currencyCode: 'BRL', net: '100' }], years: [{ period: '2025', currencyCode: 'BRL', net: '100' }] };
+    const f = create('income'); http.expectOne('/api/portfolios/1/income/analysis').flush(data); f.detectChanges();
+    f.componentInstance.mode.set('years'); f.componentInstance.year.set('2025'); f.componentInstance.windowSize.set(12); f.detectChanges();
+    f.componentInstance.retry.update(v => v + 1); f.detectChanges();
+    http.expectOne('/api/portfolios/1/income/analysis').flush({}, { status: 500, statusText: 'Error' });
+    f.componentRef.setInput('portfolioId', 2); f.detectChanges();
+    const pending = http.expectOne('/api/portfolios/2/income/analysis');
+    f.componentRef.setInput('portfolioId', 1); f.detectChanges(); expect(pending.cancelled).toBe(true);
+    http.expectOne('/api/portfolios/1/income/analysis').flush(data); f.detectChanges();
+    expect(f.componentInstance.mode()).toBe('years'); expect(f.componentInstance.year()).toBe('2025'); expect(f.componentInstance.windowSize()).toBe(12);
+    f.componentRef.setInput('portfolioId', 2); f.detectChanges();
+    http.expectOne('/api/portfolios/2/income/analysis').flush(data); f.detectChanges();
+    expect(f.componentInstance.mode()).toBe('months'); expect(f.componentInstance.year()).toBe(''); expect(f.componentInstance.windowSize()).toBe(5);
+  });
+  it('falls back when a restored year or currency disappears and bounds the saved window to available data', () => {
+    const months = Array.from({ length: 14 }, (_, i) => ({ period: `${2025 + Math.floor(i / 12)}-${String(i % 12 + 1).padStart(2, '0')}`, currencyCode: 'USD', net: '20' }));
+    const f = create('income'); http.expectOne('/api/portfolios/1/income/analysis').flush({ months, years: [] }); f.detectChanges();
+    f.componentInstance.year.set('2025'); f.componentInstance.windowSize.set(12); f.detectChanges();
+    f.componentInstance.shiftIncomeWindow(1); f.detectChanges(); f.destroy();
+    const shorter = create('income'); http.expectOne('/api/portfolios/1/income/analysis').flush({ months: months.slice(0, 2), years: [] }); shorter.detectChanges();
+    expect(shorter.componentInstance.windowOffset()).toBe(1); expect(shorter.componentInstance.incomeWindow()).toHaveLength(1); shorter.destroy();
+    const changed = create('income'); http.expectOne('/api/portfolios/1/income/analysis').flush({ months: [{ period: '2026-01', currencyCode: 'BRL', net: '30' }], years: [] }); changed.detectChanges();
+    expect(changed.componentInstance.year()).toBe(''); expect(changed.componentInstance.incomeChoice()).toBe('original:BRL'); expect(changed.componentInstance.windowOffset()).toBe(0);
+    expect(changed.componentInstance.windowSize()).toBe(12); expect(changed.componentInstance.incomeWindow()).toEqual([{ label: '2026-01', value: 30 }]);
+    expect(changed.nativeElement.querySelectorAll('.analysis-options select')[1].value).toBe('12');
   });
 });

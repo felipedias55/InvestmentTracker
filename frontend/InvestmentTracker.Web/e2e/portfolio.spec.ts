@@ -14,7 +14,7 @@ test('cotações em lote revisam valores e preservam filtros e posições não p
   await page.goto('/portfolio'); await page.locator('#portfolio-select').selectOption(String(portfolio.id));
   await expect(page.getByRole('button', { name: 'Recarregar dados', exact: true })).toBeEnabled();
   await page.locator('#position-search').fill('BATCH');
-  await page.getByRole('button', { name: 'Atualizar cotações em lote', exact: true }).click();
+  await page.getByRole('button', { name: 'Atualizar cotações dos 2 resultados filtrados', exact: true }).click();
   const modal = page.locator('dialog:modal'); await expect(modal).toBeVisible();
   await modal.locator('#quote-' + first.id).fill('30,1234');
   await modal.getByRole('button', { name: 'Revisar 1 cotações', exact: true }).click();
@@ -27,9 +27,10 @@ test('cotações em lote revisam valores e preservam filtros e posições não p
   const after = await json(request, path);
   expect(Number(after.positions[0].currentValue)).toBe(33.8423);
   expect(Number(after.positions[1].currentValue)).toBe(20);
-  await expect(page.locator('app-position-performance').first()).toContainText('125,6153%');
-  await expect(page.locator('app-position-performance .gain').first()).toContainText('▲');
-  await page.locator('app-position-performance').first().scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'Detalhes de ' + before.positions[0].ticker, exact: true }).click();
+  await expect(page.locator('dialog:modal app-position-performance')).toContainText('125,6153%');
+  await expect(page.locator('dialog:modal app-position-performance .gain')).toContainText('▲');
+  await page.locator('dialog:modal app-position-performance').scrollIntoViewIfNeeded();
   await page.screenshot({ path: info.outputPath('position-performance.png') });
   for (const p of after.positions) { expect(Number(p.quantity)).toBe(1.123456); expect(Number(p.investedAmount)).toBe(15); expect(Number(p.income)).toBe(3); }
   const history = await json(request, path + '/history'); expect(history.cashFlows).toHaveLength(0);
@@ -50,6 +51,12 @@ async function navigate(page: Page, name: string) {
 
 async function choosePortfolio(page: Page, name: string) {
   await page.locator('#analysis-portfolio').selectOption({ label: name + ' · BRL' });
+  await expect(page.getByRole('status').filter({ hasText: /^Carregando/ })).toHaveCount(0);
+}
+
+async function movementDetails(page: Page, id: number) {
+  await page.getByRole('button', { name: `Ver detalhes do lançamento #${id}`, exact: true }).click();
+  await expect(page.getByRole('heading', { name: new RegExp(`^#${id} ·`) })).toBeVisible();
 }
 
 test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores', async ({ page, request }, info) => {
@@ -60,7 +67,8 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   page.on('pageerror', error => errors.push(error.message));
 
   await page.goto('/portfolio');
-  await page.getByRole('button', { name: 'Nova carteira', exact: true }).click();
+  await page.getByRole('button', { name: 'Mais ações', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Nova carteira', exact: true }).click();
   await page.locator('#portfolio-name').fill(name);
   await page.locator('#base-currency').selectOption({ label: 'BRL — Real brasileiro' });
   await page.getByRole('button', { name: 'Salvar carteira', exact: true }).click();
@@ -71,10 +79,11 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   expect((await json(request, path)).positions).toHaveLength(0);
 
   await navigate(page, 'Ativos');
+  await page.getByRole('button', { name: 'Novo ativo', exact: true }).click();
   await page.getByLabel('Ticker', { exact: true }).fill(ticker);
   await page.getByLabel('Nome', { exact: true }).fill('Ativo de teste ' + suffix);
   for (const [label, option] of [['Tipo de ativo', 'Ação'], ['País', 'Brasil'], ['Moeda', 'BRL — Real brasileiro'], ['Categoria', 'Ações BR'], ['Setor', 'Tecnologia']]) {
-    await page.getByLabel(label, { exact: true }).selectOption({ label: option });
+    await page.locator('dialog:modal').getByLabel(label, { exact: true }).selectOption({ label: option });
   }
   await page.getByRole('button', { name: 'Salvar ativo', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Editar ' + ticker, exact: true })).toBeVisible();
@@ -87,15 +96,17 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   await expect(page.getByLabel('Nome', { exact: true })).toHaveValue('Ativo revisado ' + suffix);
   await page.getByRole('button', { name: 'Salvar ativo', exact: true }).click();
   await expect(page.locator('dialog:modal')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Novo ativo', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Novo ativo', exact: true })).toBeVisible();
 
   await navigate(page, 'Compras e vendas');
   await choosePortfolio(page, name);
-  const trade = async (kind: string, quantity: string, price: string, cash = false, valid = true) => {
+  const trade = async (kind: string, quantity: string, price: string, cash = false, valid = true, fees = '0') => {
+    await page.getByRole('button', { name: kind === 'buy' ? 'Registrar compra' : 'Registrar venda', exact: true }).click();
     await page.locator('#trade-kind').selectOption(kind);
     await page.locator('#trade-asset').selectOption({ label: `${ticker} — Ativo revisado ${suffix}` });
     await page.locator('#trade-quantity').fill(quantity);
     await page.locator('#trade-price').fill(price);
+    await page.locator('#trade-fees').fill(fees);
     await page.locator('#trade-cash').selectOption({ index: cash ? 1 : 0 });
     const response = page.waitForResponse(r => r.url().endsWith('/trades') && r.request().method() === 'POST');
     await page.getByRole('button', { name: 'Confirmar operação' }).click();
@@ -114,6 +125,7 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
 
   await navigate(page, 'Patrimônio externo');
   await choosePortfolio(page, name);
+  await page.getByRole('button', { name: 'Novo patrimônio', exact: true }).click();
   await page.getByLabel('Nome', { exact: true }).fill('Saldo E2E');
   await page.getByLabel('Moeda original', { exact: true }).selectOption({ label: 'BRL — Real brasileiro' });
   await page.getByLabel('Valor na moeda selecionada').fill('100,50');
@@ -141,11 +153,15 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   expect((await json(request, path + '/trades'))).toHaveLength(4);
   expect((await json(request, path + '/history')).cashFlows).toHaveLength(2);
 
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('dialog:modal').getByRole('button', { name: 'Cancelar', exact: true }).click();
   await navigate(page, 'Evolução e fechamentos');
   await choosePortfolio(page, name);
+  await page.getByRole('button', { name: 'Fotografias', exact: true }).click();
   await page.getByRole('button', { name: 'Registrar fotografia', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar fotografia', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Atualizar fotografia deste mês' })).toBeVisible();
+  await page.getByRole('button', { name: 'Evolução', exact: true }).click();
   const returnsTable = page.getByRole('table', { name: 'Rentabilidade entre fotografias' });
   await expect(returnsTable).toBeVisible();
   await expect(returnsTable).toContainText('São necessárias duas fotografias para comparar.');
@@ -164,6 +180,7 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   expect(await json(request, snapshotPath)).toEqual({ ...photo, isOutdated: true });
   await navigate(page, 'Evolução e fechamentos');
   await choosePortfolio(page, name);
+  await page.getByRole('button', { name: 'Fotografias', exact: true }).click();
   await page.getByRole('button', { name: 'Atualizar fotografia deste mês' }).click();
   await page.getByRole('button', { name: 'Confirmar fotografia' }).click();
   await expect(page.getByRole('button', { name: 'Confirmar fotografia' })).not.toBeVisible();
@@ -172,17 +189,20 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   const flowsBefore = (await json(request, path + '/history')).cashFlows;
   await navigate(page, 'Proventos');
   await choosePortfolio(page, name);
+  await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
   await page.getByLabel('Ativo', { exact: true }).selectOption({ label: `${ticker} — Ativo revisado ${suffix}` });
   await page.locator('#income-amount').fill('12,34');
   await page.locator('#income-cash').selectOption({ index: 1 });
-  await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
+  await page.locator('dialog:modal').getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Recebimento registrado' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Recarregar dados' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
+  await page.locator('dialog:modal').getByLabel('Ativo', { exact: true }).selectOption({ label: `${ticker} — Ativo revisado ${suffix}` });
   await page.locator('#income-amount').fill('2');
   await page.locator('#income-cash').selectOption({ index: 0 });
-  await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
+  await page.locator('dialog:modal').getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Recarregar dados' })).toBeEnabled();
-  await expect(page.locator('section').filter({ has: page.getByRole('heading', { name: 'Histórico de recebimentos', exact: true }) }).locator('tbody tr')).toHaveCount(2);
+  await expect(page.locator('.income-row')).toHaveCount(2);
   expect(Number((await json(request, path)).totalIncome)).toBe(14.34);
   expect(Number((await json(request, path + '/external-assets')).totalValue)).toBe(142.84);
   expect((await json(request, path + '/history')).cashFlows).toEqual(flowsBefore);
@@ -191,6 +211,7 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   await choosePortfolio(page, name);
   const ledger = await json(request, path + '/movements');
   const receiptMovement = ledger.find((m: any) => m.kind === 'income' && Number(m.amount) === 2);
+  await movementDetails(page, receiptMovement.id);
   await page.getByRole('button', { name: `Estornar #${receiptMovement.id}`, exact: true }).click();
   await page.getByLabel('Motivo do estorno', { exact: true }).fill('Recebimento duplicado no teste');
   await page.getByRole('button', { name: 'Confirmar estorno', exact: true }).click();
@@ -200,11 +221,10 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   expect((await json(request, path + '/income'))).toHaveLength(2);
   expect(await json(request, snapshotPath)).toEqual({ ...frozen, isOutdated: true });
   await navigate(page, 'Compras e vendas'); await choosePortfolio(page, name);
-  await page.locator('#trade-fees').fill('1,25');
-  await trade('buy', '1', '10', true);
+  await trade('buy', '1', '10', true, true, '1,25');
   const withFees = await json(request, path);
   expect(Number(withFees.positions[0].investedAmount)).toBe(259.25);
-  await page.getByText('Registrar desdobramento, grupamento ou bonificação', { exact: true }).click();
+  await page.getByRole('button', { name: 'Registrar evento societário', exact: true }).click();
   await page.locator('#event-position').selectOption({ index: 1 });
   await page.locator('#event-quantity').fill('20');
   await page.locator('#event-reason').fill('Desdobramento sintético de teste');
@@ -213,7 +233,8 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   expect(Number((await json(request, path)).positions[0].quantity)).toBe(20);
   expect(Number((await json(request, path)).positions[0].investedAmount)).toBe(259.25);
   await navigate(page, 'Evolução e fechamentos'); await choosePortfolio(page, name);
-  await page.getByText('Reabrir período para lançamentos atrasados', { exact: true }).click();
+  await page.getByRole('button', { name: 'Fotografias', exact: true }).click();
+  await page.getByRole('button', { name: 'Reabrir período', exact: true }).click();
   await page.locator('#reopen-date').fill(photo.snapshotDate);
   await page.locator('#reopen-reason').fill('Conferência do fechamento');
   await page.getByRole('button', { name: 'Confirmar reabertura', exact: true }).click();
@@ -226,12 +247,14 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   expect(revised.revision).toBe(3); expect(revised.previousVersions).toHaveLength(2);
   expect(revised.isOutdated).toBe(false); expect(revised.previousVersions[0].dashboard).toEqual(photo.dashboard);
   await navigate(page, 'Proventos'); await choosePortfolio(page, name);
+  await page.getByRole('button', { name: 'Análises', exact: true }).click();
   await page.locator('#income-group').selectOption('years');
   const analysis = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Análise dos recebimentos', exact: true }) });
   await expect(analysis.locator('table[aria-label="Detalhamento dos recebimentos"] tbody tr')).toHaveCount(1);
   await expect(analysis).toContainText('12,34');
   const income = (await json(request, path + '/income')).find((r: any) => Number(r.amount) === 12.34);
-  await page.getByRole('button', { name: `Conversão #${income.id}`, exact: true }).click();
+  await page.getByRole('button', { name: 'Recebimentos', exact: true }).click();
+  await page.getByRole('button', { name: `Revisar conversão #${income.id}`, exact: true }).click();
   await page.locator('#conversion-currency').selectOption('USD');
   await page.locator('#conversion-amount').fill('2,3456');
   await page.locator('#conversion-reason').fill('Equivalente sintético conferido');
@@ -242,6 +265,7 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   expect(Number(converted.conversions.find((c: any) => c.baseCurrencyCode === 'USD').baseAmount)).toBe(2.3456);
   expect(Number((await json(request, path)).totalIncome)).toBe(12.34);
   expect(await json(request, snapshotPath)).toEqual(revised);
+  await page.getByRole('button', { name: 'Análises', exact: true }).click();
   await page.locator('#income-view').selectOption('base');
   await expect(analysis).toContainText('12,34');
   expect(errors).toEqual([]);
@@ -260,6 +284,7 @@ test('depósito, retirada, transferência, ajuste e estorno atualizam saldos e t
   }
   await page.goto('/movements'); await choosePortfolio(page, name);
   const move = async (kind: string, amount: string) => {
+    await page.getByRole('button', { name: 'Movimentar saldo', exact: true }).click();
     await page.locator('#movement-kind').selectOption(kind);
     await page.locator('#movement-cash').selectOption({ index: 1 });
     if (kind === 'transfer') await page.locator('#movement-destination').selectOption({ index: 1 });
@@ -274,7 +299,10 @@ test('depósito, retirada, transferência, ajuste e estorno atualizam saldos e t
   const deposit = await move('deposit', '10,50');
   const withdrawal = await move('withdrawal', '5'); const transfer = await move('transfer', '20');
   const adjustment = await move('adjustment', '90');
-  expect(await page.getByRole('button', { name: `Estornar #${deposit.id}`, exact: true }).count()).toBe(0);
+  await movementDetails(page, deposit.id);
+  await expect(page.getByRole('button', { name: `Estornar #${deposit.id}`, exact: true })).toHaveCount(0);
+  await page.locator('dialog:modal').getByRole('button', { name: 'Fechar edição', exact: true }).click();
+  await movementDetails(page, adjustment.id);
   await page.getByRole('button', { name: `Estornar #${adjustment.id}`, exact: true }).click();
   await page.getByLabel('Motivo do estorno', { exact: true }).fill('Desfazer ajuste incorreto');
   await page.getByRole('button', { name: 'Confirmar estorno', exact: true }).click();
@@ -285,6 +313,7 @@ test('depósito, retirada, transferência, ajuste e estorno atualizam saldos e t
   expect((await json(request, path + '/history')).cashFlows).toHaveLength(2);
   expect((await json(request, path + '/movements'))).toHaveLength(5);
   const beforePreview = await json(request, path + '/movements');
+  await movementDetails(page, deposit.id);
   await page.getByRole('button', { name: `Analisar correção #${deposit.id}`, exact: true }).click();
   await page.getByRole('button', { name: 'Consultar impactos', exact: true }).click();
   const preview = page.locator('dialog:modal');
@@ -295,6 +324,7 @@ test('depósito, retirada, transferência, ajuste e estorno atualizam saldos e t
   expect(await json(request, path + '/movements')).toEqual(beforePreview);
   expect(await json(request, path + '/external-assets')).toEqual(balances);
   for (const original of [transfer, withdrawal, deposit]) {
+    await movementDetails(page, original.id);
     await page.getByRole('button', { name: `Estornar #${original.id}`, exact: true }).click();
     await page.getByLabel('Motivo do estorno', { exact: true }).fill('Desfazer lançamento de teste');
     await page.getByRole('button', { name: 'Confirmar estorno', exact: true }).click();
@@ -315,20 +345,22 @@ test('menu permanece acessível após rolagem e gráficos mantêm preferências'
   await page.goto('/dashboard');
   await choosePortfolio(page, name);
   const collapse = page.getByRole('button', { name: 'Recolher', exact: true }).first();
+  const chartId = await collapse.getAttribute('aria-controls');
   await collapse.click();
-  const expand = page.getByRole('button', { name: 'Expandir', exact: true });
-  await expect(expand).toHaveCount(1);
-  const chartId = await expand.getAttribute('aria-controls');
+  const chartToggle = page.locator(`button[aria-controls="${chartId}"]`);
+  await expect(chartToggle).toHaveText('Expandir');
   await page.reload();
   await choosePortfolio(page, name);
   await expect(page.locator(`button[aria-controls="${chartId}"]`)).toHaveText('Expandir');
-  await page.getByRole('button', { name: 'Restaurar gráficos' }).click();
-  await expect(page.getByRole('button', { name: 'Expandir', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Organizar dashboard', exact: true }).click();
+  await page.getByRole('button', { name: 'Restaurar organização padrão', exact: true }).click();
+  await expect(chartToggle).toHaveText('Recolher');
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   const toggle = page.locator('.menu-toggle');
   await expect(toggle).toBeInViewport();
   await navigate(page, 'Compras e vendas');
   await expect(page.getByRole('heading', { name: 'Compras e vendas', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Registrar compra', exact: true }).click();
   await expect(page.locator('#trade-quantity')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
@@ -353,6 +385,7 @@ test('correção confirmada recalcula compra e venda e lançamento atrasado pres
   const photo = await photoResponse.json(); const snapshotPath = path + '/history/snapshots/' + photo.id;
   const buy = (await json(request, path + '/movements')).find((m: any) => m.kind === 'buy');
   await page.goto('/movements'); await choosePortfolio(page, name);
+  await movementDetails(page, buy.id);
   await page.getByRole('button', { name: `Corrigir #${buy.id}`, exact: true }).click();
   await expect(page.locator('dialog:modal')).toBeVisible();
   await expect(page.locator('#correction-op-quantity')).toHaveValue(/^10(?:,0+)?$/);
@@ -403,7 +436,7 @@ test('carteira vazia, metas de categoria e setor e simulador respeitam percentua
   await page.getByRole('button', { name: 'Setores', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Metas por setor', exact: true })).toBeVisible();
   await page.locator('#target-0').fill('100');
-  await expect(page.getByText('Total: 100,0000%', { exact: true })).toBeVisible();
+  await expect(page.getByText('Total do conjunto: 100,0000%', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Salvar conjunto de metas', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Metas salvas' })).toBeVisible();
   const sectors = await json(request, path + '/sector-targets'); expect(sectors).toHaveLength(1);

@@ -1,7 +1,7 @@
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { PercentPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -12,6 +12,13 @@ import type { IncomeAnalysis } from '../income/income-page';
 import type { Position } from '../portfolio/portfolio.service';
 import { apiError } from '../../core/services/api-error';
 import { EditPanel } from '../../shared/edit-panel';
+import { PageContexts } from '../../shared/page-context';
+
+interface AnalysisContext {
+  mode: 'months' | 'years'; year: string; period: string;
+  incomeMode: 'original' | 'base'; incomeCurrency: string;
+  windowSize: number; windowOffset: number;
+}
 
 @Component({
   selector: 'app-dashboard-analysis', standalone: true,
@@ -22,7 +29,7 @@ import { EditPanel } from '../../shared/edit-panel';
     @if (kind() === 'evolution' && !loading() && !error()) {
       <div class="analysis-options">
         <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Período</mat-label><select matNativeControl [value]="mode()" (change)="mode.set($any($event.target).value)"><option value="months">Mensal</option><option value="years">Anual</option></select></mat-form-field>
-        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Ano</mat-label><select matNativeControl [value]="year()" (change)="year.set($any($event.target).value)"><option value="">Todos</option>@for (y of years(); track y) { <option [value]="y">{{ y }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Ano</mat-label><select matNativeControl [value]="year()" (change)="year.set($any($event.target).value)"><option value="">Todos</option>@for (y of years(); track y) { <option [value]="y" [selected]="year() === y">{{ y }}</option> }</select></mat-form-field>
       </div>
     }
     @if (kind() === 'evolution' && history(); as h) {
@@ -67,7 +74,7 @@ import { EditPanel } from '../../shared/edit-panel';
           @for (code of originalCurrencies(); track code) { <option [value]="'original:' + code" [selected]="incomeChoice() === 'original:' + code">{{ code }} · original</option> }
           <option [value]="'base:' + currency()" [selected]="incomeMode() === 'base'">{{ currency() }} · moeda-base</option>
         </select></mat-form-field>
-        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Períodos no gráfico</mat-label><select matNativeControl [value]="windowSize()" (change)="windowSize.set(+$any($event.target).value)"><option [value]="5">5 períodos</option><option [value]="12">12 períodos</option></select></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Períodos no gráfico</mat-label><select matNativeControl [value]="windowSize()" (change)="windowSize.set(+$any($event.target).value)"><option value="5" [selected]="windowSize() === 5">5 períodos</option><option value="12" [selected]="windowSize() === 12">12 períodos</option></select></mat-form-field>
       </div>
       @if (selectedIncomeGroup(); as group) {
         <div class="window-controls"><button mat-button type="button" [disabled]="incomeStart() === 0" (click)="shiftIncomeWindow(1)" aria-label="Ver períodos anteriores de proventos">← Anteriores</button><span class="hint">{{ mode() === 'months' ? 'Mensal' : 'Anual' }} · {{ incomeStart() + 1 }}–{{ incomeEnd() }} de {{ group.points.length }}</span><button mat-button type="button" [disabled]="incomeEnd() === group.points.length" (click)="shiftIncomeWindow(-1)" aria-label="Ver períodos seguintes de proventos">Seguintes →</button></div>
@@ -141,6 +148,10 @@ import { EditPanel } from '../../shared/edit-panel';
 })
 export class DashboardAnalysis {
   private readonly http = inject(HttpClient);
+  private readonly contexts = inject(PageContexts);
+  private contextKey = '';
+  private readonly contextLoaded = signal(false);
+  private windowSelection = '';
   readonly kind = input.required<'evolution' | 'income' | 'highlights'>();
   readonly compact = input(false);
   readonly portfolioId = input.required<number>();
@@ -165,23 +176,65 @@ export class DashboardAnalysis {
   readonly windowOffset = signal(0);
   readonly number = (value: string | null | undefined) => Number(value);
   constructor() {
+    inject(DestroyRef).onDestroy(() => this.saveContext());
     effect(onCleanup => {
       const id = this.portfolioId(), kind = this.kind(); this.retry();
-      this.detailsOpen.set(false);
-      this.history.set(null); this.income.set(null); this.error.set(''); this.loading.set(false);
-      this.loadFailed.emit('');
-      if (kind === 'evolution') this.historyLoaded.emit(null);
-      if (kind === 'income') this.incomeLoaded.emit(null);
+      untracked(() => {
+        this.saveContext(); this.contextLoaded.set(false);
+        this.contextKey = `dashboard-analysis:${id}:${kind}`;
+        this.detailsOpen.set(false);
+        this.mode.set('months'); this.year.set(''); this.period.set('');
+        this.incomeMode.set('original'); this.incomeCurrency.set('');
+        this.windowSize.set(5); this.windowOffset.set(0); this.windowSelection = '';
+        this.history.set(null); this.income.set(null); this.error.set(''); this.loading.set(false);
+        this.loadFailed.emit('');
+        if (kind === 'evolution') this.historyLoaded.emit(null);
+        if (kind === 'income') this.incomeLoaded.emit(null);
+      });
       if (kind === 'highlights') return;
       this.loading.set(true);
       const path = kind === 'evolution' ? 'history' : 'income/analysis';
       const request = this.http.get<PortfolioHistory | IncomeAnalysis>(`/api/portfolios/${id}/${path}`).subscribe({
-        next: data => { if (kind === 'evolution') { this.history.set(data as PortfolioHistory); this.historyLoaded.emit(data as PortfolioHistory); } else { this.income.set(data as IncomeAnalysis); this.incomeLoaded.emit(data as IncomeAnalysis); } this.loading.set(false); },
+        next: data => { if (kind === 'evolution') { this.history.set(data as PortfolioHistory); this.historyLoaded.emit(data as PortfolioHistory); } else { this.income.set(data as IncomeAnalysis); this.incomeLoaded.emit(data as IncomeAnalysis); } this.restoreContext(); this.loading.set(false); },
         error: e => { this.loadFailed.emit(apiError(e)); this.error.set(apiError(e)); this.loading.set(false); }
       });
       onCleanup(() => request.unsubscribe());
     });
-    effect(() => { this.incomeGroups(); this.incomeCurrency(); this.windowSize(); this.windowOffset.set(0); });
+    effect(() => {
+      if (!this.contextLoaded() || this.kind() !== 'income') return;
+      const selection = this.incomeSelection();
+      const count = this.selectedIncomeGroup()?.points.length ?? 0;
+      untracked(() => {
+        if (selection !== this.windowSelection) this.windowOffset.set(0);
+        else this.windowOffset.update(offset => Math.min(offset, Math.max(0, count - 1)));
+        this.windowSelection = selection;
+      });
+    });
+  }
+  private incomeSelection() {
+    return JSON.stringify([this.mode(), this.year(), this.incomeMode(), this.selectedIncomeCurrency(), this.windowSize()]);
+  }
+  private saveContext() {
+    if (!this.contextLoaded()) return;
+    this.contexts.put<AnalysisContext>(this.contextKey, {
+      mode: this.mode(), year: this.year(), period: this.selectedPeriod(),
+      incomeMode: this.incomeMode(), incomeCurrency: this.selectedIncomeCurrency(),
+      windowSize: this.windowSize(), windowOffset: this.windowOffset(),
+    }, 0); // The parent Dashboard owns scroll restoration; only filters are stored here.
+  }
+  private restoreContext() {
+    const saved = this.contexts.get<AnalysisContext>(this.contextKey)?.state;
+    if (saved) {
+      this.mode.set(saved.mode);
+      this.year.set(this.years().includes(saved.year) ? saved.year : '');
+      this.period.set(saved.period);
+      this.incomeMode.set(saved.incomeMode); this.incomeCurrency.set(saved.incomeCurrency);
+      this.windowSize.set(saved.windowSize);
+      const sameSelection = saved.incomeCurrency === this.selectedIncomeCurrency() && saved.year === this.year();
+      this.windowOffset.set(sameSelection ? Math.min(saved.windowOffset, Math.max(0, (this.selectedIncomeGroup()?.points.length ?? 0) - 1)) : 0);
+    }
+    this.windowSelection = this.incomeSelection();
+    this.contextLoaded.set(true);
   }
   readonly years = computed(() => [...new Set((this.kind() === 'evolution' ? this.history()?.months : this.income()?.months)?.map(r => r.period.slice(0,4)) ?? [])].sort().reverse());
   readonly periods = computed(() => (this.history()?.[this.mode()] ?? []).filter(r => !this.year() || r.period.startsWith(this.year())).slice().sort((a,b) => a.period.localeCompare(b.period)));

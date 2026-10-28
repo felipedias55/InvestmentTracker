@@ -44,6 +44,18 @@ describe('StrategyEditor', () => {
     expect(c.profileId()).toBe('');
     expect(c.remainder()).toBe('targets');
   });
+  it('validates the fixed-amount boundary without rounding decimal strings', () => {
+    const c = create().componentInstance;
+    c.rule(1, 'fixed', '999.999.999.999.999,99');
+    expect(c.valid()).toBe(true);
+    expect(c.config().rules[0].value).toBe('999999999999999.99');
+    c.rule(1, 'fixed', '1.000.000.000.000.000');
+    expect(c.valid()).toBe(false);
+    c.rule(1, 'fixed', '999.999.999.999.999,999');
+    expect(c.valid()).toBe(false);
+    c.rule(1, 'percent', '100,01');
+    expect(c.valid()).toBe(false);
+  });
   it('retains all rules and exclusions when filtering or paging the editor', () => {
     const f = create(), c = f.componentInstance;
     f.componentRef.setInput('categories', Array.from({length:12}, (_, i) => ({groupId:i+1,name:'Grupo '+i,currentValue:'0',currentPercentage:'0',targetPercentage:'0',difference:'0'})));

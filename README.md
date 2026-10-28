@@ -4,7 +4,7 @@ O **Investment Tracker** é uma aplicação web para acompanhar uma carteira pes
 
 Criado a partir de uma planilha, o projeto evoluiu para uma aplicação full stack com cálculos financeiros no backend, persistência relacional e interface responsiva. O foco atual é o uso local/privado: o núcleo do MVP já está em uso e as entregas seguintes ampliam análise, automação e usabilidade. Ainda não há autenticação ou preparação completa para publicação pública.
 
-Documentação revisada em **23/10/2026**.
+Documentação revisada em **28/10/2026**.
 
 ## Stack e arquitetura
 
@@ -56,7 +56,7 @@ A dashboard reúne resumo mensal/anual com comparação de proventos, evolução
 
 ## Instalação nova
 
-Pré-requisitos: SDK .NET 10, SQL Server acessível (ou LocalDB no Windows), Node.js compatível com o Angular instalado e npm. Use o `package-lock.json` com `npm ci`. O frontend continua no projeto `.esproj` do Visual Studio.
+Pré-requisitos: SDK .NET na faixa indicada em `global.json` (10.0.401 ou patch posterior da mesma faixa), SQL Server acessível (ou LocalDB no Windows), Node.js de referência em `.nvmrc` e npm indicado no package.json. Use o `package-lock.json` com `npm ci`. O frontend continua no projeto `.esproj` do Visual Studio.
 
 Na raiz, configure a conexão em User Secrets; adapte o exemplo ao seu servidor:
 
@@ -118,6 +118,8 @@ A edição manual das posições atende a saldos iniciais, ajustes e atualizaç�
 
 Filtros, ordenação, página e rolagem das consultas são recuperados ao navegar na mesma sessão, separados por tela e carteira. Recarregar a página reinicia esse contexto. Comprar/Vender/Registrar recebimento nos detalhes de uma posição leva a carteira e o ativo; **Voltar à Carteira** recupera a consulta anterior. Trocar de carteira usa o contexto da carteira de destino.
 
+No Dashboard, Evolução e Proventos também recuperam seus filtros por carteira: frequência, ano, fechamento selecionado, moeda e tamanho/posição da janela de proventos. Recarregar dados salvos mantém essas escolhas; recarregar a página reinicia o contexto. Os detalhes voltam fechados. Anos ou moedas ausentes nos dados atualizados usam uma seleção disponível, sem inventar valores.
+
 Formulários alterados pedem confirmação ao cancelar, fechar ou sair; recusar mantém os campos. Durante processamento, a saída é bloqueada. Formulários intocados e alterações apenas visuais não pedem confirmação. Rascunhos financeiros não são recuperados após recarga. No simulador, resultados e marcas de investido são temporários e também desaparecem ao sair da tela.
 
 Em **Organizar dashboard**, cada gráfico oferece alça, **Subir**, **Descer** e tamanho em uma faixa própria. As setas seguem a ordem de leitura e funcionam no celular e por teclado; Esc cancela o arraste. Ordem, formato, tamanho e recolhimento ficam salvos por carteira neste navegador. **Restaurar organização padrão** reinicia essas preferências. A organização não altera valores financeiros. Veja o [registro de usabilidade e suas limitações de validação](docs/plano-usabilidade-e-navegacao.md).
@@ -131,7 +133,7 @@ Na página **Carteira**, filtre as posições e use **Atualizar cotações em lo
 - O ícone **ⓘ** aparece no painel após uma consulta bem-sucedida: mouse, foco pelo teclado ou toque revelam fonte e horários disponíveis, em Brasília. A Alpha Vantage não fornece horário de mercado nesse endpoint.
 - **Recarregar dados** apenas relê os valores salvos. **Atualizar posições**, na dashboard, abre a carteira. Esses botões não consultam os provedores.
 - A data de atualização da posição é a data da gravação; não equivale necessariamente à data de mercado da cotação.
-- O cache de cotações é em memória: 30 minutos para brapi e 12 horas para Alpha Vantage. Reiniciar a API não renova a cota do provedor.
+- Na brapi, o cache fica em memória por 30 minutos. Para a Alpha Vantage, o cache de 12 horas e o controle local de tentativas/bloqueios persistem em disco por chave, inclusive após reiniciar a API. A pasta padrão é `%LOCALAPPDATA%\InvestmentTracker\QuoteState`; `Quotes:StateDirectory` permite alterá-la. Falhas de acesso ao estado são informadas e interrompem a consulta. Reiniciar ou apagar arquivos não renova a cota real do provedor. Consulte [cache e consumo](docs/cotacoes-automaticas.md#cache-e-consumo).
 - Recebimentos de proventos são registrados pelo usuário e independem da atualização de preços. Não existe importação automática de dividendos recebidos.
 
 As chaves devem ser configuradas nos User Secrets de cada instalação. Consulte [configuração, limites e validações das APIs](docs/cotacoes-automaticas.md). A atualização não ocorre em segundo plano e não é salva sem confirmação.
@@ -163,6 +165,8 @@ npm run test:presentation
 npm run test:e2e
 ```
 
+`npm run lint` verifica TypeScript e templates Angular, inclusive inline, sem aceitar avisos. `npm run format:check` verifica a formatação de configurações JSON/MJS/CJS e do workflow; não reformata em massa os fontes existentes. O workflow [Quality](.github/workflows/quality.yml) está preparado para executar essas verificações, build, testes Angular, apresentação, testes .NET, integração SQL e E2E em push/PR. Veja [qualidade e CI](docs/qualidade-e-ci.md) para escopo, versões e resultados locais; a primeira execução no GitHub ainda precisa ser confirmada após enviar as alterações.
+
 O E2E usa Playwright, API real e banco temporário próprio, em desktop e celular emulado. Inclui carteira vazia, cadastros, operações, fechamentos, conversões auditáveis, metas e simulador. Veja [execução e diagnóstico](docs/testes-e2e.md).
 
 A suíte `test:presentation` intercepta os endpoints com dados fictícios e executa jornadas de interface em desktop/celular e temas claro/escuro. Não inicia API nem usa banco de dados. Inclui contexto após salvar, descarte de alterações, auditoria, retorno do simulador, privacidade e organização dos gráficos; emulação não substitui aparelho físico nem valida a imagem nativa de arraste do sistema operacional.
@@ -184,9 +188,9 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - Lançamentos atrasados e correções contam com diagnóstico, simulação financeira e aplicação em lote. Cadeias com eventos societários, ajustes de posição ou auditoria insuficiente continuam exigindo conferência manual.
 - Conversão histórica desconhecida não vira zero nem usa câmbio atual. Mudança de moeda-base pode exigir outro equivalente, sem apagar o anterior.
 - Evolução exibe Dietz estimado no intervalo e XIRR anualizada com limites explícitos e bloqueios por dados insuficientes. TWR exato continua pendente de avaliações a cada fluxo externo.
-- Cotações sob demanda já foram utilizadas e confirmadas pelo usuário. Ainda há espaço para ampliar a verificação de cobertura, persistir cache/controle de consumo e mapear símbolos explicitamente. Não há garantia de disponibilidade ou consistência de todos os dados externos.
+- Cotações sob demanda já foram utilizadas e confirmadas pelo usuário. Ainda há espaço para ampliar a verificação de cobertura, mapear símbolos explicitamente e persistir cache/controle de consumo da brapi. A persistência da Alpha Vantage já existe. Não há garantia de disponibilidade ou consistência de todos os dados externos.
 - Meta de 0% impede aporte sugerido ao grupo, mas não retira seus ativos da base de cálculo. No simulador de estratégias, a exclusão por categoria permite retirar imobiliário da base do restante, mantendo-o no patrimônio.
-- Ideias/reflexões, base de demonstração, Docker, CI/CD, publicação e observabilidade ampliada permanecem no planejamento. Backup automático foi adiado por decisão do usuário; o procedimento manual já atende ao uso atual.
+- Ideias/reflexões, base de demonstração, Docker, CD, publicação e observabilidade ampliada permanecem no planejamento. O workflow de CI já foi preparado e validado localmente, com execução hospedada a confirmar. Backup automático foi adiado por decisão do usuário; o procedimento manual já atende ao uso atual.
 - Autenticação/autorização devem anteceder a exposição pública. O uso atual é local/privado.
 
 ## Documentação
@@ -202,6 +206,9 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - [Fechamentos, evolução e eventos](docs/fechamentos-proventos-e-eventos.md), [histórico](docs/historico-da-carteira.md).
 - [Métricas de rentabilidade: Dietz e XIRR](docs/metricas-de-rentabilidade.md).
 - [Apresentação, gráficos e testes visuais](docs/apresentacao-e-graficos.md).
+- [Otimização do carregamento e do logo](docs/otimizacao-carregamento.md).
+- [Contexto analítico do Dashboard e navegação por carteira](docs/contexto-analitico-dashboard.md).
+- [Análise estática, versões e integração contínua](docs/qualidade-e-ci.md).
 - [Plano de migração da interface, padrões e modo escuro](docs/entregas-layout.md).
 - [Plano de usabilidade e navegação: inventário e padronização das ações](docs/plano-usabilidade-e-navegacao.md).
 - [Atualização manual de cotações em lote](docs/cotacoes-manuais-em-lote.md).

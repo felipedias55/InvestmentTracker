@@ -2,6 +2,8 @@
 
 Rodada iniciada em 23/10/2026 após a conclusão dos sete marcos de usabilidade. O problema relatado é o excesso de texto junto aos gráficos, que aumenta cartões e cria rolagem interna. As quatro etapas foram autorizadas sequencialmente e concluídas.
 
+As seções abaixo preservam o registro cronológico de cada etapa; frases sobre próxima etapa ou limitações intermediárias referem-se àquele momento. Atualização em **27/10/2026**: filtros analíticos por carteira e contenção de cartões extensos na coluna móvel foram tratados na entrega de [contexto analítico](contexto-analitico-dashboard.md). A otimização de bundle/logo também foi entregue posteriormente, conforme [carregamento](otimizacao-carregamento.md). Para pendências atuais, consulte [próximas etapas](proximas-etapas.md).
+
 | Etapa | Escopo | Estado |
 | --- | --- | --- |
 | 1 | Distribuições por categoria, setor e país: legendas, barras e detalhes | Implementada em 23/10/2026 |

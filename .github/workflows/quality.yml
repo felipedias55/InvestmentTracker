@@ -1,0 +1,93 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Frontend and presentation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend/InvestmentTracker.Web
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/InvestmentTracker.Web/package-lock.json
+      - run: npm install --global npm@12.0.2
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test -- --watch=false
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:presentation
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: presentation-results
+          path: frontend/InvestmentTracker.Web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  data:
+    name: Backend, SQL integration and real E2E
+    runs-on: windows-2025
+    timeout-minutes: 30
+    env:
+      # The fixture replaces the database name with its own InvestmentTracker_Tests_<guid>.
+      ConnectionStrings__TestDatabase: 'Server=(localdb)\MSSQLLocalDB;Database=InvestmentTrackerTests;Trusted_Connection=True;TrustServerCertificate=True'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/InvestmentTracker.Web/package-lock.json
+      - name: Start disposable SQL test instance
+        shell: pwsh
+        run: |
+          SqlLocalDB.exe start MSSQLLocalDB
+          if ($LASTEXITCODE -ne 0) { throw 'Could not start SQL LocalDB.' }
+      - name: Backend unit tests
+        run: dotnet test tests/InvestmentTracker.UnitTests --configuration Release --logger trx --results-directory TestResults/unit
+      - name: SQL integration tests
+        run: dotnet test tests/InvestmentTracker.IntegrationTests --configuration Release --logger trx --results-directory TestResults/integration
+      - run: npm install --global npm@12.0.2
+      - run: npm ci
+        working-directory: frontend/InvestmentTracker.Web
+      - run: npx playwright install chromium
+        working-directory: frontend/InvestmentTracker.Web
+      - name: Real API journeys in a disposable database
+        run: npm run test:e2e
+        working-directory: frontend/InvestmentTracker.Web
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: backend-and-e2e-results
+          path: |
+            TestResults/**/*.trx
+            frontend/InvestmentTracker.Web/test-results/
+            frontend/InvestmentTracker.Web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

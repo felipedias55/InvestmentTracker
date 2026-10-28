@@ -1,5 +1,5 @@
 import { Theme } from './core/theme';
-import { MatMenuModule } from '@angular/material/menu';
+import { ThemePicker } from './shared/theme-picker';
 import { afterNextRender, Component, ElementRef, HostListener, Injector, ViewChild, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -9,7 +9,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { AppIcon } from './shared/app-icon';
 @Component({
   selector: 'app-root', standalone: true, templateUrl: './app.html', styleUrl: './app.css',
-  imports: [MatMenuModule, RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, AppIcon],
+  imports: [ThemePicker, RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, AppIcon],
 })
 export class App {
   constructor() {
@@ -19,6 +19,7 @@ export class App {
     });
   }
   readonly theme = inject(Theme);
+  readonly themeRequested = signal(false);
   readonly privacy = inject(ValuePrivacy);
   private readonly injector = inject(Injector);
   readonly catalogs = catalogs;

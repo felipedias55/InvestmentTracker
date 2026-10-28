@@ -35,10 +35,7 @@
                 "input": "public"
               }
             ],
-            "styles": [
-              "src/styles.css",
-              "src/material-theme.scss"
-            ]
+            "styles": ["src/styles.css", "src/material-theme.scss"]
           },
           "configurations": {
             "production": {
@@ -84,9 +81,7 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "runner": "vitest",
-            "setupFiles": [
-              "src/test-setup.ts"
-            ]
+            "setupFiles": ["src/test-setup.ts"]
           }
         }
       }

@@ -2,6 +2,85 @@ import { test, expect } from '@playwright/test';
 import { testDashboard, testPortfolio } from '../src/app/features/allocation/allocation.test-data';
 test.beforeEach(async ({ page }) => { page.on('dialog', dialog => dialog.accept()); });
 
+test('filtros analíticos do dashboard retornam por carteira e reiniciam após recarga', async ({ page }, info) => {
+  let reducedIncome = false;
+  const second = { ...testPortfolio, id: 2, name: 'Segunda carteira' };
+  const months = Array.from({ length: 14 }, (_, i) => ({ period: `${2025 + Math.floor(i / 12)}-${String(i % 12 + 1).padStart(2, '0')}`, currencyCode: 'USD', net: '20' }));
+  await page.route('**/api/**', async route => {
+    expect(route.request().method()).toBe('GET');
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/portfolios') return route.fulfill({ json: [testPortfolio, second] });
+    if (['assets', 'asset-types', 'countries', 'currencies', 'asset-categories', 'sectors'].some(key => path === '/api/' + key)) return route.fulfill({ json: [] });
+    const match = path.match(/^\/api\/portfolios\/([12])\/(dashboard|history|income\/analysis)$/);
+    if (!match) throw new Error('Unexpected API call: ' + path);
+    const portfolio = match[1] === '1' ? testPortfolio : second;
+    if (match[2] === 'dashboard') return route.fulfill({ json: { ...testDashboard, summary: { ...testDashboard.summary, portfolio }, externalAssets: { ...testDashboard.externalAssets, portfolio } } });
+    if (match[2] === 'history') {
+      const row = { snapshotId: 1, currencyCode: 'BRL', totalWealth: '100', snapshotDate: '2025-12-31' };
+      return route.fulfill({ json: { portfolio, today: '2026-10-27', months: [{ ...row, period: '2025-12' }, { ...row, period: '2026-01' }], years: [{ ...row, period: '2025' }, { ...row, period: '2026' }], cashFlows: [] } });
+    }
+    const rows = match[1] === '1' && !reducedIncome ? months : [{ period: '2026-01', currencyCode: 'BRL', net: '30' }];
+    return route.fulfill({ json: { months: rows, years: [...new Set(rows.map(r => r.period.slice(0, 4)))].map(period => ({ period, currencyCode: rows[0].currencyCode, net: '100' })), convertedMonths: [], convertedYears: [] } });
+  });
+  const evolution = page.locator('[data-chart-id="evolution"]');
+  const income = page.locator('[data-chart-id="income"]');
+  const navigateAway = async () => {
+    const open = page.getByRole('button', { name: 'Abrir menu', exact: true });
+    if (await open.isVisible()) await open.click();
+    await page.getByRole('navigation').getByRole('link', { name: 'Ativos', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Ativos', exact: true })).toBeVisible();
+  };
+  await page.goto('/dashboard');
+  await evolution.getByLabel('Período', { exact: true }).selectOption('years');
+  await evolution.getByLabel('Ano', { exact: true }).selectOption('2025');
+  await evolution.getByRole('button', { name: 'Ver detalhes da evolução', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Detalhes da evolução' }).getByLabel('Detalhar fechamento').selectOption('2025');
+  await page.keyboard.press('Escape');
+  await income.getByLabel('Moeda dos proventos').selectOption('original:USD');
+  await income.getByLabel('Períodos no gráfico').selectOption('12');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await income.getByRole('button', { name: 'Ver períodos anteriores de proventos' }).click();
+  await expect(income).toContainText('1–2 de 14');
+  await navigateAway(); await page.goBack();
+  await expect(evolution.getByLabel('Período', { exact: true })).toHaveValue('years');
+  await expect(evolution.getByLabel('Ano', { exact: true })).toHaveValue('2025');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(income.getByLabel('Moeda dos proventos')).toHaveValue('original:USD');
+  await expect(income.getByLabel('Períodos no gráfico')).toHaveValue('12');
+  await expect(income).toContainText('1–2 de 14');
+  await page.locator('#analysis-portfolio').selectOption('2');
+  await expect(evolution.getByLabel('Período', { exact: true })).toHaveValue('months');
+  await expect(evolution.getByLabel('Ano', { exact: true })).toHaveValue('');
+  await expect(income.getByLabel('Moeda dos proventos')).toHaveValue('original:BRL');
+  await expect(income.getByLabel('Períodos no gráfico')).toHaveValue('5');
+  await page.locator('#analysis-portfolio').selectOption('1');
+  await expect(income.getByLabel('Moeda dos proventos')).toHaveValue('original:USD');
+  await expect(income).toContainText('1–2 de 14');
+  await page.getByRole('button', { name: 'Recarregar dados', exact: true }).click();
+  await expect(income).toContainText('1–2 de 14');
+  await income.getByRole('button', { name: 'Ver detalhes dos proventos', exact: true }).click();
+  const panel = page.getByRole('dialog', { name: 'Detalhes dos proventos' });
+  await panel.getByLabel('Período', { exact: true }).selectOption('years');
+  await panel.getByLabel('Ano', { exact: true }).selectOption('2025');
+  await page.keyboard.press('Escape');
+  await navigateAway(); await page.goBack();
+  await expect(income).toContainText('Anual · 1–1 de 1');
+  await income.getByRole('button', { name: 'Ver detalhes dos proventos', exact: true }).click();
+  await expect(panel.getByLabel('Período', { exact: true })).toHaveValue('years');
+  await expect(panel.getByLabel('Ano', { exact: true })).toHaveValue('2025');
+  await page.keyboard.press('Escape');
+  await income.screenshot({ path: info.outputPath('dashboard-income-context.png') });
+  await navigateAway(); reducedIncome = true; await page.goBack();
+  await expect(income.getByLabel('Moeda dos proventos')).toHaveValue('original:BRL');
+  await income.getByRole('button', { name: 'Ver detalhes dos proventos', exact: true }).click();
+  await expect(panel.getByLabel('Ano', { exact: true })).toHaveValue('');
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await expect(evolution.getByLabel('Período', { exact: true })).toHaveValue('months');
+  await expect(evolution.getByLabel('Ano', { exact: true })).toHaveValue('');
+  await expect(income.getByLabel('Períodos no gráfico')).toHaveValue('5');
+});
+
 test('grade acompanha conteúdo e movimentações recentes abrem consulta completa', async ({ page }, info) => {
   await page.route('**/api/**', async route => {
     expect(route.request().method()).toBe('GET');
@@ -949,7 +1028,10 @@ test('tema persiste e acompanha o sistema sem sobrescrever escolha explícita', 
   await page.emulateMedia({ colorScheme: 'light' });
   await page.emulateMedia({ colorScheme: 'dark' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.getByRole('button', { name: 'Escolher tema' }).click();
+  // The menu is deferred again after reload; its first keyboard interaction must open it.
+  await page.getByRole('button', { name: 'Escolher tema' }).focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menu')).toBeVisible();
   await page.getByRole('menuitem', { name: /^Sistema/ }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.emulateMedia({ colorScheme: 'light' });
