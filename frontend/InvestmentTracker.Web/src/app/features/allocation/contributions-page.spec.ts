@@ -25,6 +25,12 @@ describe('ContributionsPage', () => {
     http.expectOne('/api/portfolios/1/strategies').flush([]);
     fixture.detectChanges(); return fixture;
   }
+  it('shows band diagnostics returned by the server and clears them when the contribution changes', () => {
+    const f = initialize(), c = f.componentInstance; c.form.controls.amount.setValue('100'); c.simulate();
+    http.expectOne('/api/portfolios/1/contribution-plan').flush({ ...response, bands: [{ dimension: 'category', groupId: 1, name: 'Ações', state: 'within', hasOverride: false, tolerancePoints: '5', currentPercentage: '50', targetPercentage: '50', lowerPercentage: '45', upperPercentage: '55', requestedRemainder: '0', suggestedRemainder: '0', reservedContribution: '0', reason: 'Dentro da faixa.' }] });
+    f.detectChanges(); expect(f.nativeElement.querySelector('.band-result').textContent).toContain('Dentro da faixa');
+    c.form.controls.amount.setValue('200'); f.detectChanges(); expect(c.bands()).toEqual([]); expect(f.nativeElement.querySelector('.band-result')).toBeNull();
+  });
   it('sends only the amount and renders the server plan without recomputing it', () => {
     const fixture = initialize();
     fixture.componentInstance.form.controls.amount.setValue('1.234,50');

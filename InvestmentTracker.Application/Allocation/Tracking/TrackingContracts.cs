@@ -8,7 +8,10 @@ namespace InvestmentTracker.Application.Allocation.Tracking
     public sealed record SaveContributionPlan(Guid RequestId, string Name, DateOnly From, DateOnly To,
         ContributionPlanRequestDto Simulation, string ExpectedToken);
     public sealed record ContributionPlanSnapshot(string Currency, ContributionPlanRequestDto Simulation,
-        ContributionJointPlanDto Plan, IReadOnlyList<string> Notes);
+        ContributionJointPlanDto Plan, IReadOnlyList<string> Notes)
+    {
+        public IReadOnlyList<RebalancingBandStatusDto> Bands { get; init; } = [];
+    }
     public sealed record LinkPurchase(int TradeId, string RowKey,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal? BaseAmount = null);
     public sealed record TrackingPlanSummary(int Id, string Name, DateOnly From, DateOnly To, DateTime CreatedAtUtc);

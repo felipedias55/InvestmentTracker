@@ -40,6 +40,7 @@ namespace InvestmentTracker.Application.Allocation.Dtos
         ContributionAnalysisDto? Sector, ContributionJointPlanDto? Plan)
     {
         public string? PlanToken { get; init; }
+        public IReadOnlyList<InvestmentTracker.Application.Strategies.RebalancingBandStatusDto> Bands { get; init; } = [];
         public IReadOnlyList<string> StrategyNotes { get; init; } = [];
         public IReadOnlyList<ConcentrationStatusDto> Concentration { get; init; } = [];
         public bool PrioritiesApplied { get; init; }

@@ -17,6 +17,12 @@ describe('ContributionTracking', () => {
   beforeEach(async () => { await TestBed.configureTestingModule({ imports: [ContributionTracking], providers: [brazilianLocaleProvider, provideRouter([]), provideHttpClient(), provideHttpClientTesting()] }).compileComponents(); http = TestBed.inject(HttpTestingController); });
   afterEach(() => http.verify());
   function initialize() { const f = TestBed.createComponent(ContributionTracking); f.componentRef.setInput('portfolioId', 1); f.detectChanges(); return f; }
+  it('presents the band decisions preserved in a saved plan independently of the current simulation', () => {
+    const f = initialize(), c = f.componentInstance; c.open.set(true);
+    c.detail.set({ ...detail, snapshot: { ...detail.snapshot, bands: [{ dimension: 'sector', groupId: 2, name: 'Tecnologia antiga', state: 'below', hasOverride: true, tolerancePoints: '0', currentPercentage: '40', targetPercentage: '50', lowerPercentage: '50', upperPercentage: '50', requestedRemainder: '100', suggestedRemainder: '100', reservedContribution: '0', reason: 'Regra preservada.' }] } });
+    f.detectChanges(); expect(f.nativeElement.querySelector('.band-result').textContent).toContain('Tecnologia antiga'); expect(f.nativeElement.querySelector('.band-result').textContent).toContain('0 p.p. (específica)');
+    f.componentRef.setInput('simulation', { simulation: { amount: '999' }, expectedToken: 'different' }); f.detectChanges(); expect(c.detail()?.snapshot.bands?.[0].name).toBe('Tecnologia antiga');
+  });
   function read(f: ReturnType<typeof initialize>) { f.componentInstance.read(7); http.expectOne(base + '/7').flush(detail); http.expectOne(base + '/7/purchases?pageIndex=0&pageSize=10').flush({ items: [candidate], total: 1, pageIndex: 0, pageSize: 10 }); f.detectChanges(); }
   it('loads only on demand and presents server totals without recomputing money', () => {
     const f = initialize(); http.expectNone(base); f.componentInstance.show();

@@ -1,5 +1,6 @@
 import { Component, DestroyRef, effect, inject, input, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { RebalancingBandReport } from './rebalancing-band-report';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -17,7 +18,7 @@ import { DraftState } from '../../shared/draft-state';
 import { ListPaginator } from '../../shared/list-paginator';
 import { ContributionTrackingService, PurchaseCandidate, SaveTrackingPlan, TrackingDetail, TrackingPage, TrackingSimulation, TrackingSummary } from './contribution-tracking.service';
 @Component({ selector: 'app-contribution-tracking', standalone: true,
-  imports: [DatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, RouterLink, PrivateCurrencyPipe, EditPanel, DraftState, ListPaginator],
+  imports: [RebalancingBandReport, DatePipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, RouterLink, PrivateCurrencyPipe, EditPanel, DraftState, ListPaginator],
   templateUrl: './contribution-tracking.html', styleUrl: './contribution-tracking.css' })
 export class ContributionTracking {
   readonly portfolioId = input.required<number>(); readonly simulation = input<TrackingSimulation | null>(null);

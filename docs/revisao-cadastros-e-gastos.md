@@ -17,6 +17,21 @@ Pontos a revisar:
 
 Antes de implementar, apresentar proposta de fluxo, campos manuais/automáticos, compatibilidade com os cadastros atuais e plano de migração auditável. Preservar IDs/vínculos, revisões de estratégias, metas, histórico e fotografias; não apagar cadastros para reduzir a quantidade de telas.
 
+## Imagens para identificar ações, FIIs e REITs
+
+Solicitação adicional registrada em 03/11/2026: associar uma imagem/logotipo aos ativos e exibi-la **ao lado do nome**, facilitando a identificação de ações, FIIs e REITs. Usar somente locais estratégicos, seguindo o mesmo padrão visual em todas as telas escolhidas.
+
+Requisitos para a proposta:
+
+- Definir um componente compartilhado de identificação do ativo, com imagem, nome e ticker. Padronizar dimensões, proporção, enquadramento, espaçamento e alinhamento, preservando as proporções do logotipo.
+- Manter legibilidade nos temas claro/escuro e em desktop/celular; reservar o espaço da imagem para evitar deslocamento do conteúdo durante o carregamento.
+- Avaliar inicialmente a lista de posições da carteira, os resultados de busca/seleção e os detalhes do ativo. Escolher outros pontos somente quando a imagem ajudar a reconhecer o ativo, evitando incluí-la em todos os gráficos, tabelas ou repetições do nome.
+- Manter nome e ticker visíveis; a imagem complementa a identificação. Definir uma alternativa visual consistente para imagem ausente, indisponível ou com falha de carregamento.
+- Avaliar fontes e cobertura Brasil/EUA para ações, FIIs e REITs, identidade correta do ativo/emissor e regras de uso das imagens. Definir obtenção automática, armazenamento/cache e atualização, junto da revisão de preenchimento por ticker.
+- Preservar personalizações confirmadas e os vínculos financeiros existentes. A identidade visual do ativo não deve alterar seu tipo, categoria, setor ou moeda.
+
+Esta é uma pendência registrada para proposta e implementação futura. Ainda não há fonte de imagens nem lista definitiva de telas escolhidas.
+
 ## Análise de gastos pessoais como extra independente
 
 Desejo registrado: analisar gastos pessoais, embora isso amplie o escopo além de investimentos. O usuário ainda não definiu como o módulo deverá funcionar.

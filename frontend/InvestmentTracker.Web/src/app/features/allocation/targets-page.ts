@@ -1,4 +1,5 @@
 import { rememberContext } from '../../shared/page-context';
+import { PlanningGoals } from './planning-goals';
 import { UnsavedForm } from '../../shared/unsaved-changes';
 import { UnsavedChanges } from '../../shared/unsaved-registry';
 import { ListPaginator } from '../../shared/list-paginator';
@@ -21,7 +22,7 @@ import { fractionToPercentage, percentageToFraction, percentageUnits } from './p
 @Component({
   standalone: true,
   selector: 'app-targets-page',
-  imports: [UnsavedForm, ListPaginator, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, RouterLink, PortfolioPicker, ReactiveFormsModule],
+  imports: [PlanningGoals, UnsavedForm, ListPaginator, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, RouterLink, PortfolioPicker, ReactiveFormsModule],
   templateUrl: './targets-page.html',
   styleUrl: './targets-page.css',
 })

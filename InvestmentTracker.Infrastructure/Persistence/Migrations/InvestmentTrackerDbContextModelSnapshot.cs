@@ -618,6 +618,68 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.ToTable("MovementEffect", (string)null);
                 });
 
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.PlanningGoalRevision", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Archived")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<DateOnly>("Deadline")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("GoalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("MonthlyContribution")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("PortfolioId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Target")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortfolioId", "GoalId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("PlanningGoalRevision", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PlanningGoalRevision_Kind", "[Kind] IN ('wealth', 'monthly-income')");
+
+                            t.HasCheckConstraint("CK_PlanningGoalRevision_Values", "[Revision] > 0 AND [Target] > 0 AND [MonthlyContribution] >= 0 AND ([Kind] = 'wealth' OR [MonthlyContribution] = 0)");
+                        });
+                });
+
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.Portfolio", b =>
                 {
                     b.Property<int>("Id")
@@ -1274,6 +1336,15 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("PositionId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.PlanningGoalRevision", b =>
+                {
+                    b.HasOne("InvestmentTracker.Domain.Entities.Portfolio", null)
+                        .WithMany()
+                        .HasForeignKey("PortfolioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.Portfolio", b =>

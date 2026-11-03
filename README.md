@@ -203,6 +203,8 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - [Limites de concentração nas estratégias de aporte](docs/limites-de-concentracao.md).
 - [Prioridades e sugestões de setor, real e dólar](docs/prioridades-e-sugestoes-de-aporte.md).
 - [Acompanhamento de aportes: planejado versus realizado](docs/planejado-versus-realizado.md).
+- [Objetivos de patrimônio e renda com prazo](docs/objetivos-de-planejamento.md).
+- [Faixas de rebalanceamento específicas por categoria e setor](docs/faixas-por-grupo.md).
 - [Revisões futuras: simplificação de cadastros e análise independente de gastos](docs/revisao-cadastros-e-gastos.md).
 - [Metas, dashboard e aportes](docs/metas-dashboard-aportes.md).
 - [Simulador de aportes: como são escolhidos setor, categoria e moeda](docs/simulador-de-aportes.md).

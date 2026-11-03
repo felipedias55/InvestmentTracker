@@ -26,7 +26,7 @@ Modelos são pontos de partida editáveis, não recomendações universais ou al
 5. Categorias excluídas deixam de compor a base da distribuição do restante, mas continuam na carteira e podem receber a reserva explícita.
 6. Para o restante, escolha metas, divisão igual entre combinações ou manter sem distribuição. A categoria reservada também participa do restante se não for excluída.
 7. No modo metas, percentuais desejados dos grupos remanescentes são normalizados proporcionalmente para 100%. A base atual inclui somente posições de quantidade positiva não excluídas. São necessárias metas válidas de categoria e setor entre os elegíveis.
-8. No modelo por faixas, tolerância de 5 significa cinco pontos percentuais. Diferença de até cinco pontos recebe peso zero; fora da faixa, usa-se a diferença integral, não apenas o excesso. Sem vendas, pode ser impossível chegar à faixa apenas com o aporte.
+8. No modelo por faixas, tolerância de 5 significa cinco pontos percentuais. Cada categoria/setor pode ter uma tolerância própria; vazio usa a geral e zero é uma exceção explícita. Dentro da faixa, incluindo as bordas, o peso é zero; fora dela, usa-se a diferença integral, não apenas o excesso. Veja [faixas, interação com reservas e diagnósticos](faixas-por-grupo.md). Sem vendas, pode ser impossível chegar à faixa apenas com o aporte.
 9. Sem combinações válidas para uma reserva/divisão, o valor fica não distribuído. No plano por metas, conflitos entre setor e categoria também podem gerar saldo não distribuído.
 10. As alternativas em diferentes moedas são equivalentes do mesmo valor; não devem ser somadas. Mantêm as regras existentes de câmbio e compatibilidade de FII/REIT com setor imobiliário.
 11. Bloquear uma combinação categoria/setor impede reservas e restante e retira essas posições da base elegível. Excluir a categoria afeta somente o restante. Tipos sem classificação e FII/REIT em setor não marcado como imobiliário não recebem sugestões.
@@ -65,4 +65,6 @@ A migration original foi validada em banco temporário; não foi aplicada ao ban
 
 ## Ainda fora desta etapa
 
-Metas de patrimônio, renda desejada e objetivos com prazo; agendamento; destinação automática de proventos; seleção de empresas por valor/crescimento/qualidade; benchmarks; previsão de composição após compras com quantidades e custos; editor/restauração de revisões anteriores. As estratégias atuais planejam o dinheiro novo por categoria/setor, sem prometer essas funções. Os limites de concentração já foram implementados conforme a documentação acima.
+Agendamento; destinação automática de proventos; seleção de empresas por valor/crescimento/qualidade; benchmarks; previsão de composição após compras com quantidades e custos; editor/restauração de revisões anteriores. As estratégias atuais planejam o dinheiro novo por categoria/setor, sem prometer essas funções. Os limites de concentração já foram implementados conforme a documentação acima.
+
+Objetivos com prazo de patrimônio e renda estão disponíveis em **Metas e objetivos**, com progresso e cenários independentes da distribuição de aportes. Veja [regras e limites](objetivos-de-planejamento.md).

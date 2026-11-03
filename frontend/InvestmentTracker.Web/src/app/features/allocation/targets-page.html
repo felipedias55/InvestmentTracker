@@ -1,9 +1,9 @@
 <header class="page-header">
   <p class="eyebrow">SUA ESTRATÉGIA</p>
-  <h1>Metas de alocação</h1>
+  <h1>Metas e objetivos</h1>
   <p>
     Defina a distribuição desejada. As metas de categoria e setor são independentes e cada conjunto
-    deve somar 100%.
+    deve somar 100%. Acompanhe também objetivos de patrimônio e renda com prazo.
   </p>
   <a routerLink="/contributions">Escolher estratégia e simular aportes →</a>
 </header>
@@ -74,4 +74,5 @@
       </fieldset>
     </form>
   }
+  <app-planning-goals [portfolioId]="portfolioId()!" />
 }

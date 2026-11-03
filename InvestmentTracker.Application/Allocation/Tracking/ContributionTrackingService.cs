@@ -26,7 +26,7 @@ namespace InvestmentTracker.Application.Allocation.Tracking
                     throw new ResourceConflictException("A simulação mudou. Simule novamente e confira o plano antes de salvar.");
                 if (simulation.Plan is null) throw new InputValidationException("A simulação não possui um plano conjunto.");
                 return new ContributionPlanSnapshot(simulation.Dashboard.Summary.Portfolio.BaseCurrencyCode,
-                    request.Simulation, simulation.Plan, simulation.StrategyNotes);
+                    request.Simulation, simulation.Plan, simulation.StrategyNotes) { Bands = simulation.Bands };
             }, ct);
             return id.HasValue ? await ReadAsync(portfolioId, id.Value, ct) : null;
         }

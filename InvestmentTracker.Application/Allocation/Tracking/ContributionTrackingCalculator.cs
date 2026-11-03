@@ -9,7 +9,7 @@ namespace InvestmentTracker.Application.Allocation.Tracking
     public static class ContributionTrackingCalculator
     {
         public static string Token(ContributionPlanDto plan) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            JsonSerializer.Serialize(new { Currency = plan.Dashboard.Summary.Portfolio.BaseCurrencyCode, plan.Plan, plan.StrategyNotes }))));
+            JsonSerializer.Serialize(new { Currency = plan.Dashboard.Summary.Portfolio.BaseCurrencyCode, plan.Plan, plan.StrategyNotes, plan.Bands }))));
         public static TrackingPlanDetail Detail(TrackingData data)
         {
             var snapshot = JsonSerializer.Deserialize<ContributionPlanSnapshot>(data.Plan.SnapshotJson)!;

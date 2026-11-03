@@ -57,8 +57,12 @@ export interface RuleFunding { categoryId: number; category: string; priority: n
 export interface ConcentrationStatus { dimension: string; groupId: number; name: string; maximumPercentage: string; currentPercentage: string | null;
   projectedPercentage: string | null; requestedContribution: string; suggestedContribution: string; initiallyAboveLimit: boolean; aboveLimit: boolean; }
 export interface ContributionPlan { dashboard: Dashboard; category: Contribution | null; sector: Contribution | null; plan: JointPlan | null; strategyNotes?: string[]; eligibleBase?: string | null;
+  bands?: RebalancingBandStatus[];
   planToken?: string;
   concentration?: ConcentrationStatus[]; prioritiesApplied?: boolean; ruleFunding?: RuleFunding[]; }
+export interface RebalancingBandStatus { dimension: string; groupId: number; name: string; state: string; hasOverride: boolean; tolerancePoints: string;
+  currentPercentage: string | null; targetPercentage: string | null; lowerPercentage: string | null; upperPercentage: string | null;
+  requestedRemainder: string; suggestedRemainder: string; reservedContribution: string; reason: string; }
 @Injectable({ providedIn: 'root' })
 export class AllocationService {
   private readonly http = inject(HttpClient);

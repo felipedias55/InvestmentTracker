@@ -52,7 +52,7 @@ Domain contém os códigos e a compatibilidade de instrumento/setor. Application
 
 Os endpoints de tipos e setores expõem os campos novos; atualizações que os omitem preservam os valores existentes. `PositionDto` informa `instrumentClass` e `isRealEstateSector` com os dados atuais. `StrategyConfig.excludedCombinations` armazena pares `{ categoryId, sectorId }`, limitados a 500 pares distintos. Referências inválidas são recusadas. O JSON versionado da estratégia preserva revisões anteriores.
 
-Objetivos e metas de patrimônio/renda permanecem para outras etapas. [Planejado versus realizado](planejado-versus-realizado.md) foi implementado em 03/11/2026. [Prioridades e sugestões de setor/moeda](prioridades-e-sugestoes-de-aporte.md) foram implementadas em 30/10/2026. Os [limites de concentração](limites-de-concentracao.md) foram implementados posteriormente em 30/10/2026. Não há preferências automáticas entre ativos nem valores reais pré-configurados.
+[Objetivos e metas de patrimônio/renda](objetivos-de-planejamento.md) foram implementados em 03/11/2026. [Planejado versus realizado](planejado-versus-realizado.md) foi implementado em 03/11/2026. [Prioridades e sugestões de setor/moeda](prioridades-e-sugestoes-de-aporte.md) foram implementadas em 30/10/2026. Os [limites de concentração](limites-de-concentracao.md) foram implementados posteriormente em 30/10/2026. Não há preferências automáticas entre ativos nem valores reais pré-configurados.
 
 ## Validação
 

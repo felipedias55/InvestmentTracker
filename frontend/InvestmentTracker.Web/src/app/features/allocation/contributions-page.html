@@ -28,6 +28,7 @@
     @for (note of strategyNotes(); track $index) { <p class="hint">{{ note }}</p> }
     <p class="hint">{{ concentration().length ? 'Com limites de concentração, confira o plano final e os percentuais projetados abaixo. As comparações continuam mostrando a carteira inteira.' : 'As análises de metas abaixo referem-se somente ao restante após as reservas, com percentuais recalculados sobre a base elegível.' }}</p></section>
   }
+  @if (bands().length) { <app-rebalancing-band-report [rows]="bands()" [currency]="d.summary.portfolio.baseCurrencyCode" /> }
   @if (concentration().length) {
     <section class="panel concentration-result"><h2>Limites de concentração</h2>
       @for (limit of concentration(); track limit.dimension + ':' + limit.groupId) {

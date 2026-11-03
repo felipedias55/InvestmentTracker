@@ -17,10 +17,11 @@ import { parseBrazilianNumber, formatBrazilianNumber } from '../../core/brazilia
 
 export interface StrategyCombination { categoryId: number; sectorId: number; }
 export interface ConcentrationLimit { dimension: string; groupId: number; maximumPercentage: string; }
+export interface RebalancingBand { dimension: string; groupId: number; tolerance: string; }
 export interface StrategyGroupPreference { categoryId: number; sectorId: number; priority?: number; preferredCurrency?: string | null; }
 export interface StrategyConfig { name: string; model: string; remainder: string; excludedCategoryIds: number[]; rules: { categoryId: number; kind: string; value: string; priority?: number }[]; tolerance: string;
   excludedCombinations?: StrategyCombination[] | null; concentrationLimits?: ConcentrationLimit[] | null;
-  usePriorities?: boolean; groupPreferences?: StrategyGroupPreference[] | null; }
+  usePriorities?: boolean; groupPreferences?: StrategyGroupPreference[] | null; bands?: RebalancingBand[] | null; }
 interface SavedStrategy { profileId: string; revision: number; config: StrategyConfig; }
 export const strategyModels = [
   { id: 'targets', name: 'Alocação por metas', remainder: 'targets', help: 'Distribui o aporte entre grupos abaixo das metas de categoria e setor.' },
@@ -51,11 +52,27 @@ export const strategyModels = [
       <mat-checkbox [checked]="enabled()" (change)="enabled.set($event.checked)">Usar estratégia nesta simulação</mat-checkbox>
       @if (enabled()) {
         <mat-form-field appearance="outline"><mat-label>Configuração salva</mat-label><select matNativeControl (change)="choose($any($event.target).value)" [value]="profileId()"><option value="">Nova configuração</option>@for (s of saved(); track s.profileId) { <option [value]="s.profileId" [selected]="profileId() === s.profileId">{{ s.config.name }} · revisão {{ s.revision }}</option> }</select></mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Modelo</mat-label><select matNativeControl aria-label="Modelo" [value]="model()" (change)="preset($any($event.target).value)">@for (m of models; track m.id) { <option [value]="m.id">{{ m.name }}</option> }</select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Modelo</mat-label><select matNativeControl aria-label="Modelo" [value]="model()" (change)="preset($any($event.target).value)">@for (m of models; track m.id) { <option [value]="m.id" [selected]="model() === m.id">{{ m.name }}</option> }</select></mat-form-field>
         <details><summary>Como funciona este modelo</summary><p>{{ help() }}</p></details>
         <mat-form-field appearance="outline"><mat-label>Nome</mat-label><input matInput maxlength="100" [value]="name()" (input)="name.set($any($event.target).value)" /></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Distribuir o restante</mat-label><select matNativeControl [value]="remainder()" (change)="remainder.set($any($event.target).value)"><option value="targets">Metas de categoria e setor</option><option value="equal">Igual entre combinações de categoria/setor</option><option value="reserve">Manter sem distribuição</option></select></mat-form-field>
-        @if (model() === 'bands') { <mat-form-field appearance="outline"><mat-label>Tolerância em pontos percentuais</mat-label><input matInput inputmode="decimal" [value]="tolerance()" (input)="tolerance.set($any($event.target).value)" /></mat-form-field> }
+        @if (model() === 'bands') {
+          <mat-form-field appearance="outline"><mat-label>Tolerância geral em pontos percentuais</mat-label><input matInput inputmode="decimal" [value]="tolerance()" (input)="tolerance.set($any($event.target).value)" /></mat-form-field>
+          <details class="rebalancing-bands"><summary>Faixas por categoria e setor · específicas: {{ bandCount() }}</summary>
+            <p class="hint">Vazio usa a tolerância geral. Zero aplica tolerância de 0 p.p. Uma meta de 40% com tolerância de 3 p.p. tem faixa de 37% a 43%, incluindo as bordas. Fora dela, o peso usa o desvio integral até a meta.</p>
+            <p class="hint">As faixas atuam somente no restante por metas, sobre a base elegível atual. Reservas têm regras próprias; exclusões, bloqueios e limites continuam obrigatórios.</p>
+            @if (remainder() !== 'targets') { <p class="notice">Para aplicar as faixas, escolha Metas de categoria e setor em Distribuir o restante.</p> }
+            <mat-form-field appearance="outline"><mat-label>Buscar grupo nas faixas</mat-label><input matInput type="search" [value]="bandQuery()" (input)="bandQuery.set($any($event.target).value); bandPage.set(0)" /></mat-form-field>
+            @for (g of pageBands(); track g.key) {
+              <div class="limit-rule"><strong>{{ g.dimension === 'category' ? 'Categoria' : 'Setor' }} · {{ g.name }}</strong>
+                <mat-form-field appearance="outline"><mat-label>Tolerância específica (p.p.)</mat-label><input matInput inputmode="decimal" placeholder="Usar geral"
+                  [attr.aria-label]="'Tolerância de ' + (g.dimension === 'category' ? 'categoria ' : 'setor ') + g.name"
+                  [value]="bands()[g.key] ?? ''" (input)="band(g.dimension, g.groupId, $any($event.target).value)" /></mat-form-field>
+              </div>
+            } @empty { <p>Nenhum grupo corresponde à busca nas faixas.</p> }
+            <app-list-paginator [hidePageSize]="true" [length]="filteredBands().length" [index]="currentBandPage()" [size]="10" (changed)="bandPage.set($event.pageIndex)" />
+          </details>
+        }
         <p class="hint">Reservas fixas em {{ currency() }}; percentuais sobre o aporte total. Excluir remove a categoria da base do restante, não da carteira. Reservas são divididas igualmente entre os setores existentes da categoria.</p>
         <mat-checkbox [checked]="usePriorities()" (change)="usePriorities.set($event.checked)">Atender regras por prioridade</mat-checkbox>
         <p class="hint">Prioridade de 1 a 1000: números menores primeiro; 100 é o padrão. Reservas vêm antes do restante. Empates no orçamento são proporcionais à demanda. Limites e elegibilidade prevalecem.</p>
@@ -125,6 +142,23 @@ export class StrategyEditor {
   readonly saved = signal<SavedStrategy[]>([]); readonly profileId = signal(''); readonly revision = signal(0);
   readonly name = signal('Alocação por metas'); readonly model = signal('targets'); readonly remainder = signal('targets');
   readonly tolerance = signal('5'); readonly excluded = signal<number[]>([]);
+  readonly bands = signal<Record<string, string>>({}); readonly bandQuery = signal(''); readonly bandPage = signal(0);
+  readonly bandCount = computed(() => Object.keys(this.bands()).length);
+  readonly bandGroups = computed(() => {
+    const groups = [...this.categories().map(c => ({ dimension: 'category', groupId: c.groupId, name: c.name })),
+      ...this.sectors().map(s => ({ dimension: 'sector', groupId: s.groupId, name: s.name }))];
+    for (const key of Object.keys(this.bands())) {
+      const [dimension, id] = key.split(':');
+      if (!groups.some(g => g.dimension === dimension && g.groupId === Number(id))) groups.push({ dimension, groupId: Number(id), name: 'Grupo indisponível #' + id });
+    }
+    return groups.map(g => ({ ...g, key: `${g.dimension}:${g.groupId}` }));
+  });
+  readonly filteredBands = computed(() => {
+    const normalize = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    return this.bandGroups().filter(g => normalize((g.dimension === 'category' ? 'Categoria ' : 'Setor ') + g.name).includes(normalize(this.bandQuery().trim())));
+  });
+  readonly currentBandPage = computed(() => Math.min(this.bandPage(), Math.max(0, Math.ceil(this.filteredBands().length / 10) - 1)));
+  readonly pageBands = computed(() => this.filteredBands().slice(this.currentBandPage() * 10, (this.currentBandPage() + 1) * 10));
   readonly rules = signal<Record<number, { kind: string; value: string; priority?: string }>>({});
   readonly usePriorities = signal(false);
   readonly groupPreferences = signal<Record<string, { priority: string; currency: string }>>({});
@@ -178,6 +212,7 @@ export class StrategyEditor {
     const values = Object.values(this.rules());
     const priority = (v: string) => /^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 1000;
     return values.every(r => priority(r.priority ?? '100')) && Object.keys(this.groupPreferences()).length <= 500
+      && this.bandCount() <= 200 && Object.values(this.bands()).every(v => /^\d+(?:,\d{1,2})?$/.test(v) && Number(parseBrazilianNumber(v)) <= 100)
       && Object.values(this.groupPreferences()).every(p => priority(p.priority) && ['', 'BRL', 'USD'].includes(p.currency))
       && this.limitCount() <= 200 && Object.values(this.limits()).every(v => /^\d+(?:,\d{1,2})?$/.test(v) && Number(parseBrazilianNumber(v)) <= 100)
       && !!this.name().trim() && this.name().length <= 100 && values.every(r => {
@@ -194,6 +229,7 @@ export class StrategyEditor {
   readonly config = computed<StrategyConfig>(() => ({ name: this.name().trim(), model: this.model(), remainder: this.remainder(), excludedCategoryIds: this.excluded(),
     rules: Object.entries(this.rules()).map(([id,r]) => ({ categoryId: Number(id), kind: r.kind, value: parseBrazilianNumber(r.value), priority: Number(r.priority ?? '100') })),
     tolerance: (Number(parseBrazilianNumber(this.tolerance())) / 100).toFixed(4), excludedCombinations: this.blockedCombinations(),
+    bands: Object.entries(this.bands()).map(([key, value]) => { const [dimension, id] = key.split(':'); return { dimension, groupId: Number(id), tolerance: (Number(parseBrazilianNumber(value)) / 100).toFixed(4) }; }),
     concentrationLimits: Object.entries(this.limits()).map(([key, value]) => { const [dimension, id] = key.split(':');
       return { dimension, groupId: Number(id), maximumPercentage: parseBrazilianNumber(value) }; }),
     usePriorities: this.usePriorities(), groupPreferences: Object.entries(this.groupPreferences()).map(([key, p]) => {
@@ -206,6 +242,7 @@ export class StrategyEditor {
       this.blockedCombinations.set([]); this.combinationQuery.set(''); this.combinationPage.set(0);
       this.limits.set({}); this.limitQuery.set(''); this.limitPage.set(0);
       this.usePriorities.set(false); this.groupPreferences.set({});
+      this.bands.set({}); this.bandQuery.set(''); this.bandPage.set(0);
       const sub = this.http.get<SavedStrategy[]>(`/api/portfolios/${id}/strategies`).subscribe({
         next: rows => { this.saved.set(rows); if (rows.length) this.choose(rows[0].profileId); this.loading.set(false); },
         error: e => { this.error.set(apiError(e)); this.loading.set(false); }
@@ -219,6 +256,7 @@ export class StrategyEditor {
     this.blockedCombinations.set([]); this.combinationQuery.set(''); this.combinationPage.set(0);
     this.limits.set({}); this.limitQuery.set(''); this.limitPage.set(0);
     this.usePriorities.set(false); this.groupPreferences.set({});
+    this.bands.set({}); this.bandQuery.set(''); this.bandPage.set(0);
   }
   choose(id: string) {
     const s = this.saved().find(s => s.profileId === id);
@@ -231,8 +269,12 @@ export class StrategyEditor {
     this.usePriorities.set(s.config.usePriorities ?? false);
     this.groupPreferences.set(Object.fromEntries((s.config.groupPreferences ?? []).map(p => [`${p.categoryId}-${p.sectorId}`, { priority: String(p.priority ?? 100), currency: p.preferredCurrency ?? '' }])));
     this.enabled.set(true);
+    this.bands.set(Object.fromEntries((s.config.bands ?? []).map(b => [`${b.dimension}:${b.groupId}`, formatBrazilianNumber((Number(b.tolerance) * 100).toFixed(2))])));
   }
   exclude(id: number, checked: boolean) { this.excluded.update(ids => checked ? [...new Set([...ids,id])] : ids.filter(i => i !== id)); }
+  band(dimension: string, id: number, value: string) {
+    this.bands.update(rows => { const next = { ...rows }, key = `${dimension}:${id}`; if (value.trim()) next[key] = value; else delete next[key]; return next; });
+  }
   limit(dimension: string, id: number, value: string) {
     this.limits.update(rows => { const next = { ...rows }, key = `${dimension}:${id}`;
       if (value.trim()) next[key] = value; else delete next[key]; return next; });

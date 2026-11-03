@@ -7,6 +7,8 @@ namespace InvestmentTracker.Application.Strategies
         int Priority = 100);
     public sealed record StrategyCombination(int CategoryId, int SectorId);
     public sealed record StrategyGroupPreference(int CategoryId, int SectorId, int Priority = 100, string? PreferredCurrency = null);
+    public sealed record RebalancingBand(string Dimension, int GroupId,
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal Tolerance);
     public sealed record ConcentrationLimit(string Dimension, int GroupId,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal MaximumPercentage);
     public sealed record StrategyConfig(string Name, string Model, string Remainder,
@@ -15,7 +17,8 @@ namespace InvestmentTracker.Application.Strategies
         IReadOnlyList<StrategyCombination>? ExcludedCombinations = null,
         IReadOnlyList<ConcentrationLimit>? ConcentrationLimits = null,
         bool UsePriorities = false,
-        IReadOnlyList<StrategyGroupPreference>? GroupPreferences = null);
+        IReadOnlyList<StrategyGroupPreference>? GroupPreferences = null,
+        IReadOnlyList<RebalancingBand>? Bands = null);
     public sealed record SavedStrategy(Guid ProfileId, int Revision, DateTime CreatedAtUtc, StrategyConfig Config);
     public sealed record SaveStrategy(Guid ProfileId, int ExpectedRevision, StrategyConfig Config);
     public interface IStrategyRepository

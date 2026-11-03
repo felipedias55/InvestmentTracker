@@ -1,0 +1,81 @@
+<section class="panel planning-goals">
+  <h2>Objetivos de patrimônio e renda</h2>
+  <p>Defina um valor e um prazo, acompanhe o progresso e confira um cenário de aportes. Cada objetivo usa a mesma carteira inteira; não reserva dinheiro nem altera suas metas de alocação.</p>
+  @if (!open()) { <button mat-stroked-button (click)="show()">Abrir objetivos</button> }
+  @if (error() && !editing() && !historyOpen()) { <p class="notice error" role="alert">{{ error() }}</p> }
+  @if (notice()) { <p role="status">{{ notice() }}</p> }
+  @if (loading()) { <p role="status">Carregando objetivos…</p> }
+  @if (open()) {
+    <form class="goal-filters" (submit)="$event.preventDefault(); load()">
+      <mat-form-field appearance="outline"><mat-label>Buscar objetivo</mat-label><input matInput type="search" [value]="search()" (input)="search.set($any($event.target).value)" maxlength="100" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Tipo de objetivo</mat-label><select matNativeControl [value]="kind()" (change)="kind.set($any($event.target).value); load()"><option value="">Todos</option><option value="wealth">Patrimônio</option><option value="monthly-income">Renda mensal</option></select></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Situação dos objetivos</mat-label><select matNativeControl [value]="status()" (change)="status.set($any($event.target).value); load()"><option value="active">Ativos</option><option value="archived">Arquivados</option><option value="all">Todos</option></select></mat-form-field>
+      <button mat-stroked-button type="submit" [disabled]="saving() || loading()">Buscar e atualizar objetivos</button>
+    </form>
+    @if (page(); as page) {
+      <div class="actions"><button mat-flat-button (click)="start()" [disabled]="saving() || loading()">Novo objetivo</button><a routerLink="/contributions" [queryParams]="{ portfolioId: portfolioId() }">Conferir estratégia e simular aporte →</a></div>
+      <p class="hint">Referência: {{ page.today | date:'dd/MM/yyyy':'UTC' }}. Patrimônio considera somente posições da carteira. Renda usa os proventos líquidos registrados de {{ page.incomeFrom | date:'dd/MM/yyyy':'UTC' }} a {{ page.incomeTo | date:'dd/MM/yyyy':'UTC' }}, divididos por 12, incluindo meses sem registro como zero.</p>
+      @if (page.hasStaleRates || page.hasFallbackRates) { <p class="notice">O patrimônio usa cotações de câmbio anteriores. Atualize a carteira e confira o progresso novamente.</p> }
+      @if (page.missingIncomeConversions) { <p class="notice">Há {{ page.missingIncomeConversions }} lançamentos de proventos sem equivalente histórico na janela. <a routerLink="/income">Revisar em Proventos</a>.</p> }
+      @for (item of page.items; track item.goal.goalId) {
+        @let goal = item.goal; @let config = goal.config;
+        <article class="goal-card">
+          <h3>{{ config.name }} · {{ labels[item.status] }}</h3>
+          <p>{{ config.kind === 'wealth' ? 'Patrimônio da carteira' : 'Renda mensal média registrada' }} · Prazo: {{ config.deadline | date:'dd/MM/yyyy':'UTC' }} · revisão {{ goal.revision }}.</p>
+          <p>Objetivo: <strong>{{ config.target | currency:config.currency:'code' }}</strong>@if (config.kind === 'monthly-income') { por mês }.</p>
+          @if (item.current !== null) {
+            <p>Referência atual: {{ item.current | currency:config.currency:'code':'1.2-4' }} · Falta: {{ item.gap | currency:config.currency:'code':'1.2-4' }} · Progresso: {{ format(item.percentage!) }}%.</p>
+            <progress max="100" [value]="number(item.percentage)" [attr.aria-label]="'Progresso de ' + config.name"></progress>
+          }
+          <p class="hint">{{ item.reason }}</p>
+          @if (config.currency !== page.currency) { <p class="hint">Objetivo preservado em {{ config.currency }}; a carteira usa {{ page.currency }}. Para usar a moeda atual, crie um novo objetivo.</p> }
+          @if (config.kind === 'wealth' && item.current !== null) {
+            @if (item.requiredMonthlyContribution !== null) { <p><strong>Aporte mensal necessário sem rentabilidade: {{ item.requiredMonthlyContribution | currency:config.currency:'code' }}</strong>.</p> }
+            @if (item.scenarioValue !== null) { <p>Cenário com {{ config.monthlyContribution | currency:config.currency:'code' }} por mês em {{ item.monthsRemaining }} parcelas, incluindo o mês atual: {{ item.scenarioValue | currency:config.currency:'code':'1.2-4' }} no prazo. Falta no cenário: {{ item.scenarioGap | currency:config.currency:'code':'1.2-4' }}.</p> }
+          }
+          <div class="actions">
+            <button mat-stroked-button [disabled]="saving() || config.currency !== page.currency" (click)="start(goal)">Editar {{ config.name }}</button>
+            @if (!config.archived) { <button mat-stroked-button [disabled]="saving()" (click)="archive(goal)">Arquivar {{ config.name }}</button> }
+            <button mat-stroked-button [disabled]="saving()" (click)="revisions(goal)">Revisões de {{ config.name }}</button>
+          </div>
+        </article>
+      } @empty { <p>Nenhum objetivo corresponde aos filtros.</p> }
+      <app-list-paginator [length]="page.total" [index]="page.pageIndex" [size]="page.pageSize" (changed)="load($event.pageIndex, $event.pageSize)" />
+      <details><summary>Como interpretar os cenários</summary><p>O cenário de patrimônio soma ao valor atual as parcelas mensais informadas, sem rentabilidade, inflação, taxas futuras ou retiradas. Os objetivos compartilham a mesma base: não some os aportes necessários de objetivos que representam o mesmo dinheiro. A renda histórica depende da qualidade dos seus registros e não projeta dividendos futuros nem estima capital necessário a partir de um rendimento presumido.</p></details>
+    }
+  }
+</section>
+@if (editing()) {
+  <app-edit-panel [editing]="true" title="Editar objetivo financeiro" [busy]="saving()" [error]="error()" (closed)="editing.set(false)">
+    <form class="panel" [formGroup]="form" [appDraftState]="form.getRawValue()" [draftBusy]="saving()" (ngSubmit)="save()">
+      <p>Valores em {{ form.controls.currency.value }}. Salvar preserva uma revisão anterior e não executa operações.</p>
+      <fieldset [disabled]="saving()">
+        <mat-form-field appearance="outline"><mat-label>Nome do objetivo</mat-label><input matInput formControlName="name" maxlength="100" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Objetivo de</mat-label><select matNativeControl formControlName="kind" (change)="changeKind()"><option value="wealth">Patrimônio</option><option value="monthly-income">Renda mensal</option></select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Valor desejado</mat-label><input matInput formControlName="target" inputmode="decimal" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Prazo do objetivo</mat-label><input matInput formControlName="deadline" type="date" min="1900-01-01" max="2100-12-31" /></mat-form-field>
+        @if (form.controls.kind.value === 'wealth') { <mat-form-field appearance="outline"><mat-label>Aporte mensal para o cenário</mat-label><input matInput formControlName="monthlyContribution" inputmode="decimal" /></mat-form-field> }
+        @else { <p class="hint">O progresso será comparado à média dos 12 meses completos anteriores. Não é uma estimativa de proventos futuros.</p> }
+        <mat-checkbox formControlName="archived">Arquivado</mat-checkbox>
+        @if (form.touched && (form.invalid || !form.controls.name.value.trim())) { <p class="field-error">Confira nome, prazo e valores; use vírgula e até duas casas decimais.</p> }
+        <div class="actions"><button mat-flat-button type="submit" [disabled]="saving()">Salvar objetivo</button></div>
+      </fieldset>
+    </form>
+  </app-edit-panel>
+}
+@if (historyOpen()) {
+  <app-edit-panel [editing]="true" title="Revisões do objetivo" [error]="error()" (closed)="historyOpen.set(false)">
+    <section class="panel">
+      @if (history(); as revisions) {
+        @for (goal of revisions.slice(historyPage() * 10, historyPage() * 10 + 10); track goal.revision) {
+          <article class="goal-card"><h3>{{ goal.config.name }} · revisão {{ goal.revision }}</h3>
+            <p>{{ goal.createdAtUtc | date:'dd/MM/yyyy HH:mm':'-0300' }} · {{ goal.config.archived ? 'Arquivado' : 'Ativo' }} · {{ goal.config.kind === 'wealth' ? 'Patrimônio' : 'Renda mensal' }}.</p>
+            <p>Objetivo: {{ goal.config.target | currency:goal.config.currency:'code' }} · Prazo: {{ goal.config.deadline | date:'dd/MM/yyyy':'UTC' }}.</p>
+            @if (goal.config.kind === 'wealth') { <p>Aporte mensal do cenário: {{ goal.config.monthlyContribution | currency:goal.config.currency:'code' }}.</p> }
+          </article>
+        }
+        <app-list-paginator [hidePageSize]="true" [length]="revisions.length" [index]="historyPage()" [size]="10" (changed)="historyPage.set($event.pageIndex)" />
+      } @else if (!error()) { <p role="status">Carregando revisões…</p> }
+    </section>
+  </app-edit-panel>
+}

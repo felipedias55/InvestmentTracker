@@ -27,6 +27,7 @@
         <button mat-stroked-button (click)="read(d.plan.id)" [disabled]="saving() || loading()">Atualizar execução</button>
         <details><summary>Regras preservadas no plano</summary><p>{{ d.snapshot.simulation.strategy?.name || 'Metas da carteira na simulação' }}</p>
           @for (note of d.snapshot.notes; track $index) { <p class="hint">{{ note }}</p> }
+          @if (d.snapshot.bands?.length) { <app-rebalancing-band-report [rows]="d.snapshot.bands!" [currency]="d.snapshot.currency" /> }
         </details>
         @for (row of d.rows.slice(rowPage() * 10, rowPage() * 10 + 10); track row.planned.key) {
           <article class="tracking-item"><h4>{{ row.planned.sector }} → {{ row.planned.category }} · {{ row.planned.stage === 'reservation' ? 'Reserva' : 'Restante' }}</h4>

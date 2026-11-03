@@ -15,6 +15,23 @@ describe('StrategyEditor', () => {
     f.componentRef.setInput('portfolioId', 1); f.componentRef.setInput('currency', 'BRL'); f.detectChanges();
     http.expectOne('/api/portfolios/1/strategies').flush([]); f.detectChanges(); return f;
   }
+  it('saves specific bands as decimal fractions and keeps explicit zero distinct from blank', () => {
+    const c = create().componentInstance; c.enabled.set(true); c.preset('bands');
+    c.band('category', 1, '3,25'); c.band('sector', 2, '0'); c.bandQuery.set('outro filtro'); c.bandPage.set(9);
+    expect(c.valid()).toBe(true); expect(c.config().bands).toEqual([{ dimension: 'category', groupId: 1, tolerance: '0.0325' }, { dimension: 'sector', groupId: 2, tolerance: '0.0000' }]);
+    c.save(); const request = http.expectOne('/api/portfolios/1/strategies'); request.flush({ profileId: request.request.body.profileId, revision: 1, config: c.config() });
+    expect(c.bands()['category:1']).toBe('3,25'); expect(c.bands()['sector:2']).toBe('0,00');
+    c.band('sector', 2, ''); expect(c.config().bands).toHaveLength(1); c.preset('custom'); expect(c.config().bands).toEqual([]);
+  });
+  it('validates all stored bands and restores legacy strategies without inventing overrides', () => {
+    const f = create(), c = f.componentInstance;
+    for (const value of ['-1', '100,01', '1,001', 'texto']) { c.band('category', 1, value); expect(c.valid()).toBe(false); }
+    c.bands.set(Object.fromEntries(Array.from({ length: 201 }, (_, i) => ['category:' + (i + 1), '1']))); expect(c.valid()).toBe(false);
+    c.saved.set([{ profileId: 'old', revision: 1, config: { name: 'Antiga', model: 'bands', remainder: 'targets', rules: [], excludedCategoryIds: [], tolerance: '0.05' } }]);
+    c.choose('old'); expect(c.config().bands).toEqual([]); expect(c.valid()).toBe(true);
+    c.open.set(true); f.detectChanges(); expect(f.nativeElement.querySelector('select[aria-label="Modelo"]').value).toBe('bands');
+    c.band('category', 999, '0'); expect(c.bandGroups().find(g => g.groupId === 999)?.name).toContain('indisponível');
+  });
   it('includes buy and hold and requires explicit fixed real estate categories', () => {
     const f = create(), c = f.componentInstance;
     expect(strategyModels.some(m => m.id === 'buy-hold')).toBe(true);

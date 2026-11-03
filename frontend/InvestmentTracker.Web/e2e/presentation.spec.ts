@@ -2,6 +2,67 @@ import { test, expect } from '@playwright/test';
 import { testDashboard, testPortfolio } from '../src/app/features/allocation/allocation.test-data';
 test.beforeEach(async ({ page }) => { page.on('dialog', dialog => dialog.accept()); });
 
+test('faixas específicas e diagnósticos mantêm busca, paginação e privacidade', async ({ page }, info) => {
+  const strategy = { name: 'Faixas locais', model: 'bands', remainder: 'targets', excludedCategoryIds: [], rules: [], tolerance: '0.05', bands: [{ dimension: 'category', groupId: 1, tolerance: '0.03' }, { dimension: 'sector', groupId: 1, tolerance: '0' }] };
+  const diagnostics = [
+    { dimension: 'category', groupId: 1, name: 'Ações', state: 'below', hasOverride: true, tolerancePoints: '3', currentPercentage: '40', targetPercentage: '50', lowerPercentage: '47', upperPercentage: '53', requestedRemainder: '100', suggestedRemainder: '40', reservedContribution: '0', reason: 'Abaixo da faixa: os limites de concentração reduziram a sugestão original do restante.' },
+    { dimension: 'sector', groupId: 1, name: 'Tecnologia', state: 'below', hasOverride: true, tolerancePoints: '0', currentPercentage: '40', targetPercentage: '50', lowerPercentage: '50', upperPercentage: '50', requestedRemainder: '100', suggestedRemainder: '40', reservedContribution: '0', reason: 'Abaixo da faixa; tolerância específica de zero.' }
+  ];
+  const categories = Array.from({ length: 12 }, (_, i) => ({ groupId: i + 1, name: i === 0 ? 'Ações' : 'Categoria ' + i, currentValue: '0', currentPercentage: '0', targetPercentage: i === 0 ? '0.5' : '0', difference: '0' }));
+  const d = { ...testDashboard, allocation: { ...testDashboard.allocation, categories, sectors: [{ ...categories[0], name: 'Tecnologia' }] } };
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/portfolios') return route.fulfill({ json: [testPortfolio] });
+    if (path.endsWith('/dashboard')) return route.fulfill({ json: d });
+    if (path.endsWith('/strategies')) return route.fulfill({ json: [{ profileId: 'bands', revision: 1, config: strategy }] });
+    if (path.endsWith('/contribution-plan')) { expect(route.request().postDataJSON().strategy.bands).toEqual([{ dimension: 'category', groupId: 1, tolerance: '0.0300' }, { dimension: 'sector', groupId: 1, tolerance: '0.0000' }]); return route.fulfill({ json: { dashboard: d, category: null, sector: null, plan: { rows: [], unallocated: '100' }, bands: diagnostics } }); }
+    throw new Error('Unexpected request: ' + path);
+  });
+  await page.goto('/contributions'); await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click(); await page.locator('.rebalancing-bands > summary').click();
+  const modal = page.locator('dialog:modal'); await modal.getByRole('searchbox', { name: 'Buscar grupo nas faixas', exact: true }).fill('Setor Tecnologia');
+  await expect(modal.getByLabel('Modelo', { exact: true })).toHaveValue('bands');
+  await expect(modal.getByRole('textbox', { name: 'Tolerância de setor Tecnologia', exact: true })).toHaveValue('0,00');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await modal.screenshot({ path: info.outputPath('specific-bands-editor.png') });
+  await modal.getByRole('button', { name: 'Concluir configuração', exact: true }).click(); await page.locator('#contribution-amount').fill('100');
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click(); const report = page.locator('.band-result');
+  await expect(report).toContainText('Faixa: 47% a 53%'); await expect(report).toContainText('Após limites: BRL 40,00');
+  await report.screenshot({ path: info.outputPath('specific-bands-result.png') });
+  await page.getByRole('button', { name: 'Ocultar valores', exact: true }).click(); await expect(report).not.toContainText('40,00'); await expect(report).not.toContainText('100,00');
+  await page.getByRole('button', { name: 'Mostrar valores', exact: true }).click(); await report.getByLabel('Dimensão das faixas', { exact: true }).selectOption('sector');
+  await expect(report.locator('article')).toHaveCount(1); await expect(report).toContainText('0 p.p. (específica)');
+  await page.locator('#contribution-amount').fill('200'); await expect(report).toHaveCount(0);
+});
+
+test('objetivos mostram progresso e cenário sem rentabilidade com edição e revisões legíveis', async ({ page }, info) => {
+  const goal = { goalId: '938313c0-d69b-4a74-9bf8-a8bdd90c1ca8', revision: 2, createdAtUtc: '2026-11-03T15:00:00Z', config: { name: 'Patrimônio para independência', kind: 'wealth', currency: 'BRL', target: '10000', deadline: '2027-01-31', monthlyContribution: '500', archived: false } };
+  const incomeGoal = { ...goal, goalId: '938313c0-d69b-4a74-9bf8-a8bdd90c1ca9', config: { ...goal.config, name: 'Renda mensal desejada', kind: 'monthly-income', target: '2000', monthlyContribution: '0' } };
+  const result = { items: [{ goal, status: 'in-progress', reason: 'Cenário sem rentabilidade e sem retiradas.', current: '1000', gap: '9000', percentage: '10', monthsRemaining: 3, requiredMonthlyContribution: '3000', scenarioValue: '2500', scenarioGap: '7500' },
+    { goal: incomeGoal, status: 'unavailable', reason: 'Há proventos sem equivalente histórico na janela de análise.', current: null, gap: null, percentage: null, monthsRemaining: 3, requiredMonthlyContribution: null, scenarioValue: null, scenarioGap: null }],
+    total: 2, pageIndex: 0, pageSize: 10, currency: 'BRL', today: '2026-11-03', incomeFrom: '2025-11-01', incomeTo: '2026-10-31', missingIncomeConversions: 1, hasStaleRates: false, hasFallbackRates: false };
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/portfolios') return route.fulfill({ json: [testPortfolio] });
+    if (path === '/api/asset-categories') return route.fulfill({ json: [{ id: 1, name: 'Ações' }] });
+    if (path.endsWith('/category-targets')) return route.fulfill({ json: [{ groupId: 1, name: 'Ações', targetPercentage: '1' }] });
+    if (path.endsWith('/planning-goals')) return route.fulfill({ json: result });
+    if (path.endsWith('/revisions')) return route.fulfill({ json: [goal, { ...goal, revision: 1, config: { ...goal.config, target: '5000' } }] });
+    throw new Error('Unexpected request: ' + path);
+  });
+  await page.goto('/allocation'); await page.getByRole('button', { name: 'Abrir objetivos', exact: true }).click();
+  const section = page.locator('.planning-goals'); await expect(section).toContainText('Aporte mensal necessário sem rentabilidade: BRL 3.000,00'); await expect(section).toContainText('Base indisponível');
+  await expect(section.locator('progress')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await section.screenshot({ path: info.outputPath('planning-goals.png') });
+  await page.getByRole('button', { name: 'Ocultar valores', exact: true }).click(); await expect(section).not.toContainText('10.000,00'); await expect(section).not.toContainText('3.000,00');
+  await page.getByRole('button', { name: 'Mostrar valores', exact: true }).click();
+  await page.getByRole('button', { name: 'Editar ' + goal.config.name, exact: true }).click(); const dialog = page.locator('dialog:modal');
+  await expect(dialog.getByLabel('Valor desejado', { exact: true })).toHaveValue('10.000');
+  await dialog.screenshot({ path: info.outputPath('planning-goal-editor.png') }); await dialog.getByRole('button', { name: 'Fechar edição', exact: true }).click();
+  await page.getByRole('button', { name: 'Revisões de ' + goal.config.name, exact: true }).click(); await expect(dialog.locator('.goal-card')).toHaveCount(2);
+  await expect(dialog).toContainText('BRL 5.000,00'); await dialog.screenshot({ path: info.outputPath('planning-goal-revisions.png') });
+});
+
 test('acompanhamento de aporte preserva plano, mostra execução e protege valores', async ({ page }, info) => {
   const plan = { id: 7, name: 'Aporte mensal acompanhado', from: '2026-11-01', to: '2026-11-30', createdAtUtc: '2026-11-03T12:00:00Z' };
   const row = { key: 'rule-1-2', categoryId: 1, sectorId: 2, category: 'Ações internacionais', sector: 'Tecnologia', amount: '1000', stage: 'reservation', suggestedCurrency: 'USD', currencies: [{ currency: 'USD', amount: '200', rate: '5', dates: '', stale: false }] };

@@ -50,6 +50,7 @@ namespace InvestmentTracker.Application
             services.AddScoped<InvestmentTracker.Application.Quotes.QuoteCoverageService>();
 
             services.AddScoped<IAllocationService, AllocationService>();
+            services.AddScoped<InvestmentTracker.Application.Planning.PlanningGoalService>();
             services.AddScoped<InvestmentTracker.Application.Allocation.Tracking.ContributionTrackingService>();
             services.AddScoped<IExternalAssetService, ExternalAssetService>();
             services.AddScoped<IHistoryService, HistoryService>();

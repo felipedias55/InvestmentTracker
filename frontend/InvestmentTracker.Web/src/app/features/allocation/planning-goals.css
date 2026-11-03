@@ -1,0 +1,6 @@
+:host { display:block; margin-block:24px; min-width:0; }
+mat-form-field { width:100%; }
+.goal-filters { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; align-items:center; margin-top:16px; }
+.goal-card { padding-block:16px; border-top:1px solid var(--border); overflow-wrap:anywhere; }
+progress { width:100%; height:12px; accent-color:var(--primary); }
+fieldset { min-width:0; }

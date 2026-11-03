@@ -1,5 +1,98 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
+test('faixas específicas persistem zero e explicam conflitos entre categoria e setor', async ({ page, request }, info) => {
+  const suffix = info.project.name === 'desktop' ? 'D' : 'C';
+  const created = await request.post('/api/portfolios', { data: { name: 'Faixas específicas ' + suffix } }); expect(created.ok()).toBeTruthy();
+  const portfolio = await created.json(), path = `portfolios/${portfolio.id}`;
+  const [currencies, types, countries, categories, sectors] = await Promise.all(['currencies', 'asset-types', 'countries', 'asset-categories', 'sectors'].map(p => json(request, p)));
+  for (let i = 0; i < 2; i++) {
+    const assetResponse = await request.post('/api/assets', { data: { ticker: 'FAIXA' + suffix + i, name: 'Ativo para faixa', currencyId: currencies.find((c: any) => c.code === 'BRL').id,
+      assetTypeId: types.find((t: any) => t.instrumentClass === 'general').id, countryId: countries[0].id, assetCategoryId: categories[i].id, sectorId: sectors[i].id } }); expect(assetResponse.ok()).toBeTruthy();
+    const asset = await assetResponse.json(); const value = i === 0 ? '40' : '60';
+    expect((await request.post('/api/' + path + '/assets', { data: { assetId: asset.id, quantity: '1', investedAmount: value, currentValue: value, income: '0' } })).ok()).toBeTruthy();
+  }
+  for (const [dimension, groups] of [['category', categories], ['sector', sectors]] as const)
+    expect((await request.put('/api/' + path + '/' + dimension + '-targets', { data: { targets: groups.slice(0, 2).map((g: any) => ({ groupId: g.id, targetPercentage: '0.5' })) } })).ok()).toBeTruthy();
+  const before = await json(request, path);
+  await page.goto('/contributions'); await choosePortfolio(page, portfolio.name);
+  await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Usar estratégia nesta simulação', exact: true }).check(); await page.getByLabel('Modelo', { exact: true }).selectOption('bands');
+  await page.getByLabel('Tolerância geral em pontos percentuais', { exact: true }).fill('20');
+  await page.locator('.rebalancing-bands > summary').click();
+  const categoryLabel = 'Tolerância de categoria ' + categories[0].name, sectorLabel = 'Tolerância de setor ' + sectors[0].name;
+  await page.getByRole('textbox', { name: categoryLabel, exact: true }).fill('3'); await page.getByRole('textbox', { name: sectorLabel, exact: true }).fill('0');
+  await page.getByRole('checkbox', { name: 'Atender regras por prioridade', exact: true }).check();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('dialog:modal').screenshot({ path: info.outputPath('band-editor.png') });
+  await page.getByRole('button', { name: 'Salvar como estratégia padrão', exact: true }).click(); await expect(page.locator('app-strategy-editor')).toContainText('Estratégia salva');
+  await page.getByRole('button', { name: 'Concluir configuração', exact: true }).click();
+  await page.reload(); await choosePortfolio(page, portfolio.name); await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
+  await expect(page.getByLabel('Modelo', { exact: true })).toHaveValue('bands');
+  await page.locator('.rebalancing-bands > summary').click();
+  await expect(page.getByRole('textbox', { name: sectorLabel, exact: true })).toHaveValue(/^0(?:,0+)?$/);
+  await expect(page.getByRole('textbox', { name: categoryLabel, exact: true })).toHaveValue(/^3(?:,0+)?$/);
+  await page.getByRole('button', { name: 'Concluir configuração', exact: true }).click(); await page.locator('#contribution-amount').fill('100');
+  let resultResponse = page.waitForResponse(r => r.url().endsWith('/contribution-plan'));
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click(); const result = await (await resultResponse).json();
+  expect(result.plan.rows).toHaveLength(1); expect(Number(result.plan.rows[0].amount)).toBe(100);
+  expect(result.bands.find((b: any) => b.dimension === 'sector' && b.groupId === sectors[0].id).hasOverride).toBe(true);
+  const report = page.locator('app-rebalancing-band-report').first(); await expect(report).toContainText('Abaixo da faixa'); await expect(report).toContainText('0 p.p. (específica)');
+  await report.screenshot({ path: info.outputPath('band-result.png') });
+  await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click(); await page.locator('.rebalancing-bands > summary').click();
+  await page.getByRole('textbox', { name: categoryLabel, exact: true }).fill('20'); await expect(page.locator('app-rebalancing-band-report')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Salvar como estratégia padrão', exact: true }).click(); await expect(page.locator('app-strategy-editor')).toContainText('Estratégia salva');
+  await page.getByRole('button', { name: 'Concluir configuração', exact: true }).click(); resultResponse = page.waitForResponse(r => r.url().endsWith('/contribution-plan'));
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click(); const conflict = await (await resultResponse).json();
+  expect(Number(conflict.plan.unallocated)).toBe(100); expect(conflict.plan.rows).toHaveLength(0);
+  await expect(page.locator('.band-result')).toContainText('outra dimensão');
+  expect(await json(request, path)).toEqual(before); expect(await json(request, path + '/movements')).toHaveLength(0);
+});
+
+test('objetivos de patrimônio e renda preservam revisões e não alteram a carteira', async ({ page, request }, info) => {
+  const suffix = info.project.name === 'desktop' ? 'D' : 'C';
+  const response = await request.post('/api/portfolios', { data: { name: 'Objetivos ' + suffix } }); expect(response.ok()).toBeTruthy();
+  const portfolio = await response.json(), path = `portfolios/${portfolio.id}`;
+  const [currencies, types, countries, categories, sectors] = await Promise.all(['currencies', 'asset-types', 'countries', 'asset-categories', 'sectors'].map(p => json(request, p)));
+  const assetResponse = await request.post('/api/assets', { data: { ticker: 'GOAL' + suffix, name: 'Ativo de objetivos', currencyId: currencies.find((c: any) => c.code === 'BRL').id,
+    assetTypeId: types.find((t: any) => t.instrumentClass === 'general').id, countryId: countries[0].id, assetCategoryId: categories[0].id, sectorId: sectors[0].id } }); expect(assetResponse.ok()).toBeTruthy();
+  const asset = await assetResponse.json();
+  expect((await request.post('/api/' + path + '/assets', { data: { assetId: asset.id, quantity: '1', investedAmount: '100', currentValue: '100', income: '0' } })).ok()).toBeTruthy();
+  await page.goto('/allocation'); await choosePortfolio(page, portfolio.name);
+  const initial = page.waitForResponse(r => r.url().includes('/planning-goals?'));
+  await page.getByRole('button', { name: 'Abrir objetivos', exact: true }).click(); const context = await (await initial).json();
+  expect((await request.post('/api/' + path + '/income', { data: { requestId: '17bb7d07-ec89-46a1-b781-' + (suffix === 'D' ? '14b237afbd01' : '14b237afbd02'), date: context.incomeTo, assetId: asset.id, amount: '1200' } })).ok()).toBeTruthy();
+  const before = await json(request, path), movementsBefore = await json(request, path + '/movements');
+  await page.getByRole('button', { name: 'Novo objetivo', exact: true }).click();
+  const modal = page.locator('dialog:modal'); await modal.getByLabel('Nome do objetivo', { exact: true }).fill('Patrimônio desejado');
+  await modal.getByLabel('Valor desejado', { exact: true }).fill('1.000,00'); await modal.getByLabel('Prazo do objetivo', { exact: true }).fill(context.today);
+  await modal.getByLabel('Aporte mensal para o cenário', { exact: true }).fill('250,00');
+  await modal.screenshot({ path: info.outputPath('goal-editor.png') });
+  await modal.getByRole('button', { name: 'Salvar objetivo', exact: true }).click(); await expect(modal).toHaveCount(0);
+  let card = page.locator('.planning-goals .goal-card').filter({ hasText: 'Patrimônio desejado' });
+  await expect(card).toContainText('Aporte mensal necessário sem rentabilidade: BRL 900,00'); await expect(card).toContainText('BRL 350,00 no prazo');
+  await page.getByRole('button', { name: 'Editar Patrimônio desejado', exact: true }).click(); await modal.getByLabel('Valor desejado', { exact: true }).fill('1.200,00');
+  await modal.getByRole('button', { name: 'Salvar objetivo', exact: true }).click(); await expect(card).toContainText('revisão 2');
+  await page.getByRole('button', { name: 'Revisões de Patrimônio desejado', exact: true }).click(); await expect(modal.locator('.goal-card')).toHaveCount(2);
+  await expect(modal).toContainText('BRL 1.000,00'); await modal.screenshot({ path: info.outputPath('goal-revisions.png') }); await modal.getByRole('button', { name: 'Fechar edição', exact: true }).click();
+  await page.getByRole('button', { name: 'Arquivar Patrimônio desejado', exact: true }).click(); await expect(card).toHaveCount(0);
+  await page.getByLabel('Situação dos objetivos', { exact: true }).selectOption('archived'); await expect(card).toContainText('Arquivado');
+  await page.getByRole('button', { name: 'Editar Patrimônio desejado', exact: true }).click(); await modal.getByRole('checkbox', { name: 'Arquivado', exact: true }).uncheck();
+  await modal.getByRole('button', { name: 'Salvar objetivo', exact: true }).click(); await expect(card).toHaveCount(0);
+  await page.getByLabel('Situação dos objetivos', { exact: true }).selectOption('active'); await expect(card).toContainText('revisão 4');
+  await page.getByRole('button', { name: 'Novo objetivo', exact: true }).click(); await modal.getByLabel('Nome do objetivo', { exact: true }).fill('Renda desejada');
+  await modal.getByLabel('Objetivo de', { exact: true }).selectOption('monthly-income'); await modal.getByLabel('Valor desejado', { exact: true }).fill('200');
+  await modal.getByLabel('Prazo do objetivo', { exact: true }).fill(context.today); await modal.getByRole('button', { name: 'Salvar objetivo', exact: true }).click();
+  const incomeCard = page.locator('.planning-goals .goal-card').filter({ hasText: 'Renda desejada' }); await expect(incomeCard).toContainText('Referência atual: BRL 100,00');
+  await expect(incomeCard).not.toContainText('Aporte mensal necessário');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('.planning-goals').screenshot({ path: info.outputPath('goals-progress.png') });
+  expect(await json(request, path)).toEqual(before); expect(await json(request, path + '/movements')).toEqual(movementsBefore);
+  await page.reload(); await choosePortfolio(page, portfolio.name); await page.getByRole('button', { name: 'Abrir objetivos', exact: true }).click();
+  card = page.locator('.planning-goals .goal-card').filter({ hasText: 'Patrimônio desejado' }); await expect(card).toContainText('revisão 4');
+  await page.getByRole('searchbox', { name: 'Buscar objetivo', exact: true }).fill('Renda'); await page.getByRole('button', { name: 'Buscar e atualizar objetivos', exact: true }).click();
+  await expect(page.locator('.planning-goals .goal-card')).toHaveCount(1); await expect(incomeCard).toBeVisible();
+});
+
 test('plano salvo acompanha compras e estornos sem duplicar ou alterar operações', async ({ page, request }, info) => {
   const suffix = info.project.name === 'desktop' ? 'D' : 'C';
   const created = await request.post('/api/portfolios', { data: { name: 'Execução de aporte ' + suffix } }); expect(created.ok()).toBeTruthy();

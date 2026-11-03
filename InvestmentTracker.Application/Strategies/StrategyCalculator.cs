@@ -21,6 +21,11 @@ namespace InvestmentTracker.Application.Strategies
                 || combinations.Distinct().Count() != combinations.Count)
                 throw new InputValidationException("Informe até 500 combinações distintas de categoria e setor existentes.");
             var limits = c.ConcentrationLimits ?? [];
+            var bands = c.Bands ?? [];
+            if (bands.Count > 200 || bands.Any(b => b is null || b.Dimension is not ("category" or "sector") || b.GroupId <= 0
+                    || b.Tolerance < 0 || b.Tolerance > 1 || decimal.Round(b.Tolerance, 4) != b.Tolerance)
+                || bands.Select(b => (b.Dimension, b.GroupId)).Distinct().Count() != bands.Count)
+                throw new InputValidationException("Informe até 200 faixas distintas por categoria/setor, com tolerância de 0 a 100 pontos percentuais e até duas casas decimais.");
             if (limits.Count > 200 || limits.Any(l => l is null || l.Dimension is not ("category" or "sector") || l.GroupId <= 0
                     || l.MaximumPercentage < 0 || l.MaximumPercentage > 100 || decimal.Round(l.MaximumPercentage, 2) != l.MaximumPercentage)
                 || limits.Select(l => (l.Dimension, l.GroupId)).Distinct().Count() != limits.Count)
@@ -49,12 +54,17 @@ namespace InvestmentTracker.Application.Strategies
                 throw new ResourceConflictException("Câmbio indisponível. Não é possível simular valores parciais.");
             var combinations = (config.ExcludedCombinations ?? []).ToHashSet();
             var preferences = (config.GroupPreferences ?? []).ToDictionary(p => (p.CategoryId, p.SectorId));
+            var bandOverrides = (config.Bands ?? []).ToDictionary(b => (b.Dimension, b.GroupId));
+            var applyBands = config.Model == "bands" && config.Remainder == "targets";
+            var bandStatuses = new List<RebalancingBandStatusDto>();
             var positions = original.Summary.Positions.Where(p => ContributionPlanCalculator.IsEligible(p)
                 && !combinations.Contains(new(p.AssetCategoryId, p.SectorId))).ToList();
             var known = original.Allocation.Categories.Select(r => r.GroupId).ToHashSet();
             var knownSectors = original.Allocation.Sectors.Select(r => r.GroupId).ToHashSet();
             if ((config.ConcentrationLimits ?? []).Any(l => !(l.Dimension == "category" ? known : knownSectors).Contains(l.GroupId)))
                 throw new InputValidationException("Uma categoria ou setor dos limites não está disponível nesta carteira/metas.");
+            if (bandOverrides.Values.Any(b => !(b.Dimension == "category" ? known : knownSectors).Contains(b.GroupId)))
+                throw new InputValidationException("Uma categoria ou setor das faixas não está disponível nesta carteira/metas.");
             if (config.Rules.Any(r => !known.Contains(r.CategoryId)) || config.ExcludedCategoryIds.Any(i => !known.Contains(i))
                 || combinations.Any(g => !known.Contains(g.CategoryId) || !knownSectors.Contains(g.SectorId))
                 || preferences.Values.Any(g => !known.Contains(g.CategoryId) || !knownSectors.Contains(g.SectorId)))
@@ -67,6 +77,8 @@ namespace InvestmentTracker.Application.Strategies
                 : reserved.ToDictionary(r => r.Rule.CategoryId, r => r.Amount);
             var rows = new List<ContributionPlanRowDto>();
             var notes = new List<string> { "Simulação apenas de novos aportes: nenhuma venda ou alteração de saldo é executada." };
+            if (applyBands) notes.Add("Faixas aplicadas ao restante por metas na base elegível, antes das reservas simuladas. Cada grupo usa sua tolerância específica ou a geral; bordas pertencem à faixa. Reservas explícitas continuam independentes das faixas, sujeitas à elegibilidade e aos limites.");
+            else if (config.Model == "bands") notes.Add("As faixas não foram aplicadas: elas exigem distribuição do restante por metas. As configurações permanecem salvas.");
             if (config.UsePriorities) notes.Add("Prioridades ativas: números menores vêm primeiro. Reservas precedem o restante; empates de orçamento dividem o valor proporcionalmente à demanda. Limites e elegibilidade continuam obrigatórios.");
             if (config.UsePriorities) notes.Add("Sob tetos, o cálculo mantém o volume viável da distribuição e favorece as prioridades nos desempates. Prioridade de grupo ordena sugestões e centavos de empate, sem substituir a divisão igual ou os pesos das metas.");
             if (combinations.Count > 0) notes.Add("Combinações bloqueadas não recebem reservas nem restante e não compõem a base elegível; as posições continuam no patrimônio e nos gráficos.");
@@ -100,22 +112,36 @@ namespace InvestmentTracker.Application.Strategies
             var remaining = amount - budgets.Values.Sum();
             var eligible = positions.Where(p => !config.ExcludedCategoryIds.Contains(p.AssetCategoryId)).ToList();
             var basis = eligible.Sum(p => p.BaseCurrentValue!.Value);
-            IReadOnlyList<AllocationRowDto> Rebase(IReadOnlyList<AllocationRowDto> source, Func<PositionDto, int> key)
+            IReadOnlyList<AllocationRowDto> Rebase(string dimension, IReadOnlyList<AllocationRowDto> source, Func<PositionDto, int> key)
             {
                 var included = source.Where(r => eligible.Any(p => key(p) == r.GroupId)).ToList();
                 var targetSum = included.Sum(r => r.TargetPercentage ?? 0);
+                if (applyBands) foreach (var row in source.Where(r => !included.Any(i => i.GroupId == r.GroupId)))
+                {
+                    var custom = bandOverrides.GetValueOrDefault((dimension, row.GroupId));
+                    bandStatuses.Add(RebalancingBandCalculator.Evaluate(dimension, row, custom?.Tolerance ?? config.Tolerance, custom is not null,
+                        dimension == "category" && config.ExcludedCategoryIds.Contains(row.GroupId) ? "excluded" : "no-eligible"));
+                }
                 return included.Select(r =>
                 {
                     var value = eligible.Where(p => key(p) == r.GroupId).Sum(p => p.BaseCurrentValue!.Value);
                     decimal current = basis > 0 ? value / basis : 0;
                     decimal? target = targetSum > 0 ? (r.TargetPercentage ?? 0) / targetSum : null;
+                    if (applyBands && !(dimension == "category" ? original.Allocation.CategoryTargetsConfigured : original.Allocation.SectorTargetsConfigured)) target = null;
                     var difference = target - current;
-                    if (config.Model == "bands" && difference.HasValue && Math.Abs(difference.Value) <= config.Tolerance) difference = 0;
+                    if (applyBands)
+                    {
+                        var custom = bandOverrides.GetValueOrDefault((dimension, r.GroupId));
+                        var status = RebalancingBandCalculator.Evaluate(dimension, r with { CurrentPercentage = current, TargetPercentage = target },
+                            custom?.Tolerance ?? config.Tolerance, custom is not null);
+                        bandStatuses.Add(status);
+                        if (status.State == "within") difference = 0;
+                    }
                     return r with { CurrentValue = value, CurrentPercentage = current, TargetPercentage = target, Difference = difference };
                 }).ToList();
             }
-            var categories = Rebase(original.Allocation.Categories, p => p.AssetCategoryId);
-            var sectors = Rebase(original.Allocation.Sectors, p => p.SectorId);
+            var categories = Rebase("category", original.Allocation.Categories, p => p.AssetCategoryId);
+            var sectors = Rebase("sector", original.Allocation.Sectors, p => p.SectorId);
             var allocation = original.Allocation with { Categories = categories, Sectors = sectors,
                 CategoryTargetsConfigured = original.Allocation.CategoryTargetsConfigured && categories.Any(r => r.TargetPercentage > 0),
                 SectorTargetsConfigured = original.Allocation.SectorTargetsConfigured && sectors.Any(r => r.TargetPercentage > 0) };
@@ -154,6 +180,7 @@ namespace InvestmentTracker.Application.Strategies
                 .ThenBy(r => r.RulePriority).ThenBy(r => r.GroupPriority).ThenBy(r => r.CategoryId).ThenBy(r => r.SectorId).ToArray() };
             return new(original, limited ? null : rest?.Category, limited ? null : rest?.Sector, final)
                 { StrategyNotes = notes, EligibleBase = basis, Concentration = result?.Statuses ?? [], PrioritiesApplied = config.UsePriorities,
+                    Bands = RebalancingBandCalculator.Explain(bandStatuses, plan, final, remaining),
                     RuleFunding = reserved.Select(r => new RuleFundingDto(r.Rule.CategoryId, original.Allocation.Categories.Single(c => c.GroupId == r.Rule.CategoryId).Name,
                         r.Rule.Priority, r.Amount, budgets[r.Rule.CategoryId], final.Rows.Where(row => row.Stage == "reservation" && row.CategoryId == r.Rule.CategoryId).Sum(row => row.Amount))).ToArray() };
         }
