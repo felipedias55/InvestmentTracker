@@ -24,7 +24,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'dotnet run --no-build --no-launch-profile --project ../../InvestmentTracker.Api -- --urls http://127.0.0.1:5053',
-      url: 'http://127.0.0.1:5053/api/portfolios',
+      url: 'http://127.0.0.1:5053/api/health/ready',
       reuseExistingServer: false,
       timeout: 60_000,
       env: { ASPNETCORE_ENVIRONMENT: 'Development' },

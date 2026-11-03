@@ -72,5 +72,51 @@ namespace InvestmentTracker.UnitTests.Strategies
             var d = Dashboard();
             Assert.Throws<ResourceConflictException>(() => StrategyCalculator.Calculate(d with { Summary = d.Summary with { ConversionAvailable = false } },100,Config()));
         }
+
+        [Fact]
+        public void BlockedCombinationShouldAffectReservesAndRemainingBaseWithoutChangingPortfolio()
+        {
+            var original = Dashboard();
+            var config = Config() with { Rules = [new(1, "fixed", 50)], ExcludedCombinations = [new(1, 1)] };
+            var result = StrategyCalculator.Calculate(original, 100.01m, config);
+            Assert.Equal(400, result.EligibleBase);
+            Assert.Equal(50, result.Plan!.Unallocated);
+            Assert.Equal(50.01m, result.Plan.Rows.Sum(row => row.Amount));
+            Assert.DoesNotContain(result.Plan.Rows, row => row.Category == "Category1");
+            Assert.Equal(900, original.Summary.CurrentValue);
+            Assert.Equal(3, original.Summary.Positions.Count);
+            Assert.Same(original, result.Dashboard);
+        }
+
+        [Fact]
+        public void AllBlockedOrUnclassifiedShouldLeaveMoneyUnallocatedEvenInTargetMode()
+        {
+            var original = Dashboard();
+            var config = Config(remainder: "targets") with { ExcludedCombinations = [new(1, 1), new(2, 2), new(3, 3)] };
+            var result = StrategyCalculator.Calculate(original, 100, config);
+            Assert.Equal(100, result.Plan!.Unallocated); Assert.Empty(result.Plan.Rows); Assert.Equal(0, result.EligibleBase);
+            var unclassified = original with { Summary = original.Summary with { Positions = original.Summary.Positions.Select(p => p with { InstrumentClass = "unclassified" }).ToList() } };
+            Assert.Equal(100, StrategyCalculator.Calculate(unclassified, 100, Config(remainder: "targets")).Plan!.Unallocated);
+        }
+
+        [Fact]
+        public void PairBlockShouldLeaveOtherSectorsOfTheSameCategoryAvailable()
+        {
+            var d = Dashboard();
+            d = d with { Summary = d.Summary with { Positions = [..d.Summary.Positions, d.Summary.Positions[0] with { Id = 4, SectorId = 2, SectorName = "Sector2" }] } };
+            var result = StrategyCalculator.Calculate(d, 100, Config() with { Rules = [new(1, "fixed", 40)], ExcludedCombinations = [new(1, 1)] });
+            Assert.Equal(100, result.Plan!.Rows.Sum(row => row.Amount));
+            Assert.Contains(result.Plan.Rows, row => row.Category == "Category1" && row.Sector == "Sector2" && row.Key.StartsWith("rule"));
+            Assert.DoesNotContain(result.Plan.Rows, row => row.Key == "rule-1-1");
+        }
+
+        [Fact]
+        public void InvalidOrDuplicatePairsShouldFailInsteadOfBeingSilentlyIgnored()
+        {
+            Assert.Throws<InputValidationException>(() => StrategyCalculator.Validate(Config() with { ExcludedCombinations = [new(1, 0)] }));
+            Assert.Throws<InputValidationException>(() => StrategyCalculator.Validate(Config() with { ExcludedCombinations = [new(1, 1), new(1, 1)] }));
+            Assert.Throws<InputValidationException>(() => StrategyCalculator.Calculate(Dashboard(), 100, Config() with { ExcludedCombinations = [new(1, 999)] }));
+            Assert.Throws<InputValidationException>(() => StrategyCalculator.Validate(Config() with { ExcludedCombinations = Enumerable.Range(1, 501).Select(i => new StrategyCombination(1, i)).ToArray() }));
+        }
     }
 }

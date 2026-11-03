@@ -10,7 +10,11 @@ namespace InvestmentTracker.Application.Movements
     {
         private const decimal MaxMoney = 999999999999999.9999m;
         private const decimal MaxQuantity = 9999999999999.999999m;
-        private static readonly string[] Supported = ["buy", "sell", "income", "deposit", "withdrawal", "transfer", "adjustment"];
+        private static readonly string[] Supported = ["buy", "sell", "income", "deposit", "withdrawal", "transfer", "adjustment", "split", "reverse-split", "bonus"];
+        private static bool IsEvent(string kind) => kind is "split" or "reverse-split" or "bonus";
+        private static bool CanReplay(string kind) => Supported.Contains(kind) || kind == "position-adjustment";
+        private static void Quantity(decimal value) => Require(value > 0 && value <= MaxQuantity && decimal.Round(value, 6) == value,
+            "Quantidade ou proporção deve ser positiva, dentro do limite e com até seis decimais.");
         public static string Token(string state, CorrectionInput input) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state + JsonSerializer.Serialize(input))));
         private static decimal Round(decimal value) => decimal.Round(value, 4, MidpointRounding.AwayFromZero);
         private static void Require(bool valid, string message) { if (!valid) throw new InputValidationException(message); }
@@ -20,9 +24,16 @@ namespace InvestmentTracker.Application.Movements
         private static ExternalAsset Copy(ExternalAsset b) => new() { Id = b.Id, PortfolioId = b.PortfolioId, Name = b.Name,
             CurrencyId = b.CurrencyId, Value = b.Value, Description = b.Description, UpdatedOn = b.UpdatedOn };
 
-        public static CorrectionOperation ReadOperation(FinancialMovement m, IReadOnlyList<PortfolioCashFlow> flows)
+        public static CorrectionOperation ReadOperation(FinancialMovement m, IReadOnlyList<PortfolioCashFlow> flows,
+            IReadOnlyList<PortfolioAsset>? positions = null)
         {
-            Require(Supported.Contains(m.Kind) && m.ReversalOfId is null, $"O lançamento #{m.Id} ({m.Kind}) exige conferência manual; este tipo não pode ser recalculado automaticamente.");
+            Require(CanReplay(m.Kind) && m.ReversalOfId is null, $"O lançamento #{m.Id} ({m.Kind}) exige conferência manual; este tipo não pode ser recalculado automaticamente.");
+            if (m.Kind == "position-adjustment") return new(m.Kind, m.Date);
+            if (IsEvent(m.Kind))
+            {
+                Require(!flows.Any(f => f.MovementId == m.Id), $"O evento societário #{m.Id} possui fluxo financeiro incompatível.");
+                return ReadEvent(m, positions ?? []);
+            }
             var flow = flows.SingleOrDefault(x => x.MovementId == m.Id && !x.IsReversal);
             if (m.Trade is { } trade) return new(m.Kind, m.Date, trade.AssetId, trade.CashAssetId,
                 Quantity: trade.Quantity, UnitPrice: trade.UnitPrice, Fees: trade.Fees, BaseAmount: flow?.BaseAmount);
@@ -92,7 +103,7 @@ namespace InvestmentTracker.Application.Movements
                     affected.Add(m.Id, m); Include(m); changed = true;
                 }
             } while (changed);
-            Require(affected.Values.All(m => Supported.Contains(m.Kind)), "A cadeia contém saldo inicial, ajuste de posição ou evento societário. É necessária conferência manual antes de automatizar esta correção.");
+            Require(affected.Values.All(m => CanReplay(m.Kind)), "A cadeia contém saldo inicial ou tipo sem dados suficientes. É necessária conferência manual antes de automatizar esta correção.");
             Require(pids.All(positions.ContainsKey) && bids.All(cash.ContainsKey), "A cadeia possui referências removidas; confira o histórico.");
             var steps = new List<CorrectionStep>();
             var beforePositions = positions.ToDictionary(x => x.Key, x => Copy(x.Value));
@@ -127,7 +138,7 @@ namespace InvestmentTracker.Application.Movements
                     BaseCurrencyCode = f.BaseCurrencyCode, BaseAmount = f.BaseAmount, IsReversal = true,
                     Notes = $"Correção retroativa: anula fluxo de #{m.Id}" }).ToArray()));
             }
-            var replay = affected.Values.Where(m => m.Id != original?.Id).Select(m => (Op: ReadOperation(m, s.Flows), Original: (FinancialMovement?)m)).ToList();
+            var replay = affected.Values.Where(m => m.Id != original?.Id).Select(m => (Op: ReadOperation(m, s.Flows, s.Positions), Original: (FinancialMovement?)m)).ToList();
             replay.Add((op, original));
             foreach (var item in replay.OrderBy(x => x.Op.Date).ThenBy(x => x.Original?.Id ?? 0))
             {
@@ -150,6 +161,16 @@ namespace InvestmentTracker.Application.Movements
             };
             if (photos.Length > 0) warnings.Add("Os períodos listados serão reabertos e suas fotografias marcadas como desatualizadas, sem alterar os valores ou versões congelados.");
             if (replay.Any(x => x.Op.Kind == "adjustment")) warnings.Add("A cadeia contém ajuste absoluto: o saldo informado nesse ajuste será mantido como total, mesmo com operações anteriores corrigidas.");
+            if (replay.Any(x => x.Op.Kind == "position-adjustment")) warnings.Add("Ajustes manuais preservam os totais dos campos alterados; os demais campos acompanham o recálculo. Cotações em lote preservam o preço unitário confirmado e recalculam o valor pela nova quantidade.");
+            if (replay.Any(x => IsEvent(x.Op.Kind))) warnings.Add("Eventos preservam valor de mercado e proventos. Desdobramento/grupamento reaplicam a proporção registrada ou recuperada dos efeitos auditados; bonificações preservam quantidade adicional e custo informados. Confira o comunicado e as frações antes de confirmar.");
+            var numbers = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+            foreach (var item in replay.Where(x => IsEvent(x.Op.Kind)))
+            {
+                var description = item.Original is null ? "Evento informado" : $"Evento #{item.Original.Id}";
+                warnings.Add(item.Op.Kind == "bonus"
+                    ? $"{description}: bonificação de {item.Op.Quantity.ToString("0.######", numbers)} unidades, custo adicional {item.Op.Cost.ToString("0.####", numbers)} na moeda do ativo."
+                    : $"{description}: {item.Op.RatioNumerator.ToString("0.######", numbers)} novas unidades para cada {item.Op.RatioDenominator.ToString("0.######", numbers)} antigas.");
+            }
             return new(new(true, token, impactFrom, affected.Keys.Order().ToArray(), balances, photos, warnings, []),
                 pids.Select(id => positions[id]).ToArray(), bids.Select(id => cash[id]).ToArray(), steps);
         }
@@ -157,13 +178,19 @@ namespace InvestmentTracker.Application.Movements
         private static CorrectionStep ApplyOperation(CorrectionState s, CorrectionOperation op, FinancialMovement? old, bool corrected,
             Dictionary<int, PortfolioAsset> positions, Dictionary<int, ExternalAsset> cash, HashSet<int> pids, HashSet<int> bids)
         {
+            if (op.Kind == "position-adjustment" && old is not null && !corrected)
+                return ReplayPositionAdjustment(s, old, positions, pids);
             Require(Supported.Contains(op.Kind), "Tipo não suportado.");
             var isTrade = op.Kind is "buy" or "sell";
-            var usesAsset = isTrade || op.Kind == "income";
+            var isEvent = IsEvent(op.Kind);
+            var usesAsset = isTrade || op.Kind == "income" || isEvent;
             Require(usesAsset ? op.AssetId.HasValue : !op.AssetId.HasValue, "Selecione um ativo apenas para compra, venda ou provento.");
             Require(op.Kind == "transfer" ? op.DestinationId.HasValue : !op.DestinationId.HasValue, "Destino adicional é permitido somente em transferências.");
-            Require(isTrade || (op.Quantity == 0 && op.UnitPrice == 0 && op.Fees == 0), "Quantidade, preço e taxas são exclusivos de compras e vendas.");
-            Require(!isTrade || op.Amount == 0, "Informe quantidade e preço para compras e vendas, sem valor separado.");
+            Require(isTrade || op.Kind == "bonus" || op.Quantity == 0, "Quantidade adicional é exclusiva de bonificação; para desdobramento/grupamento informe a proporção.");
+            Require(isTrade || (op.UnitPrice == 0 && op.Fees == 0), "Preço e taxas são exclusivos de compras e vendas.");
+            Require(!(isTrade || isEvent) || op.Amount == 0, "Esta operação não recebe valor separado.");
+            Require(isEvent || (op.RatioNumerator == 0 && op.RatioDenominator == 0 && op.Cost == 0), "Proporção e custo do evento são exclusivos de eventos societários.");
+            Require(!isEvent || (!op.CashAssetId.HasValue && !op.BaseAmount.HasValue), "Evento societário não movimenta saldo nem recebe equivalente de aporte.");
             var a = usesAsset ? s.Assets.SingleOrDefault(a => a.Id == op.AssetId) : null;
             Require(!usesAsset || a is not null, "Ativo não encontrado.");
             var p = a is null ? null : positions.Values.SingleOrDefault(x => x.AssetId == a.Id);
@@ -182,7 +209,35 @@ namespace InvestmentTracker.Application.Movements
                 CurrencyCode = currency, ReplacesMovementId = old?.Id, Description = a?.Ticker ?? b!.Name };
             var flows = new List<PortfolioCashFlow>();
             decimal amount;
-            if (isTrade)
+            if (isEvent)
+            {
+                Require(p!.Quantity > 0, "O evento exige uma posição com quantidade positiva.");
+                Money(op.Cost, true);
+                decimal quantity;
+                if (op.Kind == "bonus")
+                {
+                    Require(op.RatioNumerator == 0 && op.RatioDenominator == 0, "Bonificação recebe quantidade adicional, sem proporção.");
+                    Quantity(op.Quantity);
+                    quantity = p.Quantity + op.Quantity;
+                }
+                else
+                {
+                    Require(op.Cost == 0, "Desdobramento e grupamento preservam o custo total.");
+                    Quantity(op.RatioNumerator); Quantity(op.RatioDenominator);
+                    // Work with exact scaled integers; never round away residual units.
+                    var numerator = new System.Numerics.BigInteger(op.RatioNumerator * 1000000m);
+                    var denominator = new System.Numerics.BigInteger(op.RatioDenominator * 1000000m);
+                    var scaled = new System.Numerics.BigInteger(p.Quantity * 1000000m) * numerator;
+                    var units = System.Numerics.BigInteger.DivRem(scaled, denominator, out var remainder);
+                    Require(remainder.IsZero, "A proporção produz frações além de seis decimais. Confira o tratamento de frações; nenhuma quantidade será arredondada automaticamente.");
+                    Require(units <= new System.Numerics.BigInteger(MaxQuantity * 1000000m), "A quantidade final excede o limite.");
+                    quantity = (decimal)units / 1000000m;
+                    Require(op.Kind == "split" ? quantity > p.Quantity : quantity < p.Quantity, "A proporção deve aumentar a quantidade no desdobramento e diminuir no grupamento.");
+                }
+                Quantity(quantity); Money(p.InvestedAmount + op.Cost, true);
+                p.Quantity = quantity; p.InvestedAmount += op.Cost; amount = op.Cost;
+            }
+            else if (isTrade)
             {
                 Require(op.Quantity > 0 && op.Quantity <= MaxQuantity && decimal.Round(op.Quantity, 6) == op.Quantity, "Quantidade deve ser positiva e ter até seis decimais.");
                 Money(op.UnitPrice); Money(op.Fees, true);
@@ -249,10 +304,134 @@ namespace InvestmentTracker.Application.Movements
                     Kind = op.Kind is "buy" or "deposit" ? "contribution" : "withdrawal", BaseCurrencyCode = targetCurrency, BaseAmount = equivalent,
                     Notes = "Relançamento auditável de correção" });
             }
-            m.RequestPayload = JsonSerializer.Serialize(new SaveMovementDto(requestId, op.Date, op.Kind, op.CashAssetId ?? 0, op.Amount,
+            m.RequestPayload = isEvent ? JsonSerializer.Serialize(new EventPayload(op)) : JsonSerializer.Serialize(new SaveMovementDto(requestId, op.Date, op.Kind, op.CashAssetId ?? 0, op.Amount,
                 op.DestinationId, "Relançamento auditável", op.BaseAmount));
             return new(m, flows);
         }
+        private sealed record EventPayload(CorrectionOperation Operation);
+        private sealed record PositionTarget(int PositionId, decimal? Quantity, decimal? Cost, decimal? Value, decimal? Income,
+            decimal? UnitPrice = null, string? Source = null, DateOnly? QuoteDate = null);
+        private sealed record PositionPayload(IReadOnlyList<PositionTarget> PositionTargets);
+
+        private static CorrectionOperation ReadEvent(FinancialMovement m, IReadOnlyList<PortfolioAsset> positions)
+        {
+            var message = $"O evento societário #{m.Id} não possui proporção/dados e efeitos auditáveis consistentes. Confira o comunicado e o histórico.";
+            Require(m.Effects.Count == 1 && m.Effects.All(e => e.PositionId.HasValue && !e.CashAssetId.HasValue)
+                && m.Trade is null && m.IncomeReceipt is null, message);
+            var effect = m.Effects.Single();
+            var position = positions.SingleOrDefault(p => p.Id == effect.PositionId);
+            Require(position is not null && effect.BeforeValue == effect.AfterValue && effect.BeforeIncome == effect.AfterIncome, message);
+            Quantity(effect.BeforeQuantity); Quantity(effect.AfterQuantity);
+            CorrectionOperation op;
+            try
+            {
+                using var json = JsonDocument.Parse(m.RequestPayload ?? "");
+                if (json.RootElement.TryGetProperty("Operation", out _))
+                {
+                    op = JsonSerializer.Deserialize<EventPayload>(m.RequestPayload!)!.Operation;
+                    Require(op is not null && op.Kind == m.Kind && op.Date == m.Date && op.AssetId == position!.AssetId, message);
+                }
+                else
+                {
+                    var dto = JsonSerializer.Deserialize<SaveCorporateEventDto>(m.RequestPayload!);
+                    Require(dto is not null && dto.Kind == m.Kind && dto.Date == m.Date && dto.PositionId == effect.PositionId, message);
+                    Require(dto!.Quantity == (m.Kind == "bonus" ? effect.AfterQuantity - effect.BeforeQuantity : effect.AfterQuantity), message);
+                    op = new(m.Kind, m.Date, AssetId: position!.AssetId, Quantity: m.Kind == "bonus" ? dto.Quantity : 0,
+                        RatioNumerator: m.Kind == "bonus" ? 0 : effect.AfterQuantity,
+                        RatioDenominator: m.Kind == "bonus" ? 0 : effect.BeforeQuantity, Cost: dto.Cost);
+                }
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            { throw new InputValidationException(message); }
+            Require(op!.Cost == effect.AfterCost - effect.BeforeCost && m.Amount == op.Cost && op.Amount == 0 &&
+                op.UnitPrice == 0 && op.Fees == 0 && !op.CashAssetId.HasValue && !op.DestinationId.HasValue && !op.BaseAmount.HasValue, message);
+            Money(effect.BeforeCost, true); Money(effect.AfterCost, true); Money(op.Cost, true);
+            if (m.Kind == "bonus")
+            {
+                Require(op.RatioNumerator == 0 && op.RatioDenominator == 0 && op.Quantity == effect.AfterQuantity - effect.BeforeQuantity, message);
+                Quantity(op.Quantity);
+            }
+            else
+            {
+                Quantity(op.RatioNumerator); Quantity(op.RatioDenominator);
+                Require(op.Cost == 0 && op.Quantity == 0 && (m.Kind == "split" ? effect.AfterQuantity > effect.BeforeQuantity : effect.AfterQuantity < effect.BeforeQuantity), message);
+                Require(new System.Numerics.BigInteger(effect.BeforeQuantity * 1000000m) * new System.Numerics.BigInteger(op.RatioNumerator * 1000000m)
+                    == new System.Numerics.BigInteger(effect.AfterQuantity * 1000000m) * new System.Numerics.BigInteger(op.RatioDenominator * 1000000m), message);
+            }
+            return op;
+        }
+
+        private static CorrectionStep ReplayPositionAdjustment(CorrectionState s, FinancialMovement old,
+            Dictionary<int, PortfolioAsset> positions, HashSet<int> pids)
+        {
+            var message = $"O ajuste de posição #{old.Id} não contém efeitos suficientes ou seus campos não coincidem com a auditoria.";
+            Require(old.Effects.Count > 0 && old.Effects.All(e => e.PositionId.HasValue && !e.CashAssetId.HasValue)
+                && old.Effects.Select(e => e.PositionId).Distinct().Count() == old.Effects.Count
+                && old.Amount == 0 && old.Trade is null && old.IncomeReceipt is null && !s.Flows.Any(f => f.MovementId == old.Id), message);
+            var targets = old.Effects.Select(e => new PositionTarget(e.PositionId!.Value,
+                e.BeforeQuantity != e.AfterQuantity ? e.AfterQuantity : null,
+                e.BeforeCost != e.AfterCost ? e.AfterCost : null,
+                e.BeforeValue != e.AfterValue ? e.AfterValue : null,
+                e.BeforeIncome != e.AfterIncome ? e.AfterIncome : null)).ToArray();
+            if (!string.IsNullOrWhiteSpace(old.RequestPayload))
+            {
+                try
+                {
+                    using var json = JsonDocument.Parse(old.RequestPayload);
+                    if (json.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        var quotes = JsonSerializer.Deserialize<InvestmentTracker.Application.Portfolios.QuoteUpdate[]>(old.RequestPayload);
+                        Require(quotes is not null && quotes.Length == targets.Length && quotes.All(q => q is not null)
+                            && quotes.Select(q => q.PositionId).Distinct().Count() == quotes.Length, message);
+                        targets = quotes!.Select(q =>
+                        {
+                            var effect = old.Effects.SingleOrDefault(e => e.PositionId == q.PositionId);
+                            Require(effect is not null && q.ExpectedQuantity == effect.BeforeQuantity && q.ExpectedValue == effect.BeforeValue
+                                && q.CurrencyCode == s.Currencies.Single(c => c.Id == effect.CurrencyId).Code, message);
+                            return new PositionTarget(q.PositionId, null, null, null, null, q.UnitPrice, q.Source, q.QuoteDate);
+                        }).ToArray();
+                    }
+                    else if (json.RootElement.TryGetProperty("PositionTargets", out _))
+                    {
+                        var payload = JsonSerializer.Deserialize<PositionPayload>(old.RequestPayload);
+                        Require(payload?.PositionTargets is not null && payload.PositionTargets.Count == targets.Length, message);
+                        targets = payload!.PositionTargets.ToArray();
+                    }
+                    else throw new InputValidationException(message);
+                }
+                catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+                { throw new InputValidationException(message); }
+            }
+            Require(targets.All(t => t is not null) && targets.Select(t => t.PositionId).Distinct().Count() == targets.Length, message);
+            var movement = new FinancialMovement { PortfolioId = s.Portfolio.Id, RequestId = Guid.NewGuid(), Kind = old.Kind,
+                Date = old.Date, CurrencyCode = old.CurrencyCode, Description = old.Description, ReplacesMovementId = old.Id,
+                RequestPayload = JsonSerializer.Serialize(new PositionPayload(targets)) };
+            foreach (var target in targets)
+            {
+                var audit = old.Effects.SingleOrDefault(e => e.PositionId == target.PositionId)
+                    ?? throw new InputValidationException(message);
+                Require(positions.ContainsKey(target.PositionId), message);
+                Require(!target.UnitPrice.HasValue || (target.Quantity is null && target.Cost is null && target.Value is null && target.Income is null), message);
+                var auditedValue = target.UnitPrice.HasValue
+                    ? InvestmentTracker.Application.Portfolios.QuoteBatchService.CalculateValue(audit.BeforeQuantity, target.UnitPrice.Value)
+                    : target.Value ?? audit.BeforeValue;
+                Require((target.Quantity ?? audit.BeforeQuantity) == audit.AfterQuantity && (target.Cost ?? audit.BeforeCost) == audit.AfterCost
+                    && auditedValue == audit.AfterValue && (target.Income ?? audit.BeforeIncome) == audit.AfterIncome, message);
+                var p = positions[target.PositionId]; var before = Copy(p);
+                p.Quantity = target.Quantity ?? p.Quantity; p.InvestedAmount = target.Cost ?? p.InvestedAmount;
+                p.CurrentValue = target.UnitPrice.HasValue ? InvestmentTracker.Application.Portfolios.QuoteBatchService.CalculateValue(p.Quantity, target.UnitPrice.Value)
+                    : target.Value ?? p.CurrentValue;
+                p.Income = target.Income ?? p.Income;
+                Require(p.Quantity >= 0 && p.Quantity <= MaxQuantity && decimal.Round(p.Quantity, 6) == p.Quantity, message);
+                Money(p.InvestedAmount, true); Money(p.CurrentValue, true); Money(p.Income, true);
+                pids.Add(p.Id);
+                movement.Effects.Add(new MovementEffect { PositionId = p.Id, CurrencyId = audit.CurrencyId, Name = audit.Name,
+                    BeforeQuantity = before.Quantity, AfterQuantity = p.Quantity, BeforeCost = before.InvestedAmount, AfterCost = p.InvestedAmount,
+                    BeforeValue = before.CurrentValue, AfterValue = p.CurrentValue, BeforeIncome = before.Income, AfterIncome = p.Income });
+            }
+            return new(movement, []);
+        }
+
         private static decimal Equivalent(decimal amount, string currency, string target, decimal? equivalent)
         {
             if (currency == target) { Require(!equivalent.HasValue || equivalent == amount, "Na mesma moeda, o equivalente deve ser igual ao total."); return amount; }

@@ -14,6 +14,8 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
         {
             return await context.Assets
                 .AsNoTracking()
+                .Include(item => item.Country)
+                .Include(item => item.Currency)
                 .OrderBy(item => item.Ticker)
                 .ToListAsync(cancellationToken);
         }

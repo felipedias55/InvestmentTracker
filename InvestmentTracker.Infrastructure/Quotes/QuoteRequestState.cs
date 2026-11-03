@@ -19,11 +19,11 @@ namespace InvestmentTracker.Infrastructure.Quotes
     // The separate lock survives atomic replacement of the data file, including across API processes.
     internal sealed class QuoteRequestStateFile(FileStream lease, string path) : IDisposable
     {
-        public static async Task<QuoteRequestStateFile> OpenAsync(string directory, string token, CancellationToken ct)
+        public static async Task<QuoteRequestStateFile> OpenAsync(string directory, string token, CancellationToken ct, string provider = "")
         {
             Directory.CreateDirectory(directory);
             var identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-            var path = Path.Combine(directory, identity + ".json");
+            var path = Path.Combine(directory, provider + identity + ".json");
             for (var attempt = 0; ; attempt++)
             {
                 ct.ThrowIfCancellationRequested();

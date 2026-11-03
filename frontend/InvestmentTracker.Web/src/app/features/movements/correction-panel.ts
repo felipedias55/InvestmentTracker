@@ -21,6 +21,7 @@ import { ExternalAsset } from '../external-assets/external-assets.service';
 export interface CorrectionOperation {
   kind: string; date: string; assetId: number | null; cashAssetId: number | null; destinationId: number | null;
   quantity: string; unitPrice: string; fees: string; amount: string; baseAmount: string | null;
+  ratioNumerator?: string; ratioDenominator?: string; cost?: string;
 }
 export interface CorrectionInput { movementId: number | null; reason: string; operation: CorrectionOperation; }
 export interface CorrectionSimulation {
@@ -57,7 +58,8 @@ export class CorrectionPanel implements OnInit {
   readonly format = formatBrazilianNumber;
   readonly today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   readonly form = this.fb.group({ kind: ['buy'], date: [this.today, Validators.required], assetId: [0], cashAssetId: [0], destinationId: [0],
-    quantity: ['0'], unitPrice: ['0'], fees: ['0'], amount: ['0'], baseAmount: [''], reason: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(400)]] });
+    quantity: ['0'], unitPrice: ['0'], fees: ['0'], amount: ['0'], ratioNumerator: ['0'], ratioDenominator: ['0'], cost: ['0'],
+    baseAmount: [''], reason: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(400)]] });
   constructor() {
     for (const field of ['kind', 'date', 'assetId', 'quantity', 'unitPrice', 'fees', 'amount'] as const) {
       (this.form.controls[field].valueChanges as Observable<unknown>).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.form.controls.baseAmount.setValue('', { emitEvent: false }));
@@ -76,30 +78,38 @@ export class CorrectionPanel implements OnInit {
         next: ({ assets, draft }) => {
           this.assets.set(assets);
           if (draft) this.form.patchValue({ ...draft, assetId: draft.assetId ?? 0, cashAssetId: draft.cashAssetId ?? 0, destinationId: draft.destinationId ?? 0,
-            quantity: this.format(draft.quantity), unitPrice: this.format(draft.unitPrice), fees: this.format(draft.fees), amount: this.format(draft.amount), baseAmount: draft.baseAmount === null ? '' : this.format(draft.baseAmount) });
+            quantity: this.format(draft.quantity), unitPrice: this.format(draft.unitPrice), fees: this.format(draft.fees), amount: this.format(draft.amount),
+            ratioNumerator: this.format(draft.ratioNumerator ?? '0'), ratioDenominator: this.format(draft.ratioDenominator ?? '0'), cost: this.format(draft.cost ?? '0'),
+            baseAmount: draft.baseAmount === null ? '' : this.format(draft.baseAmount) });
           this.loading.set(false);
         }, error: e => { this.loading.set(false); this.error.set(apiError(e)); },
       });
   }
   isTrade() { return ['buy', 'sell'].includes(this.form.controls.kind.value); }
-  usesAsset() { return this.isTrade() || this.form.controls.kind.value === 'income'; }
+  isEvent() { return ['split', 'reverse-split', 'bonus'].includes(this.form.controls.kind.value); }
+  usesRatio() { return ['split', 'reverse-split'].includes(this.form.controls.kind.value); }
+  usesAsset() { return this.isTrade() || this.isEvent() || this.form.controls.kind.value === 'income'; }
   needsEquivalent() { return this.form.controls.kind.value === 'income' || (this.isTrade() && !this.form.controls.cashAssetId.value) || ['deposit', 'withdrawal'].includes(this.form.controls.kind.value); }
   simulate() {
     if (this.loading() || this.applying() || this.simulating() || this.form.invalid) { this.form.markAllAsTouched(); return; }
     const v = this.form.getRawValue();
-    const fields: ('quantity' | 'unitPrice' | 'fees' | 'amount' | 'baseAmount')[] = this.isTrade() ? ['quantity', 'unitPrice', 'fees'] : ['amount'];
+    const fields: ('quantity' | 'unitPrice' | 'fees' | 'amount' | 'baseAmount' | 'ratioNumerator' | 'ratioDenominator' | 'cost')[] = this.isTrade() ? ['quantity', 'unitPrice', 'fees']
+      : this.usesRatio() ? ['ratioNumerator', 'ratioDenominator'] : this.isEvent() ? ['quantity', 'cost'] : ['amount'];
     if (this.needsEquivalent() && v.baseAmount.trim()) fields.push('baseAmount');
-    if (fields.some(f => !!brazilianNumberValidator(f === 'quantity' ? 13 : 15, f === 'quantity' ? 6 : 4)(this.form.controls[f]))) {
+    if (fields.some(f => { const quantity = ['quantity', 'ratioNumerator', 'ratioDenominator'].includes(f);
+      return !!brazilianNumberValidator(quantity ? 13 : 15, quantity ? 6 : 4)(this.form.controls[f]); })) {
       this.error.set('Use valores no padrão brasileiro; quantidade com até 6 decimais e valores com até 4.'); return;
     }
     if ((this.usesAsset() && !v.assetId) || (!this.usesAsset() && !v.cashAssetId) || (v.kind === 'transfer' && !v.destinationId)) {
       this.error.set('Selecione o ativo e os saldos envolvidos na operação.'); return;
     }
     const input: CorrectionInput = { movementId: this.movementId, reason: v.reason.trim(), operation: {
-      kind: v.kind, date: v.date, assetId: this.usesAsset() ? Number(v.assetId) : null, cashAssetId: Number(v.cashAssetId) || null,
+      kind: v.kind, date: v.date, assetId: this.usesAsset() ? Number(v.assetId) : null, cashAssetId: this.isEvent() ? null : Number(v.cashAssetId) || null,
       destinationId: v.kind === 'transfer' ? Number(v.destinationId) : null,
-      quantity: this.isTrade() ? parseBrazilianNumber(v.quantity) : '0', unitPrice: this.isTrade() ? parseBrazilianNumber(v.unitPrice) : '0',
-      fees: this.isTrade() ? parseBrazilianNumber(v.fees) : '0', amount: this.isTrade() ? '0' : parseBrazilianNumber(v.amount),
+      quantity: this.isTrade() || v.kind === 'bonus' ? parseBrazilianNumber(v.quantity) : '0', unitPrice: this.isTrade() ? parseBrazilianNumber(v.unitPrice) : '0',
+      fees: this.isTrade() ? parseBrazilianNumber(v.fees) : '0', amount: this.isTrade() || this.isEvent() ? '0' : parseBrazilianNumber(v.amount),
+      ratioNumerator: this.usesRatio() ? parseBrazilianNumber(v.ratioNumerator) : '0',
+      ratioDenominator: this.usesRatio() ? parseBrazilianNumber(v.ratioDenominator) : '0', cost: v.kind === 'bonus' ? parseBrazilianNumber(v.cost) : '0',
       baseAmount: this.needsEquivalent() && v.baseAmount.trim() ? parseBrazilianNumber(v.baseAmount) : null,
     } };
     this.error.set(''); this.result.set(null); this.accepted.set(false); this.simulating.set(true);

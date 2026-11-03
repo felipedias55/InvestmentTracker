@@ -6,6 +6,7 @@ using InvestmentTracker.Application.Portfolios.Interfaces;
 namespace InvestmentTracker.Application.Quotes
 {
     public sealed record AssetQuoteRequest(IReadOnlyList<int> PositionIds);
+    public sealed record QuoteUsage(int Attempts, int Limit, int WindowDays);
     public sealed record AssetQuote(string Provider, string Symbol, string Currency,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal? Price,
         DateOnly? Date, string Status, string Message)
@@ -15,6 +16,7 @@ namespace InvestmentTracker.Application.Quotes
         public bool FromCache { get; init; }
         public bool Requested { get; init; }
         public DateTimeOffset? RetryAfter { get; init; }
+        public QuoteUsage? Usage { get; init; }
     }
     public sealed record PositionQuote(int PositionId, AssetQuote Quote);
     public interface IAssetQuoteProvider

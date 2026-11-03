@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
+using InvestmentTracker.Domain.Entities;
 using InvestmentTracker.Application.Allocation.Dtos;
 using InvestmentTracker.Application.Portfolios.Dtos;
 using InvestmentTracker.Application.Common.Exceptions;
@@ -41,13 +41,12 @@ namespace InvestmentTracker.Application.Allocation.Services
                 }
                 return new ContributionCurrencyDto(group.Key, converted, rate,
                     string.Join(", ", group.Where(p => p.RateDate.HasValue).Select(p => p.RateDate!.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Distinct()),
-                    group.Any(p => p.IsStale || p.IsFallback));
+                    group.Any(p => p.IsStale || p.IsFallback))
+                    { Tickers = group.Select(p => p.Ticker).Distinct().Order(StringComparer.Ordinal).ToArray() };
             }).ToList();
 
         public static bool IsEligible(PositionDto p)
-            => p.Quantity > 0 && (!Regex.IsMatch($"{p.AssetCategoryName} {p.AssetTypeName}",
-                @"\b(fii|fiis|reit|reits)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
-                || Regex.IsMatch(p.SectorName, "imobili|real estate", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+            => p.Quantity > 0 && InstrumentClasses.CanReceiveContribution(p.InstrumentClass, p.IsRealEstateSector);
         public static ContributionJointPlanDto Build(ContributionAnalysisDto category, ContributionAnalysisDto sector, IReadOnlyList<PositionDto> positions)
         {
             var cats = category.Rows.OrderBy(r => r.GroupId).ToList();
@@ -93,9 +92,10 @@ namespace InvestmentTracker.Application.Allocation.Services
                     var value = capacity[cats.Count + j + 1, i + 1] / 100m;
                     if (value <= 0) continue;
                     rows.Add(new($"{cats[i].GroupId}-{sectors[j].GroupId}", cats[i].Name, sectors[j].Name, value,
-                        CurrencyOptions(value, eligible.Where(p => p.AssetCategoryId == cats[i].GroupId && p.SectorId == sectors[j].GroupId), category.CurrencyCode)));
+                        CurrencyOptions(value, eligible.Where(p => p.AssetCategoryId == cats[i].GroupId && p.SectorId == sectors[j].GroupId), category.CurrencyCode))
+                        { CategoryId = cats[i].GroupId, SectorId = sectors[j].GroupId });
                 }
-            return new(rows, category.Amount - allocated / 100m);
+            return ContributionSuggestionCalculator.Enrich(new(rows, category.Amount - allocated / 100m), []);
         }
     }
 }

@@ -47,8 +47,10 @@ namespace InvestmentTracker.Application
             services.AddScoped<IPortfolioService, PortfolioService>();
             services.AddScoped<InvestmentTracker.Application.Portfolios.QuoteBatchService>();
             services.AddScoped<InvestmentTracker.Application.Quotes.AssetQuoteService>();
+            services.AddScoped<InvestmentTracker.Application.Quotes.QuoteCoverageService>();
 
             services.AddScoped<IAllocationService, AllocationService>();
+            services.AddScoped<InvestmentTracker.Application.Allocation.Tracking.ContributionTrackingService>();
             services.AddScoped<IExternalAssetService, ExternalAssetService>();
             services.AddScoped<IHistoryService, HistoryService>();
             services.AddScoped<InvestmentTracker.Application.Trades.ITradeService, InvestmentTracker.Application.Trades.TradeService>();

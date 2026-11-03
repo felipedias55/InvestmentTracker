@@ -118,7 +118,7 @@ export class MovementsPage {
   readonly executionSourceId = signal<number | null>(null);
   openExecution(m: Movement | null = null) { this.closeDetail(); this.executionSourceId.set(m?.id ?? null); this.executionOpen.set(true); }
   corrected(id: number) { this.executionOpen.set(false); this.success.set(`Correção #${id} aplicada. Saldos e histórico atualizados; confira as fotografias sinalizadas.`); this.load(); }
-  canCorrect(m: Movement) { return !m.reversedById && !m.reversalOfId && ['buy', 'sell', 'income', 'deposit', 'withdrawal', 'transfer', 'adjustment'].includes(m.kind); }
+  canCorrect(m: Movement) { return !m.reversedById && !m.reversalOfId && ['buy', 'sell', 'income', 'deposit', 'withdrawal', 'transfer', 'adjustment', 'split', 'reverse-split', 'bonus'].includes(m.kind); }
   readonly previewOpen = signal(false);
   readonly previewSource = signal<Movement | null>(null);
   readonly preview = signal<CorrectionPreview | null>(null);

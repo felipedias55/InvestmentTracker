@@ -11,7 +11,9 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<AssetType> builder)
         {
-            builder.ToTable("AssetType");
+            builder.ToTable("AssetType", table => table.HasCheckConstraint("CK_AssetType_InstrumentClass",
+                "[InstrumentClass] IN ('general', 'fii', 'reit', 'unclassified')"));
+            builder.Property(x => x.InstrumentClass).HasMaxLength(20).IsRequired().HasDefaultValue(InstrumentClasses.Unclassified);
 
             builder.HasKey(x => x.Id);
 

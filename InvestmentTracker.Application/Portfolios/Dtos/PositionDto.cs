@@ -32,6 +32,8 @@ namespace InvestmentTracker.Application.Portfolios.Dtos
         public DateOnly? UpdatedOn { get; init; }
         public int AssetTypeId { get; init; }
         public string AssetTypeName { get; init; } = string.Empty;
+        public string InstrumentClass { get; init; } = "general";
+        public bool IsRealEstateSector { get; init; }
         public int AssetCategoryId { get; init; }
         public string AssetCategoryName { get; init; } = string.Empty;
         public int SectorId { get; init; }

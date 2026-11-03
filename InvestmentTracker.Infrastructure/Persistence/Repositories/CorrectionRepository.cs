@@ -15,12 +15,14 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
         private sealed record Receipt(CorrectionInput Input, string Token, CorrectionSimulationDto Result);
         public async Task<CorrectionOperation?> DraftAsync(int portfolioId, int movementId, CancellationToken ct)
         {
-            var m = await db.Set<FinancialMovement>().AsNoTracking().Include(x => x.Trade).Include(x => x.IncomeReceipt)
+            var m = await db.Set<FinancialMovement>().AsNoTracking().Include(x => x.Effects).Include(x => x.Trade).Include(x => x.IncomeReceipt)
                 .SingleOrDefaultAsync(x => x.PortfolioId == portfolioId && x.Id == movementId, ct);
             if (m is null) return null;
             if (await db.Set<FinancialMovement>().AnyAsync(x => x.ReversalOfId == m.Id, ct)) throw new InputValidationException("O lançamento já foi estornado. Selecione seu substituto no histórico.");
             var flows = await db.PortfolioCashFlows.AsNoTracking().Where(x => x.MovementId == m.Id).ToListAsync(ct);
-            var op = CorrectionCalculator.ReadOperation(m, flows);
+            if (m.Kind == "position-adjustment") throw new InputValidationException("Ajustes de posição são reaplicados nas cadeias. Para alterar seus valores, use a edição da posição e confira os impactos.");
+            var positions = await db.PortfolioAssets.AsNoTracking().Where(x => x.PortfolioId == portfolioId).ToListAsync(ct);
+            var op = CorrectionCalculator.ReadOperation(m, flows, positions);
             var currency = await db.Portfolios.Where(x => x.Id == portfolioId).Select(x => x.BaseCurrency.Code).SingleAsync(ct);
             if (m.CurrencyCode == currency) op = op with { BaseAmount = null };
             else if (flows.Any(f => f.BaseCurrencyCode != currency)) op = op with { BaseAmount = null };

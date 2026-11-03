@@ -4,5 +4,5 @@ using System.Text;
 
 namespace InvestmentTracker.Application.AssetTypes.Dtos
 {
-    public sealed record CreateAssetTypeDto(string Name);
+    public sealed record CreateAssetTypeDto(string Name, string InstrumentClass = "general");
 }

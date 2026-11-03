@@ -5,11 +5,15 @@ export interface CatalogItem {
   name: string;
   code?: string;
   symbol?: string | null;
+  instrumentClass?: string;
+  isRealEstate?: boolean;
 }
 export interface CatalogInput {
   name: string;
   code?: string;
   symbol?: string | null;
+  instrumentClass?: string;
+  isRealEstate?: boolean;
 }
 export const catalogs: { key: CatalogKey; label: string; singular: string; description: string }[] =
   [

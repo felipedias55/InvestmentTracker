@@ -27,9 +27,18 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
                 .Select(r => (int?)r.Revision).MaxAsync(ct) ?? 0;
             if (revision != request.ExpectedRevision)
                 throw new ResourceConflictException("A estratégia mudou em outra sessão. Recarregue antes de salvar.");
-            var ids = request.Config.Rules.Select(r => r.CategoryId).Concat(request.Config.ExcludedCategoryIds).Distinct().ToList();
+            var combinations = request.Config.ExcludedCombinations ?? [];
+            var limits = request.Config.ConcentrationLimits ?? [];
+            var preferences = request.Config.GroupPreferences ?? [];
+            var ids = request.Config.Rules.Select(r => r.CategoryId).Concat(request.Config.ExcludedCategoryIds)
+                .Concat(combinations.Select(g => g.CategoryId)).Concat(limits.Where(l => l.Dimension == "category").Select(l => l.GroupId))
+                .Concat(preferences.Select(p => p.CategoryId)).Distinct().ToList();
             if (await db.AssetCategories.CountAsync(c => ids.Contains(c.Id), ct) != ids.Count)
                 throw new InputValidationException("Categoria inexistente na estratégia.");
+            var sectors = combinations.Select(g => g.SectorId).Concat(limits.Where(l => l.Dimension == "sector").Select(l => l.GroupId))
+                .Concat(preferences.Select(p => p.SectorId)).Distinct().ToList();
+            if (await db.Sectors.CountAsync(s => sectors.Contains(s.Id), ct) != sectors.Count)
+                throw new InputValidationException("Setor inexistente na estratégia.");
             var row = new PortfolioStrategyRevision { PortfolioId = portfolioId, ProfileId = request.ProfileId, Revision = revision + 1,
                 CreatedAtUtc = clock.GetUtcNow().UtcDateTime, ConfigurationJson = JsonSerializer.Serialize(request.Config) };
             db.Add(row);

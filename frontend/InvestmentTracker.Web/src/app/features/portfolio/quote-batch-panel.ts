@@ -15,7 +15,8 @@ import { apiError } from '../../core/services/api-error';
 import { Position } from './portfolio.service';
 
 interface QuoteInfo { provider: string; date: string | null; price: string | null; message: string; marketTime?: string | null; retrievedAt?: string | null;
-  requested?: boolean; fromCache?: boolean; retryAfter?: string | null; status?: string; }
+  requested?: boolean; fromCache?: boolean; retryAfter?: string | null; status?: string;
+  usage?: { attempts: number; limit: number; windowDays: number } | null; }
 
 
 // Quantities have six decimals, prices four. Round the total to four with banker's rounding, as in C# decimal.
@@ -156,6 +157,7 @@ export class QuoteBatchPanel {
       quote.marketTime ? 'Horário de mercado: ' + instant(quote.marketTime) : 'Fechamento: ' + date + ' · horário não fornecido pelo provedor',
       quote.retrievedAt ? 'Consulta ao provedor: ' + instant(quote.retrievedAt) : 'Horário da consulta não disponível',
       quote.message,
+      ...(quote.usage ? [`Proteção local: ${quote.usage.attempts}/${quote.usage.limit} tentativas em ${quote.usage.windowDays} dias; não é o extrato oficial do provedor.`] : []),
       quote.fromCache ? 'Reutilizada do cache, sem consumir nova consulta.' : 'Consultada no provedor.',
       'O valor só é salvo na carteira após confirmar o lote.'
     ].join('\n');

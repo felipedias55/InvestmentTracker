@@ -80,6 +80,8 @@ namespace InvestmentTracker.Application.Portfolios.Services
                     UpdatedOn = p.UpdatedOn, Income = p.Income, BaseIncome = quote is null ? null : p.Income * quote.Rate,
                     PricePerformance = PositionPricePerformance.Calculate(p.Quantity, p.InvestedAmount, p.CurrentValue),
                     AssetTypeId = p.Asset.AssetTypeId, AssetTypeName = p.Asset.AssetType?.Name ?? string.Empty,
+                    InstrumentClass = p.Asset.AssetType?.InstrumentClass ?? InstrumentClasses.Unclassified,
+                    IsRealEstateSector = p.Asset.Sector?.IsRealEstate ?? false,
                     AssetCategoryId = p.Asset.AssetCategoryId, AssetCategoryName = p.Asset.AssetCategory?.Name ?? string.Empty,
                     SectorId = p.Asset.SectorId, SectorName = p.Asset.Sector?.Name ?? string.Empty,
                     CountryId = p.Asset.CountryId, CountryName = p.Asset.Country?.Name ?? string.Empty

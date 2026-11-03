@@ -40,6 +40,9 @@ namespace InvestmentTracker.Application.AssetTypes.Services
         {
             var name = ValidateName(dto.Name);
 
+            if (!InstrumentClasses.IsValid(dto.InstrumentClass))
+                throw new AssetTypeValidationException("Selecione uma classificação de instrumento válida.");
+
             var exists = await repository.ExistsByNameAsync(
                 name,
                 cancellationToken: cancellationToken);
@@ -52,7 +55,7 @@ namespace InvestmentTracker.Application.AssetTypes.Services
 
             var assetType = new AssetType
             {
-                Name = name
+                Name = name, InstrumentClass = dto.InstrumentClass
             };
 
             await repository.AddAsync(
@@ -71,6 +74,8 @@ namespace InvestmentTracker.Application.AssetTypes.Services
             CancellationToken cancellationToken = default)
         {
             var name = ValidateName(dto.Name);
+            if (dto.InstrumentClass is not null && !InstrumentClasses.IsValid(dto.InstrumentClass))
+                throw new AssetTypeValidationException("Selecione uma classificação de instrumento válida.");
 
             var assetType = await repository.GetByIdAsync(
                 id,
@@ -93,6 +98,10 @@ namespace InvestmentTracker.Application.AssetTypes.Services
             }
 
             assetType.Name = name;
+            if (dto.InstrumentClass is not null)
+            {
+                assetType.InstrumentClass = dto.InstrumentClass;
+            }
 
             await repository.SaveChangesAsync(
                 cancellationToken);
@@ -145,7 +154,7 @@ namespace InvestmentTracker.Application.AssetTypes.Services
         {
             return new AssetTypeDto(
                 assetType.Id,
-                assetType.Name);
+                assetType.Name, assetType.InstrumentClass);
         }
     }
 }

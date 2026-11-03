@@ -1,4 +1,6 @@
 import { SectionLink } from '../../shared/section-link';
+import { ContributionTracking } from './contribution-tracking';
+import { TrackingSimulation } from './contribution-tracking.service';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -15,7 +17,7 @@ import { Subscription } from 'rxjs';
 import { AllocationTable } from './allocation-table';
 
 import { PortfolioPicker } from '../../shared/portfolio-picker';
-import { AllocationService, Contribution, Dashboard, JointPlan } from './allocation.service';
+import { AllocationService, ConcentrationStatus, Contribution, Dashboard, JointPlan, RuleFunding } from './allocation.service';
 import { apiError } from '../../core/services/api-error';
 import {
   brazilianNumberValidator,
@@ -31,7 +33,7 @@ import {
     ReactiveFormsModule,
 
     PercentPipe,
-    RouterLink,
+    RouterLink, ContributionTracking,
   ],
   templateUrl: './contributions-page.html',
   styleUrl: './contributions-page.css',
@@ -47,11 +49,15 @@ export class ContributionsPage {
   readonly sectorResult = signal<Contribution | null>(null);
   readonly checked = signal(new Set<string>());
   readonly plan = signal<JointPlan | null>(null);
+  readonly trackingSimulation = signal<TrackingSimulation | null>(null);
   readonly analyses = computed(() => [this.result(), this.sectorResult()].filter((r): r is Contribution => r !== null));
   private simulation?: Subscription;
   private version = 0;
   reset() {
+    this.trackingSimulation.set(null);
     this.strategyNotes.set([]); this.eligibleBase.set(null);
+    this.concentration.set([]);
+    this.prioritiesApplied.set(false); this.ruleFunding.set([]);
     this.version++;
     this.simulation?.unsubscribe();
     this.saving.set(false);
@@ -64,6 +70,9 @@ export class ContributionsPage {
   readonly strategyValid = signal(true);
   readonly strategyNotes = signal<string[]>([]);
   readonly eligibleBase = signal<string | null>(null);
+  readonly concentration = signal<ConcentrationStatus[]>([]);
+  readonly prioritiesApplied = signal(false); readonly ruleFunding = signal<RuleFunding[]>([]);
+  readonly format = formatBrazilianNumber;
   strategyChanged(value: { config: StrategyConfig | null; valid: boolean }) { this.strategy.set(value.config); this.strategyValid.set(value.valid); this.reset(); }
   readonly loading = signal(false);
   readonly saving = signal(false);
@@ -120,9 +129,12 @@ export class ContributionsPage {
         next: response => {
           if (version !== this.version) return;
           this.strategyNotes.set(response.strategyNotes ?? []); this.eligibleBase.set(response.eligibleBase ?? null);
+          this.concentration.set(response.concentration ?? []);
+          this.prioritiesApplied.set(response.prioritiesApplied ?? false); this.ruleFunding.set(response.ruleFunding ?? []);
           this.dashboard.set(response.dashboard);
           this.result.set(response.category); this.sectorResult.set(response.sector);
           this.plan.set(response.plan); this.saving.set(false);
+          this.trackingSimulation.set(response.plan && response.planToken ? { simulation: this.strategy() ? { amount, strategy: this.strategy()! } : { amount }, expectedToken: response.planToken } : null);
         },
         error: e => { if (version === this.version) { this.error.set(apiError(e)); this.saving.set(false); } }
       });

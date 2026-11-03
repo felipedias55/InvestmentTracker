@@ -16,7 +16,20 @@ O diagnóstico **não executa correções** nem grava movimentos. Para calcular 
 4. Clique em **Simular correção**. Confira as quantidades, custos, valores e proventos antes/depois, as fotografias afetadas e os avisos. Uma simulação bloqueada informa a causa e não oferece confirmação.
 5. Marque que conferiu os impactos e clique em **Confirmar correção**. O sistema revalida a simulação e aplica o lote inteiro em uma transação.
 
-São suportadas compras, vendas, recebimentos de proventos, depósitos, retiradas, transferências na mesma moeda e ajustes de saldo. Uma compra pode criar a posição de um ativo já cadastrado. Ajustes absolutos preservam o total informado pelo ajuste, não a diferença antiga; a simulação avisa quando isso ocorre.
+São suportadas compras, vendas, recebimentos de proventos, depósitos, retiradas, transferências na mesma moeda, ajustes de saldo e, desde 28/10/2026, desdobramentos, grupamentos e bonificações auditados. Uma compra pode criar a posição de um ativo já cadastrado. Ajustes absolutos preservam o total informado pelo ajuste, não a diferença antiga; a simulação avisa quando isso ocorre.
+
+### Eventos societários e ajustes posteriores
+
+Para inserir um evento atrasado, selecione **Desdobramento**, **Grupamento** ou **Bonificação** no mesmo painel Material de correção. Eventos ativos também oferecem **Corrigir #N** nos detalhes do histórico.
+
+- Desdobramento/grupamento: informe **Novas unidades** e **Unidades antigas de referência**, conforme o comunicado. Por exemplo, 2 e 1 significam duas novas unidades para cada antiga. O backend aplica a proporção à quantidade reconstruída na data, preservando custo total, valor de mercado e proventos. A direção precisa coincidir com o tipo do evento.
+- Eventos antigos gravados com quantidade final só são reaplicados quando payload e efeitos auditados são consistentes. A proporção é recuperada das quantidades antes/depois e aparece nos avisos da simulação para conferência. Eventos substitutos passam a guardar a proporção explícita.
+- Bonificação: informe a quantidade adicional e o custo total adicional na moeda do ativo. Não há criação de saldo em dinheiro nem de provento. Nos relançamentos, preservam-se esses valores declarados, sem presumir uma porcentagem ausente do registro original.
+- Frações que excedam seis decimais, quantidade acima do limite, proporção inválida ou auditoria incompatível bloqueiam a simulação inteira. Cálculos de proporção usam inteiros escalados, evitando arredondamento silencioso. Não há tratamento automático de leilão/liquidação de frações, impostos ou novos tipos de evento.
+
+A cadeia também pode atravessar ajustes auditados de posição e cotações em lote, inclusive de várias posições. Ajustes manuais mantêm como totais os campos que alteraram originalmente; campos não alterados acompanham o recálculo. Cotações em lote mantêm o **preço unitário confirmado**, a identificação de origem disponível e recalculam o valor pela nova quantidade com a regra de arredondamento já utilizada nas cotações. Os dados de intenção são preservados no payload dos substitutos para correções posteriores, inclusive se um ajuste se tornar numericamente neutro.
+
+O ajuste de posição não virou um novo formulário de edição retroativa: a alteração direta continua na Carteira. Nesta entrega ele é suportado como etapa da cadeia, enquanto eventos podem ser inseridos e corrigidos no painel. Registros sem efeitos suficientes, payload de cotação incompatível, referências removidas e saldos iniciais continuam exigindo conferência manual.
 
 Originais permanecem imutáveis. O lote registra motivo e instante de execução, estornos vinculados aos originais e novos lançamentos vinculados ao lote e aos registros substituídos. Não é necessário executar estornos manualmente para os casos suportados.
 
@@ -30,7 +43,7 @@ Os períodos afetados são reabertos e as fotografias marcadas como desatualizad
 - A aplicação usa o mesmo bloqueio de carteira das operações normais e transação serializável. Uma falha intermediária desfaz todo o lote. Repetir a mesma solicitação após falha de rede retorna o resultado anterior sem duplicar operações; reutilizar o identificador com outros dados é recusado.
 - A cadeia é desfeita pela ordem inversa de registro e reaplicada por data e ordem original. Um novo lançamento entra antes dos existentes na mesma data, pois não existe horário efetivo das operações.
 - Vendas sem quantidade disponível, saídas sem saldo, excesso de precisão/limites numéricos, referências removidas ou de outra carteira e divergência entre saldos atuais e efeitos auditados bloqueiam a aplicação.
-- Saldos iniciais, ajustes de posição, eventos societários e registros legados sem efeitos suficientes não são reinterpretados automaticamente. Se entrarem na cadeia afetada, o sistema pede conferência manual. Proporções de desdobramento/grupamento e a intenção de ajustes de posição precisam ser definidas antes de automatizar esses casos.
+- Saldos iniciais e registros legados sem efeitos suficientes não são reinterpretados automaticamente. Eventos e ajustes de posição só são reaplicados com os dados e a auditoria compatíveis descritos acima. Uma cadeia bloqueada não gera aplicação parcial nem valores presumidos para completar histórico ausente.
 - Operações já estornadas não podem ser corrigidas novamente; selecione o substituto ativo. O cabeçalho do lote não possui um estorno próprio.
 - Equivalentes dos fluxos e versões de conversão dos proventos reaplicados são preservados. A operação corrigida usa os dados confirmados pelo usuário. Uma mudança de moeda-base pode exigir informar outro equivalente.
 - A reconstituição parte dos efeitos auditados disponíveis. Preços atuais seguem a mesma regra das operações normais (último preço de operação na sequência recalculada); não há busca de cotações históricas nem cálculo de impostos.
@@ -59,7 +72,19 @@ Endpoints da execução:
 
 `CorrectionCalculator` em Application calcula um plano em memória sem alterar entidades de origem. `CorrectionRepository` em Infrastructure lê o estado consistente, verifica idempotência/concorrência e persiste o plano. A migration `20261003002303_AuditableCorrectionLinks` adiciona `CorrectionId` e `ReplacesMovementId` em FinancialMovement; registros antigos recebem nulo. O downgrade é bloqueado quando já há correções auditadas.
 
+A ampliação de 28/10/2026 mantém essa divisão e os mesmos endpoints. `CorrectionOperation` recebeu `ratioNumerator`, `ratioDenominator` e `cost` (decimais transmitidos como strings). Novos payloads auditáveis registram proporções de eventos e os campos/preços que os ajustes devem preservar. Não há alteração de schema nem nova migration nesta ampliação.
+
 Antes de atualizar outra instalação, gere backup e aplique migrations conforme [datas e backup](datas-e-backup.md).
+
+## Validação da ampliação em 28/10/2026
+
+**611 testes aprovados:** 233 unitários C#, 169 de integração, 133 Angular, 64 de apresentação e 12 E2E. Lint, formatação de configurações e build Angular aprovados; pacote inicial mantido em 455,77 kB, abaixo do limite de 500 kB.
+
+Novos testes cobrem proporções, direção do evento, frações incompatíveis, bonificações, payload de evento inconsistente, ajustes manuais versus preço unitário e preservação da intenção em correções sucessivas. A integração exercita compra, desdobramento, venda e cotação de várias posições, confirma idempotência e imutabilidade das fotografias e permite corrigir novamente o evento substituto. Os três eventos atrasados foram testados sem criação indevida de dinheiro, proventos ou fluxos.
+
+O E2E real foi ampliado para inserir um desdobramento atrasado e corrigir sua proporção pela interface, em desktop e celular emulado. Quatro cenários adicionais de apresentação verificam formulário Material, campos condicionais, confirmação, ausência de rolagem horizontal e bloqueios em claro/escuro e desktop/celular. Imagens foram conferidas em celular claro e desktop escuro. Os cálculos permanecem em Application; Angular apresenta o formulário e os impactos retornados pelo backend.
+
+Integração e E2E utilizaram bancos temporários; a base E2E foi removida ao concluir. Nenhuma correção foi aplicada à carteira pessoal, e esta ampliação não exige migration.
 
 ## Validação da primeira etapa em 02/10/2026
 

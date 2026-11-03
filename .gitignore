@@ -96,6 +96,7 @@ Thumbs.db
 
 *.tmp
 *.temp
+local-reports/
 *.swp
 *.swo
 *~

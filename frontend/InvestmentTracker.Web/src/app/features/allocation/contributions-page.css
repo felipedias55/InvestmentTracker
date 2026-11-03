@@ -16,3 +16,4 @@ fieldset { min-width:0; }
 summary { cursor:pointer; color:var(--primary, #315e99); }
 .joint-plan details { margin:16px 0; }
 mat-checkbox.check { display:block; }
+.currency-direction, .priority-result { overflow-wrap:anywhere; }

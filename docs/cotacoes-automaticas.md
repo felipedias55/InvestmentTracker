@@ -57,9 +57,33 @@ Se alterar manualmente um preço consultado, sua identificação de fonte/data �
 - Fonte/data do preço confirmado seguem no RequestPayload da movimentação auditável existente. São contexto do preenchimento confirmado, não uma assinatura criptográfica do provedor.
 - A aplicação usa a mesma transação, idempotência e checagem de concorrência das cotações manuais. Fotografias afetadas seguem as regras existentes.
 
+## Mapeamento explícito de símbolos
+
+Implementado em 28/10/2026. Quando o código usado pelo provedor difere do ticker cadastrado, é possível configurar uma correspondência local por mercado, sem alterar o cadastro ou o histórico:
+
+```powershell
+dotnet user-secrets set "Quotes:Symbols:US:TICKER_CADASTRADO" "SIMBOLO_DO_PROVEDOR" --project InvestmentTracker.Api
+```
+
+O comando é um modelo: substitua ambos os códigos por símbolos conferidos do **mesmo instrumento, classe e mercado**. Para Brasil, use `BR` no lugar de `US`. Reinicie a API após configurar. Para remover uma correspondência, use `dotnet user-secrets remove "Quotes:Symbols:US:TICKER_CADASTRADO" --project InvestmentTracker.Api` e reinicie.
+
+Não há correspondências predefinidas, busca por semelhança, conversão automática de ponto/hífen nem migração automática de tickers antigos. Renomes decorrentes de eventos societários exigem conferir o cadastro e o histórico; o mapeamento não reconstrói eventos. A configuração não comprova equivalência econômica entre dois códigos.
+
+Sem mapeamento, o ticker cadastrado continua sendo enviado diretamente. Com mapeamento, a resposta externa deve coincidir exatamente com o símbolo configurado; a brapi continua recusando `changed: true`. A resposta interna mantém o ticker cadastrado para a validação da posição, e a mensagem de revisão informa os dois símbolos. País, moeda, preço e data continuam com as mesmas validações.
+
+O símbolo configurado aceita letras maiúsculas, números, ponto e hífen, até 20 caracteres. Configuração vazia ou inválida retorna `invalid-mapping` antes de acessar a rede ou consumir a proteção local de consultas. O cache usa o símbolo efetivamente consultado: alterar a correspondência não reutiliza o preço do símbolo anterior. Correspondências para o mesmo símbolo compartilham o cache e o controle de consumo existentes.
+
+A cobertura real ainda depende do instrumento e do plano do provedor. Consulte os motivos retornados no painel e confirme o símbolo na [documentação Alpha Vantage](https://www.alphavantage.co/documentation/#symbolsearch) ou no [catálogo/documentação brapi](https://brapi.dev/docs/acoes/cotacao). Esta entrega foi validada com HTTP simulado, sem consumir franquias reais; não certifica cobertura de todos os ativos da carteira.
+
+Validação local de 28/10/2026: 159 testes de integração aprovados, incluindo sete novos casos de mapeamento (EUA/Brasil, cache compartilhado, alteração de destino, configuração inválida e símbolo retornado incompatível). Nenhuma configuração de correspondência foi aplicada à carteira pessoal.
+
 ## Cache e consumo
 
-Atualizado em 20/10/2026. Há um coordenador único por processo da API, com consultas sequenciais. A brapi mantém resultados em memória por 30 minutos e falhas por dois minutos. Na Alpha Vantage, cotações ficam em cache persistente por 12 horas; avisos e falhas não são confundidos com cotações.
+Atualizado em 28/10/2026. Há um coordenador único por processo da API, com consultas sequenciais. A brapi mantém resultados em cache persistente por 30 minutos e falhas por dois minutos. HTTP 429 é registrado como pausa por chave, respeitando `Retry-After`, inclusive entre reinícios e para outros símbolos; não é tratado como falha isolada de um ticker. Na Alpha Vantage, cotações ficam em cache persistente por 12 horas; avisos e falhas não são confundidos com cotações.
+
+A brapi utiliza arquivos `brapi-<hash-da-chave>.json` na mesma pasta de estado, separados dos arquivos existentes da Alpha Vantage, que são preservados. O bloqueio de arquivo e a escrita atômica também se aplicam à brapi. O cache preserva os horários originais de mercado e consulta; cache vencido não é oferecido como alternativa em falhas. Falhas de acesso ou arquivo inválido interrompem a consulta com `state-unavailable`. Não há migration nem configuração adicional para habilitar a persistência.
+
+Validação local: 163 testes de integração aprovados, dos quais 27 exercitam os provedores com HTTP simulado. Os novos casos verificam reinício, expiração, horários preservados, pausas entre símbolos, cache curto de falhas, estado corrompido e separação entre provedores. Nenhuma franquia real foi consumida. A interpretação do HTTP 429 segue a [documentação de erros da brapi](https://brapi.dev/docs/troubleshooting), sem presumir que toda resposta 429 signifique esgotamento mensal.
 
 Alpha Vantage possui proteção local de **25 tentativas em uma janela móvel de 24 horas**, por chave. Essa janela conservadora não presume o horário de renovação do provedor. Tentativas são salvas antes do envio, inclusive quando a conexão falha ou o navegador cancela. Reiniciar a API não apaga esse controle. Consultas são espaçadas em pelo menos 13 segundos; essa é uma precaução local, não garantia de franquia por minuto. Um lote americano pode levar alguns minutos.
 
@@ -71,7 +95,35 @@ O painel informa consultas enviadas, respostas reutilizadas do cache e resultado
 
 A seleção é uma cópia dos filtros ativos ao abrir o painel. Somente posições dessa seleção, com quantidade positiva e campo de preço vazio, são enviadas para consulta. Para mudar a seleção, feche o painel, ajuste os filtros e abra novamente. Consultar não salva preços: revise e confirme o lote.
 
-Não há controle persistente da cota mensal brapi nesta primeira etapa. Ao atingir limites, a aplicação informa a falha e mantém a alternativa manual, sem ativar cobranças.
+Desde 28/10/2026, há proteção local persistente da brapi: até **15.000 tentativas em janela móvel de 31 dias**, por chave. A janela é conservadora e não presume o dia de renovação da conta. Tentativas são registradas antes do envio, inclusive em falhas de rede, timeout ou cancelamento; cache não incrementa o contador. Ao atingir o limite, novas chamadas retornam `monthly-limit` com o próximo horário de liberação. Cotações ainda válidas em cache continuam disponíveis. O informativo da consulta apresenta tentativas, limite e janela, identificando esses números como proteção local, não como extrato oficial.
+
+Esse controle começa nos registros locais desta versão: não recupera consumo anterior nem de outras aplicações, pastas ou máquinas. A quota real continua sendo determinada pelo provedor. Apagar o estado não renova a franquia real e remove a proteção local. Nenhum plano pago é ativado.
+
+## Conferência de cobertura do cadastro
+
+O modo de diagnóstico consulta uma vez cada ativo cadastrado, respeitando mapeamentos, cache e pausas/limites de ambos os provedores. Verifica país/moeda, símbolo retornado, preço e data, sem carregar posições ou alterar preços, quantidades e histórico. A adequação do valor total de uma posição continua sendo validada no painel antes de aplicar.
+
+Execute na raiz do projeto, usando o perfil Development para carregar os User Secrets:
+
+```powershell
+New-Item -ItemType Directory -Path local-reports -Force | Out-Null
+$report = Join-Path (Get-Location) 'local-reports/quote-coverage.json'
+dotnet run --project InvestmentTracker.Api --configuration Release --launch-profile https -- --QuoteCoverage true --QuoteCoverageOutput $report --Logging:LogLevel:Default Warning --Logging:LogLevel:Microsoft Warning
+```
+
+O comando encerra após gerar o JSON, sem iniciar servidor HTTP e sem aplicar migrations. O relatório registra data/hora, identificador e ticker do ativo, provedor, status, motivo, data da cotação, uso de cache/rede e próximo horário de tentativa. Não contém chaves, preços, quantidades ou saldos. A pasta `local-reports/` está ignorada pelo Git porque os tickers ainda são dados do cadastro pessoal.
+
+Uma indisponibilidade pontual, falta de chave ou cota esgotada não comprova ausência definitiva de cobertura. O relatório preserva esses motivos para distinguir problemas de configuração, restrições e respostas incompatíveis. Não corrige símbolos automaticamente, troca provedores ou ativa assinaturas. Repita somente quando necessário; consultas reais usam a franquia gratuita.
+
+### Resultado de encerramento da fase — 28/10/2026
+
+A conferência real do cadastro retornou **27 de 27 ativos com status `available`: 12 pela brapi e 15 pela Alpha Vantage**. Não foram detectadas incompatibilidades de símbolo, moeda, preço ou data nas validações executadas. Isso comprova o resultado nessa consulta, sem garantir disponibilidade futura, equivalência econômica de correspondências manuais ou exatidão independente do provedor. Na Alpha Vantage, a moeda continua decorrendo do mercado cadastrado, pois GLOBAL_QUOTE não a informa.
+
+O relatório está em `local-reports/quote-coverage-2026-10-28.json`, ignorado pelo Git, com motivos e horários e sem preços, quantidades ou saldos. Nenhum preço ou cadastro foi alterado. Não foi necessário criar correspondências de símbolos para concluir essa conferência.
+
+Encerrado o escopo desta fase: mapeamento explícito, cache persistente de ambos os provedores, pausas e proteção local de consumo, informativo no painel, diagnóstico repetível e conferência real do cadastro. Novos ativos e falhas futuras devem ser avaliados no uso; não permanecem como uma entrega de implementação indefinida desta fase.
+
+Validação final: 220 testes unitários .NET, 165 de integração, 131 Angular, 60 de apresentação e 12 E2E aprovados (588 no total), além de lint, formatação de configurações e build. Pacote inicial mantido em 455,77 kB, abaixo do limite de 500 kB. Testes usam HTTP simulado e bases temporárias; a conferência de 27 ativos acima foi executada separadamente com os provedores reais.
 
 ## Privacidade e arquitetura
 
@@ -83,7 +135,7 @@ Application coordena a consulta e valida compatibilidade com a posição. Infras
 
 Testes automatizados usam respostas HTTP controladas e bancos temporários. Após a primeira entrega, as chaves foram configuradas localmente, houve consulta real à brapi e o usuário confirmou o funcionamento do fluxo de consulta e gravação. Isso não comprova cobertura de todos os tickers nem consistência de todos os campos retornados pelos provedores.
 
-A correção de limites foi validada com HTTP simulado, sem consumir a franquia real. Próximos passos: acompanhar os motivos retornados na utilização real e avaliar mapeamento explícito de instrumentos/símbolos se necessário. Não há mudança automática de provedor, endpoint premium, plano ou assinatura.
+A correção de limites, o mapeamento explícito, a persistência brapi e a proteção local de consumo possuem testes com HTTP simulado. O diagnóstico de cobertura permite a conferência real do cadastro sem gravações financeiras. Motivos externos continuam disponíveis para orientar correções no uso; correspondências exigem equivalência confirmada dos instrumentos. Não há mudança automática de provedor, endpoint premium, plano ou assinatura.
 
 Não exige migration.
 

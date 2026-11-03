@@ -13,7 +13,7 @@ namespace InvestmentTracker.Infrastructure.Persistence
             foreach (var name in new[] { "Ação", "FII", "REIT" })
             {
                 if (!await context.AssetTypes.AnyAsync(x => x.Name == name, cancellationToken))
-                    context.AssetTypes.Add(new AssetType { Name = name });
+                    context.AssetTypes.Add(new AssetType { Name = name, InstrumentClass = name == "FII" ? InstrumentClasses.Fii : name == "REIT" ? InstrumentClasses.Reit : InstrumentClasses.General });
             }
             foreach (var name in new[] { "Brasil", "Estados Unidos" })
             {
@@ -38,7 +38,7 @@ namespace InvestmentTracker.Infrastructure.Persistence
                 "Materiais Básicos", "Saneamento", "Saúde", "Tecnologia" })
             {
                 if (!await context.Sectors.AnyAsync(x => x.Name == name, cancellationToken))
-                    context.Sectors.Add(new Sector { Name = name });
+                    context.Sectors.Add(new Sector { Name = name, IsRealEstate = name == "Imobiliário" });
             }
             await context.SaveChangesAsync(cancellationToken);
             if (!await context.Portfolios.AnyAsync(cancellationToken))

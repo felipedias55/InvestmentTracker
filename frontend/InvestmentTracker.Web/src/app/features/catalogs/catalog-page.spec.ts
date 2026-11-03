@@ -18,10 +18,11 @@ describe('CatalogPage', () => {
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => http.verify());
-  function page(items: unknown[] = []) {
+  function page(items: unknown[] = [], key = 'currencies') {
+    TestBed.inject(ActivatedRoute).snapshot.data['catalog'] = key;
     const fixture = TestBed.createComponent(CatalogPage);
     fixture.detectChanges();
-    http.expectOne('/api/currencies').flush(items);
+    http.expectOne('/api/' + key).flush(items);
     fixture.detectChanges();
     return fixture;
   }
@@ -36,11 +37,12 @@ describe('CatalogPage', () => {
   });
   it('creates a currency then refreshes the list', () => {
     const fixture = page();
-    fixture.componentInstance.form.setValue({ code: 'BRL', name: 'Real', symbol: 'R$' });
+    fixture.componentInstance.form.patchValue({ code: 'BRL', name: 'Real', symbol: 'R$' });
     fixture.componentInstance.save();
     const request = http.expectOne('/api/currencies');
     expect(request.request.method).toBe('POST');
     expect(request.request.body.code).toBe('BRL');
+    expect(request.request.body.instrumentClass).toBeUndefined();
     request.flush({ id: 1, code: 'BRL', name: 'Real', symbol: 'R$' });
     http.expectOne('/api/currencies').flush([{ id: 1, code: 'BRL', name: 'Real' }]);
     fixture.detectChanges();
@@ -95,6 +97,22 @@ describe('CatalogPage', () => {
     expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(1);
     expect(fixture.nativeElement.querySelector('tbody').textContent).toContain('USD');
     expect(fixture.componentInstance.items().length).toBe(2);
+  });
+  it('preserves classification when renaming a type and sends it explicitly', () => {
+    const item = { id: 1, name: 'FII', instrumentClass: 'fii' };
+    const fixture = page([item], 'asset-types'), c = fixture.componentInstance;
+    c.edit(item); c.form.controls.name.setValue('Fundos de tijolo'); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#instrument-class').value).toBe('fii');
+    c.save(); const request = http.expectOne('/api/asset-types/1');
+    expect(request.request.body).toEqual({ name: 'Fundos de tijolo', instrumentClass: 'fii' });
+    request.flush({ ...item, name: 'Fundos de tijolo' }); http.expectOne('/api/asset-types').flush([]);
+  });
+  it('edits real estate eligibility as a sector property instead of reading its name', () => {
+    const fixture = page([{ id: 1, name: 'Tecnologia', isRealEstate: true }], 'sectors'), c = fixture.componentInstance;
+    c.edit(c.items()[0]); expect(c.form.controls.isRealEstate.value).toBe(true);
+    c.form.controls.name.setValue('Outro nome'); c.save();
+    const request = http.expectOne('/api/sectors/1'); expect(request.request.body).toEqual({ name: 'Outro nome', isRealEstate: true });
+    request.flush({ id: 1, name: 'Outro nome', isRealEstate: true }); http.expectOne('/api/sectors').flush([]);
   });
 
   it('clamps the page after removing its last record without clearing the search', () => {

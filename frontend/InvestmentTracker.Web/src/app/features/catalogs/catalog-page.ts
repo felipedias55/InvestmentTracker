@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { ListPaginator } from '../../shared/list-paginator';
 import { EditPanel } from '../../shared/edit-panel';
 import { Component, computed, DestroyRef, inject, signal, OnInit } from '@angular/core';
@@ -19,7 +20,7 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-catalog-page',
-  imports: [UnsavedForm, AppIcon, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, EditPanel, ReactiveFormsModule],
+  imports: [UnsavedForm, AppIcon, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatCheckboxModule, ListPaginator, EditPanel, ReactiveFormsModule],
   templateUrl: './catalog-page.html',
   styleUrl: '../../shared/registration-list.css',
 })
@@ -31,6 +32,9 @@ export class CatalogPage implements OnInit {
   readonly key = inject(ActivatedRoute).snapshot.data['catalog'] as CatalogKey;
   readonly config = catalogs.find((item) => item.key === this.key)!;
   readonly isCurrency = this.key === 'currencies';
+  readonly isAssetType = this.key === 'asset-types';
+  readonly isSector = this.key === 'sectors';
+  readonly instrumentLabels: Record<string, string> = { general: 'Outros instrumentos', fii: 'FII', reit: 'REIT', unclassified: 'Revisar classificação' };
   private request?: Subscription;
   readonly items = signal<CatalogItem[]>([]);
   readonly loading = signal(false);
@@ -58,6 +62,8 @@ export class CatalogPage implements OnInit {
     name: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(100)]],
     code: ['', this.isCurrency ? [Validators.required, Validators.pattern(/^[a-zA-Z]{3}$/)] : []],
     symbol: ['', Validators.maxLength(10)],
+    instrumentClass: ['general', Validators.pattern(/^(general|fii|reit|unclassified)$/)],
+    isRealEstate: [false],
   });
   ngOnInit() {
     this.context.restore(this.key);
@@ -84,7 +90,8 @@ export class CatalogPage implements OnInit {
     this.pendingDelete.set(null);
     this.error.set('');
     this.success.set('');
-    this.form.reset({ name: item.name, code: item.code ?? '', symbol: item.symbol ?? '' });
+    this.form.reset({ name: item.name, code: item.code ?? '', symbol: item.symbol ?? '',
+      instrumentClass: item.instrumentClass ?? 'unclassified', isRealEstate: item.isRealEstate ?? false });
   }
   cancel() {
     this.formOpen.set(false);
@@ -100,7 +107,9 @@ export class CatalogPage implements OnInit {
     this.error.set('');
     this.success.set('');
     const value = this.form.getRawValue();
-    const input = this.isCurrency ? value : { name: value.name };
+    const input = this.isCurrency ? { name: value.name, code: value.code, symbol: value.symbol }
+      : this.isAssetType ? { name: value.name, instrumentClass: value.instrumentClass }
+      : this.isSector ? { name: value.name, isRealEstate: value.isRealEstate } : { name: value.name };
     const id = this.editing();
     const request =
       id === null ? this.service.create(this.key, input) : this.service.update(this.key, id, input);

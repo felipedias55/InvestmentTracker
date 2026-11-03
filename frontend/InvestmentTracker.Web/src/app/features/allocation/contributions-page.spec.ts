@@ -70,4 +70,27 @@ describe('ContributionsPage', () => {
     expect(obsolete.cancelled).toBe(true);
     expect(fixture.componentInstance.saving()).toBe(false);
   });
+  it('renders server concentration results and clears them when the simulation input changes', () => {
+    const fixture = initialize(), c = fixture.componentInstance;
+    c.form.controls.amount.setValue('100'); c.simulate();
+    http.expectOne('/api/portfolios/1/contribution-plan').flush({ dashboard: testDashboard, category: null, sector: null,
+      plan: { rows: [], unallocated: '100' }, concentration: [{ dimension: 'category', groupId: 1, name: 'Grupo concentrado', maximumPercentage: '40',
+        currentPercentage: '60', projectedPercentage: '60', requestedContribution: '100', suggestedContribution: '0', initiallyAboveLimit: true, aboveLimit: true }] });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.concentration-result').textContent).toContain('Atual: 60% → Projetado: 60%');
+    expect(fixture.nativeElement.textContent).toContain('nenhuma venda é sugerida');
+    c.form.controls.amount.setValue('200'); expect(c.concentration()).toEqual([]);
+    http.expectNone(r => r.method === 'PUT' || r.method === 'DELETE');
+  });
+  it('shows the server sector/currency direction and priority funding without adding alternatives', () => {
+    const fixture = initialize(), c = fixture.componentInstance; c.form.controls.amount.setValue('100'); c.simulate();
+    http.expectOne('/api/portfolios/1/contribution-plan').flush({ dashboard: testDashboard, category: null, sector: null, prioritiesApplied: true,
+      ruleFunding: [{ categoryId: 1, category: 'Exterior', priority: 1, requested: '150', budget: '100', suggested: '100' }],
+      plan: { rows: [{ key: 'usd', category: 'Exterior', sector: 'Tecnologia', amount: '100', stage: 'reservation', rulePriority: 1, groupPriority: 2,
+        suggestedCurrency: 'USD', suggestionReason: 'Preferência do grupo.', currencies: [{ currency: 'USD', amount: '20', rate: '5', dates: '2026-10-30', stale: false, tickers: ['TESTUS'] }] }], unallocated: '0' } });
+    fixture.detectChanges(); expect(fixture.nativeElement.querySelector('.joint-plan').textContent).toContain('Tecnologia em dólar (USD)');
+    expect(fixture.nativeElement.textContent).toContain('TESTUS'); expect(fixture.nativeElement.querySelector('.priority-result').textContent).toContain('prioridade 1');
+    expect(c.plan()!.rows[0].amount).toBe('100');
+    c.form.controls.amount.setValue('200'); expect(c.ruleFunding()).toEqual([]); expect(c.prioritiesApplied()).toBe(false);
+  });
 });

@@ -1,5 +1,7 @@
 # Análise do projeto — 25/10/2026
 
+Atualização posterior: o usuário confirmou o envio das alterações e o sucesso da primeira execução do CI no GitHub. A pendência de consolidação/CI está encerrada; as menções abaixo à espera dessa execução pertencem ao registro histórico.
+
 Decisão de escopo em **28/10/2026**: o usuário encerrou as conferências adicionais de acessibilidade/aparelho físico e a investigação de consistência sob concorrência/escala, considerando o uso pessoal por uma única pessoa. As referências a esses trabalhos abaixo preservam o diagnóstico histórico e não representam pendências atuais. Não foram executadas novas auditorias para esse encerramento.
 
 Atualização em **26/10/2026**: o achado 0 foi resolvido. A suíte E2E foi adaptada aos menus, formulários e detalhes atuais, preservando as verificações financeiras. Os 12 cenários passaram em execução completa, em desktop e celular emulado; a base temporária foi removida. Os resultados e recomendações abaixo registram o diagnóstico original de 25/10; as demais pendências permanecem abertas. Veja [validação E2E atualizada](testes-e2e.md).
@@ -72,6 +74,8 @@ Recomendação: confirmar a necessidade de `jest-editor-support` e removê-lo ou
 
 ### 7. Endpoint de saúde superficial — prioridade baixa no uso local
 
+**Resolvido em 28/10/2026:** contrato original preservado, `/api/health/live` para resposta da API e `/api/health/ready` para conectividade do banco, com timeout, HTTP 503 em indisponibilidade e testes de falha/recuperação. Ver [diagnóstico operacional](diagnostico-operacional.md). O texto abaixo registra o achado original.
+
 `HealthController` retorna `status = ok` sem consultar dependências. Isso informa que a API respondeu, mas não comprova disponibilidade do SQL Server após a inicialização. `DatabaseSchemaGuard` já verifica modelo e migrations ao iniciar, o que é uma proteção complementar.
 
 Recomendação: distinguir liveness de readiness e verificar banco na readiness, sem chamar provedores pagos/limitados em cada probe. Elevar a prioridade quando houver hospedagem ou monitoramento automatizado.
@@ -108,7 +112,7 @@ Próximo passo: uniformizar injeção de relógio nos pontos de auditoria e test
 | --- | --- |
 | Acessibilidade e uso móvel | Validar aparelho físico, teclado virtual, zoom real de 200%, contraste, leitor de tela e imagem nativa de arraste. Emulação automatizada não encerra esses itens. |
 | Cotações | Conferir cobertura dos ativos e símbolos, tratamento de inconsistências e informação de fonte/data nos cartões. Persistência dos EUA já existe. |
-| Correções retroativas | Ampliar cadeias com eventos societários, ajustes e auditoria suficiente. Casos sem dados confiáveis devem continuar bloqueados ou exigir conferência. |
+| Correções retroativas | Ampliação implementada em 28/10/2026: eventos suportados, ajustes auditados e cotações em lote; ver [regras e validação](correcoes-atrasadas.md). Casos sem dados confiáveis continuam bloqueados ou exigem conferência. |
 | Estratégias | Modelos básicos e exclusões já estão implementados. Evoluções: concentração, prioridades mais amplas, planejado versus realizado e objetivos/renda. |
 | Classificação imobiliária | O backlog menciona substituir identificação por nomes; o editor atual já pede seleção explícita de categorias. Antes de alterar o modelo, localizar o uso residual da heurística e definir a finalidade da classificação estruturada. |
 | Rentabilidade | Dietz estimado e XIRR existem. TWR exato exige avaliações por fluxo externo; permanece evolução própria. |

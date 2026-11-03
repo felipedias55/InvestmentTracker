@@ -15,13 +15,13 @@ Primeira entrega em 15/10/2026. Acesse **Metas → Escolher estratégia e simula
 | Imobiliário fixo + metas | Reservas fixas explícitas para categorias escolhidas, excluídas da base do restante. Exige pelo menos uma reserva fixa com exclusão. |
 | Personalizada / híbrida | Combinação livre das regras suportadas. |
 
-Modelos são pontos de partida editáveis, não recomendações universais ou algoritmos de seleção de empresas. Não existe identificação automática das categorias imobiliárias neste modelo: selecione FIIs/REITs explicitamente.
+Modelos são pontos de partida editáveis, não recomendações universais ou algoritmos de seleção de empresas. As categorias que recebem reservas continuam sendo selecionadas explicitamente. Desde 30/10/2026, a compatibilidade FII/REIT usa campos estruturados em Tipos de ativo e Setores, sem inferência por nomes; estratégias também aceitam bloqueios por combinação. Veja [classificação e elegibilidade](classificacao-e-elegibilidade.md).
 
 ## Regras e cálculo
 
 1. O aporte e os valores fixos usam a moeda-base da carteira.
 2. Cada categoria pode ter uma reserva fixa ou um percentual do **aporte total**, com duas casas decimais. Percentual de aporte não é percentual de patrimônio.
-3. Reservas são calculadas primeiro. Se ultrapassarem o aporte, a simulação é recusada; não há redução silenciosa.
+3. Reservas são calculadas primeiro. Sem prioridades, ultrapassar o aporte recusa a simulação. Com prioridades ativas, o orçamento atende as regras pela ordem configurada; veja [prioridades e sugestões](prioridades-e-sugestoes-de-aporte.md).
 4. Cada reserva é dividida igualmente entre combinações elegíveis de categoria/setor existentes, preservando centavos. Empates são resolvidos pelos IDs. Não é uma escolha de ativo dentro do grupo.
 5. Categorias excluídas deixam de compor a base da distribuição do restante, mas continuam na carteira e podem receber a reserva explícita.
 6. Para o restante, escolha metas, divisão igual entre combinações ou manter sem distribuição. A categoria reservada também participa do restante se não for excluída.
@@ -29,6 +29,8 @@ Modelos são pontos de partida editáveis, não recomendações universais ou al
 8. No modelo por faixas, tolerância de 5 significa cinco pontos percentuais. Diferença de até cinco pontos recebe peso zero; fora da faixa, usa-se a diferença integral, não apenas o excesso. Sem vendas, pode ser impossível chegar à faixa apenas com o aporte.
 9. Sem combinações válidas para uma reserva/divisão, o valor fica não distribuído. No plano por metas, conflitos entre setor e categoria também podem gerar saldo não distribuído.
 10. As alternativas em diferentes moedas são equivalentes do mesmo valor; não devem ser somadas. Mantêm as regras existentes de câmbio e compatibilidade de FII/REIT com setor imobiliário.
+11. Bloquear uma combinação categoria/setor impede reservas e restante e retira essas posições da base elegível. Excluir a categoria afeta somente o restante. Tipos sem classificação e FII/REIT em setor não marcado como imobiliário não recebem sugestões.
+12. Limites opcionais de concentração por categoria/setor podem reduzir reservas e restante. Usam todas as posições mais o aporte efetivamente distribuído, sem Patrimônio Externo ou saldo não distribuído. Confira [regras, exemplos e precisão](limites-de-concentracao.md).
 
 O plano final soma reservas, distribuição do restante e valor não distribuído, conservando o aporte. As análises de categoria/setor descrevem somente o restante. Os gráficos continuam representando a carteira completa; a base elegível é informada separadamente.
 
@@ -59,8 +61,8 @@ A migration **PortfolioStrategies** cria somente a tabela de revisões e suas re
 dotnet ef database update --project InvestmentTracker.Infrastructure --startup-project InvestmentTracker.Api
 ~~~
 
-A migration foi validada em banco temporário; não foi aplicada ao banco pessoal nesta entrega.
+A migration original foi validada em banco temporário; não foi aplicada ao banco pessoal naquela entrega. A ampliação de 30/10/2026 possui a migration adicional **StructuredPlanningClassification**, com preenchimento canônico e revisão de cadastros personalizados descritos na [documentação de atualização](classificacao-e-elegibilidade.md).
 
 ## Ainda fora desta etapa
 
-Metas de patrimônio, renda desejada e objetivos com prazo; acompanhamento de aportes planejados versus realizados; agendamento; bloqueios por concentração; destinação automática de proventos; seleção de empresas por valor/crescimento/qualidade; benchmarks; previsão de composição após compras com quantidades e custos; editor/restauração de revisões anteriores. As estratégias atuais planejam o dinheiro novo por categoria/setor, sem prometer essas funções.
+Metas de patrimônio, renda desejada e objetivos com prazo; agendamento; destinação automática de proventos; seleção de empresas por valor/crescimento/qualidade; benchmarks; previsão de composição após compras com quantidades e custos; editor/restauração de revisões anteriores. As estratégias atuais planejam o dinheiro novo por categoria/setor, sem prometer essas funções. Os limites de concentração já foram implementados conforme a documentação acima.

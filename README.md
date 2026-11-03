@@ -133,7 +133,7 @@ Na página **Carteira**, filtre as posições e use **Atualizar cotações em lo
 - O ícone **ⓘ** aparece no painel após uma consulta bem-sucedida: mouse, foco pelo teclado ou toque revelam fonte e horários disponíveis, em Brasília. A Alpha Vantage não fornece horário de mercado nesse endpoint.
 - **Recarregar dados** apenas relê os valores salvos. **Atualizar posições**, na dashboard, abre a carteira. Esses botões não consultam os provedores.
 - A data de atualização da posição é a data da gravação; não equivale necessariamente à data de mercado da cotação.
-- Na brapi, o cache fica em memória por 30 minutos. Para a Alpha Vantage, o cache de 12 horas e o controle local de tentativas/bloqueios persistem em disco por chave, inclusive após reiniciar a API. A pasta padrão é `%LOCALAPPDATA%\InvestmentTracker\QuoteState`; `Quotes:StateDirectory` permite alterá-la. Falhas de acesso ao estado são informadas e interrompem a consulta. Reiniciar ou apagar arquivos não renova a cota real do provedor. Consulte [cache e consumo](docs/cotacoes-automaticas.md#cache-e-consumo).
+- Na brapi, o cache de 30 minutos e as pausas por HTTP 429 persistem em disco por chave. Para a Alpha Vantage, o cache de 12 horas e o controle local de tentativas/bloqueios persistem em disco por chave, inclusive após reiniciar a API. A pasta padrão é `%LOCALAPPDATA%\InvestmentTracker\QuoteState`; `Quotes:StateDirectory` permite alterá-la. Falhas de acesso ao estado são informadas e interrompem a consulta. Reiniciar ou apagar arquivos não renova a cota real do provedor. Consulte [cache e consumo](docs/cotacoes-automaticas.md#cache-e-consumo).
 - Recebimentos de proventos são registrados pelo usuário e independem da atualização de preços. Não existe importação automática de dividendos recebidos.
 
 As chaves devem ser configuradas nos User Secrets de cada instalação. Consulte [configuração, limites e validações das APIs](docs/cotacoes-automaticas.md). A atualização não ocorre em segundo plano e não é salva sem confirmação.
@@ -165,7 +165,7 @@ npm run test:presentation
 npm run test:e2e
 ```
 
-`npm run lint` verifica TypeScript e templates Angular, inclusive inline, sem aceitar avisos. `npm run format:check` verifica a formatação de configurações JSON/MJS/CJS e do workflow; não reformata em massa os fontes existentes. O workflow [Quality](.github/workflows/quality.yml) está preparado para executar essas verificações, build, testes Angular, apresentação, testes .NET, integração SQL e E2E em push/PR. Veja [qualidade e CI](docs/qualidade-e-ci.md) para escopo, versões e resultados locais; a primeira execução no GitHub ainda precisa ser confirmada após enviar as alterações.
+`npm run lint` verifica TypeScript e templates Angular, inclusive inline, sem aceitar avisos. `npm run format:check` verifica a formatação de configurações JSON/MJS/CJS e do workflow; não reformata em massa os fontes existentes. O workflow [Quality](.github/workflows/quality.yml) executa essas verificações, build, testes Angular, apresentação, testes .NET, integração SQL e E2E em push/PR. Veja [qualidade e CI](docs/qualidade-e-ci.md) para escopo, versões e resultados locais; o usuário confirmou o sucesso da primeira execução no GitHub após enviar as alterações.
 
 O E2E usa Playwright, API real e banco temporário próprio, em desktop e celular emulado. Inclui carteira vazia, cadastros, operações, fechamentos, conversões auditáveis, metas e simulador. Veja [execução e diagnóstico](docs/testes-e2e.md).
 
@@ -185,12 +185,12 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 ## Limitações e próximas etapas
 
 - Fotografias passadas desatualizadas não são reconstruídas com valores de hoje. Versões sobrescritas antes da implementação do versionamento não podem ser recuperadas pelo sistema.
-- Lançamentos atrasados e correções contam com diagnóstico, simulação financeira e aplicação em lote. Cadeias com eventos societários, ajustes de posição ou auditoria insuficiente continuam exigindo conferência manual.
+- Lançamentos atrasados e correções contam com diagnóstico, simulação financeira e aplicação em lote, incluindo eventos societários suportados e cadeias com ajustes auditados de posição/cotações. Registros sem auditoria suficiente, saldos iniciais e frações fora da precisão suportada continuam bloqueados para conferência manual; ver [regras de correção](docs/correcoes-atrasadas.md).
 - Conversão histórica desconhecida não vira zero nem usa câmbio atual. Mudança de moeda-base pode exigir outro equivalente, sem apagar o anterior.
 - Evolução exibe Dietz estimado no intervalo e XIRR anualizada com limites explícitos e bloqueios por dados insuficientes. TWR exato continua pendente de avaliações a cada fluxo externo.
-- Cotações sob demanda já foram utilizadas e confirmadas pelo usuário. Ainda há espaço para ampliar a verificação de cobertura, mapear símbolos explicitamente e persistir cache/controle de consumo da brapi. A persistência da Alpha Vantage já existe. Não há garantia de disponibilidade ou consistência de todos os dados externos.
+- A fase de cotações foi concluída com mapeamento explícito, cache/pausas persistentes e proteção local de consumo por chave, incluindo 15.000 tentativas/31 dias para brapi. A conferência real de 28/10/2026 aprovou 27/27 ativos cadastrados, sem alterar preços. Veja [diagnóstico, resultados e limitações](docs/cotacoes-automaticas.md). Disponibilidade e consistência futuras dos dados externos continuam dependendo dos provedores.
 - Meta de 0% impede aporte sugerido ao grupo, mas não retira seus ativos da base de cálculo. No simulador de estratégias, a exclusão por categoria permite retirar imobiliário da base do restante, mantendo-o no patrimônio.
-- Ideias/reflexões, base de demonstração, Docker, CD, publicação e observabilidade ampliada permanecem no planejamento. O workflow de CI já foi preparado e validado localmente, com execução hospedada a confirmar. Backup automático foi adiado por decisão do usuário; o procedimento manual já atende ao uso atual.
+- Ideias/reflexões, base de demonstração, Docker, CD, publicação e observabilidade ampliada permanecem no planejamento. O workflow de CI foi validado localmente e sua primeira execução hospedada foi confirmada pelo usuário. Backup automático foi adiado por decisão do usuário; o procedimento manual já atende ao uso atual.
 - Autenticação/autorização devem anteceder a exposição pública. O uso atual é local/privado.
 
 ## Documentação
@@ -199,6 +199,11 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 
 - [Cadastros](docs/cadastros.md), [carteira e câmbio](docs/carteira-e-cambio.md).
 - [Estratégias de investimento e modelos](docs/estrategias-de-investimento.md).
+- [Classificação FII/REIT e elegibilidade por categoria/setor](docs/classificacao-e-elegibilidade.md).
+- [Limites de concentração nas estratégias de aporte](docs/limites-de-concentracao.md).
+- [Prioridades e sugestões de setor, real e dólar](docs/prioridades-e-sugestoes-de-aporte.md).
+- [Acompanhamento de aportes: planejado versus realizado](docs/planejado-versus-realizado.md).
+- [Revisões futuras: simplificação de cadastros e análise independente de gastos](docs/revisao-cadastros-e-gastos.md).
 - [Metas, dashboard e aportes](docs/metas-dashboard-aportes.md).
 - [Simulador de aportes: como são escolhidos setor, categoria e moeda](docs/simulador-de-aportes.md).
 - [Compras e vendas](docs/compras-e-vendas.md), [movimentações e estornos](docs/movimentacoes-e-estornos.md).
@@ -209,6 +214,7 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - [Otimização do carregamento e do logo](docs/otimizacao-carregamento.md).
 - [Contexto analítico do Dashboard e navegação por carteira](docs/contexto-analitico-dashboard.md).
 - [Análise estática, versões e integração contínua](docs/qualidade-e-ci.md).
+- [Diagnóstico da API e disponibilidade do banco](docs/diagnostico-operacional.md).
 - [Plano de migração da interface, padrões e modo escuro](docs/entregas-layout.md).
 - [Plano de usabilidade e navegação: inventário e padronização das ações](docs/plano-usabilidade-e-navegacao.md).
 - [Atualização manual de cotações em lote](docs/cotacoes-manuais-em-lote.md).

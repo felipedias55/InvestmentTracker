@@ -1,5 +1,7 @@
 using InvestmentTracker.Application.Movements;
 using InvestmentTracker.Domain.Entities;
+using System.Text.Json;
+using InvestmentTracker.Application.Portfolios;
 
 namespace InvestmentTracker.UnitTests.Movements
 {
@@ -81,6 +83,127 @@ namespace InvestmentTracker.UnitTests.Movements
             var plan = CorrectionCalculator.Calculate(state, input);
             Assert.True(plan.Preview.CanApply); Assert.Equal(1000, Assert.Single(plan.Cash).Value);
             Assert.Contains(plan.Preview.Warnings, x => x.Contains("ajuste absoluto"));
+        }
+
+        private static CorrectionState WithSplit()
+        {
+            var s = State();
+            var sale = s.Movements[1]; sale.Id = 3;
+            var effect = sale.Effects.Single(e => e.PositionId.HasValue);
+            effect.BeforeQuantity = 20; effect.AfterQuantity = 16; effect.AfterCost = 80; effect.AfterValue = 320;
+            s.Positions[0].Quantity = 16; s.Positions[0].InvestedAmount = 80; s.Positions[0].CurrentValue = 320;
+            var split = new FinancialMovement { Id = 2, Kind = "split", Date = Day, CurrencyCode = "BRL",
+                RequestPayload = JsonSerializer.Serialize(new SaveCorporateEventDto(Guid.NewGuid(), Day, "split", 1, 20, 0, "2 para 1")),
+                Effects = [new MovementEffect { PositionId = 1, CurrencyId = 1, BeforeQuantity = 10, AfterQuantity = 20,
+                    BeforeCost = 100, AfterCost = 100, BeforeValue = 100, AfterValue = 100 }] };
+            return s with { Movements = [s.Movements[0], split, sale] };
+        }
+
+        [Fact]
+        public void CorrectPurchase_ShouldReplayAuditedSplitAndSaleUsingProportion()
+        {
+            var state = WithSplit();
+            var plan = CorrectionCalculator.Calculate(state, Input());
+            Assert.True(plan.Preview.CanApply, string.Join(";", plan.Preview.Blockers));
+            var p = Assert.Single(plan.Positions);
+            Assert.Equal(20, p.Quantity); Assert.Equal(100, p.InvestedAmount); Assert.Equal(400, p.CurrentValue);
+            Assert.Equal(960, Assert.Single(plan.Cash).Value);
+            var replay = plan.Steps.Single(step => step.Movement.Kind == "split").Movement;
+            Assert.Equal(24, replay.Effects.Single().AfterQuantity);
+            Assert.Equal(120, replay.Effects.Single().AfterValue);
+            var operation = CorrectionCalculator.ReadOperation(replay, [], state.Positions);
+            Assert.Equal(20, operation.RatioNumerator); Assert.Equal(10, operation.RatioDenominator);
+            Assert.Contains(plan.Preview.Warnings, text => text.Contains("proporção"));
+            Assert.Equal(16, state.Positions[0].Quantity);
+        }
+
+        [Theory]
+        [InlineData("split", 2, 1, 16)]
+        [InlineData("reverse-split", 1, 2, 1)]
+        public void LateRatioEvent_ShouldReplayLaterSale(string kind, decimal numerator, decimal denominator, decimal expected)
+        {
+            var state = State();
+            var plan = CorrectionCalculator.Calculate(state, new(null, "Comunicado", new(kind, Day.AddDays(1), AssetId: 1,
+                RatioNumerator: numerator, RatioDenominator: denominator)));
+            Assert.True(plan.Preview.CanApply, string.Join(";", plan.Preview.Blockers));
+            Assert.Equal(expected, Assert.Single(plan.Positions).Quantity);
+            Assert.Equal(980, Assert.Single(plan.Cash).Value);
+            Assert.Empty(plan.Steps.SelectMany(step => step.Flows));
+        }
+
+        [Fact]
+        public void Bonus_ShouldPreserveMarketValueAndAddOnlyDeclaredQuantityAndCost()
+        {
+            var state = State();
+            var plan = CorrectionCalculator.Calculate(state, new(null, "Bonificação", new("bonus", Day.AddDays(3), AssetId: 1, Quantity: 2, Cost: 5)));
+            Assert.True(plan.Preview.CanApply);
+            var p = Assert.Single(plan.Positions);
+            Assert.Equal(8, p.Quantity); Assert.Equal(65, p.InvestedAmount); Assert.Equal(120, p.CurrentValue); Assert.Equal(0, p.Income);
+            Assert.Empty(plan.Cash); Assert.Empty(plan.Steps.Single().Flows);
+            var operation = CorrectionCalculator.ReadOperation(plan.Steps.Single().Movement, [], state.Positions);
+            Assert.Equal(2, operation.Quantity); Assert.Equal(5, operation.Cost);
+        }
+
+        [Theory]
+        [InlineData("split", 1, 2)]
+        [InlineData("reverse-split", 2, 1)]
+        [InlineData("split", 0, 1)]
+        [InlineData("split", 2, 0)]
+        [InlineData("split", 4, 7)]
+        public void InvalidRatioOrResidualFractions_ShouldBlockWithoutPartialState(string kind, decimal numerator, decimal denominator)
+        {
+            var state = State();
+            var plan = CorrectionCalculator.Calculate(state, new(null, "Conferir", new(kind, Day.AddDays(3), AssetId: 1,
+                RatioNumerator: numerator, RatioDenominator: denominator)));
+            Assert.False(plan.Preview.CanApply); Assert.Empty(plan.Steps); Assert.Equal(6, state.Positions[0].Quantity);
+        }
+
+        [Fact]
+        public void InconsistentEventPayload_ShouldRemainBlocked()
+        {
+            var state = WithSplit(); state.Movements[1].RequestPayload = "{}";
+            var plan = CorrectionCalculator.Calculate(state, Input());
+            Assert.False(plan.Preview.CanApply); Assert.Contains(plan.Preview.Blockers, text => text.Contains("evento societário"));
+        }
+
+        private static CorrectionState WithPositionAdjustment(bool quote)
+        {
+            var state = State(); state.Positions[0].CurrentValue = 180;
+            var adjustment = new FinancialMovement { Id = 3, Date = Day.AddDays(2), Kind = "position-adjustment", CurrencyCode = "BRL",
+                RequestPayload = quote ? JsonSerializer.Serialize(new[] { new QuoteUpdate(1, "BRL", 30, 6, 120, Day.AddDays(1)) }) : null,
+                Effects = [new MovementEffect { PositionId = 1, CurrencyId = 1, BeforeQuantity = 6, AfterQuantity = 6,
+                    BeforeCost = 60, AfterCost = 60, BeforeValue = 120, AfterValue = 180 }] };
+            return state with { Movements = [..state.Movements, adjustment] };
+        }
+
+        [Theory]
+        [InlineData(false, 180)]
+        [InlineData(true, 240)]
+        public void PositionAdjustment_ShouldKeepManualTargetOrConfirmedUnitPrice(bool quote, decimal expectedValue)
+        {
+            var state = WithPositionAdjustment(quote);
+            var plan = CorrectionCalculator.Calculate(state, Input());
+            Assert.True(plan.Preview.CanApply, string.Join(";", plan.Preview.Blockers));
+            var p = Assert.Single(plan.Positions);
+            Assert.Equal(8, p.Quantity); Assert.Equal(80, p.InvestedAmount); Assert.Equal(expectedValue, p.CurrentValue);
+            Assert.Contains(plan.Preview.Warnings, text => text.Contains("preço unitário"));
+            Assert.Equal(180, state.Positions[0].CurrentValue);
+            // Replaying a correction again must retain the original adjustment's intent.
+            var replayed = plan.Steps.Where(step => step.Movement.ReversalOfId is null).Select(step => step.Movement).ToArray();
+            for (var i = 0; i < replayed.Length; i++) replayed[i].Id = i + 10;
+            var nextState = state with { Positions = plan.Positions, Cash = plan.Cash, Movements = replayed };
+            var next = CorrectionCalculator.Calculate(nextState, new(10, "Nova conferência", Input().Operation with { Quantity = 14 }));
+            Assert.True(next.Preview.CanApply, string.Join(";", next.Preview.Blockers));
+            Assert.Equal(quote ? 300 : 180, Assert.Single(next.Positions).CurrentValue);
+        }
+
+        [Fact]
+        public void IncompatibleQuotePayload_ShouldNotBeReinterpretedAsManualAdjustment()
+        {
+            var state = WithPositionAdjustment(true);
+            state.Movements[2].RequestPayload = JsonSerializer.Serialize(new[] { new QuoteUpdate(1, "BRL", 50, 6, 120, Day) });
+            var plan = CorrectionCalculator.Calculate(state, Input());
+            Assert.False(plan.Preview.CanApply); Assert.Empty(plan.Steps);
         }
     }
 }

@@ -2,6 +2,38 @@ import { test, expect } from '@playwright/test';
 import { testDashboard, testPortfolio } from '../src/app/features/allocation/allocation.test-data';
 test.beforeEach(async ({ page }) => { page.on('dialog', dialog => dialog.accept()); });
 
+test('acompanhamento de aporte preserva plano, mostra execução e protege valores', async ({ page }, info) => {
+  const plan = { id: 7, name: 'Aporte mensal acompanhado', from: '2026-11-01', to: '2026-11-30', createdAtUtc: '2026-11-03T12:00:00Z' };
+  const row = { key: 'rule-1-2', categoryId: 1, sectorId: 2, category: 'Ações internacionais', sector: 'Tecnologia', amount: '1000', stage: 'reservation', suggestedCurrency: 'USD', currencies: [{ currency: 'USD', amount: '200', rate: '5', dates: '', stale: false }] };
+  const candidate = { tradeId: 9, date: '2026-11-03', ticker: 'TESTUS', currency: 'USD', categoryId: 1, sectorId: 2, amount: '100', baseAmount: null, active: true };
+  const detail = { plan, snapshot: { currency: 'BRL', simulation: { amount: '1200' }, plan: { rows: [row], unallocated: '200' }, notes: ['Reserva preservada da estratégia original.'] },
+    rows: [{ planned: row, realized: '500', difference: '500', status: 'partial' }], purchases: [{ id: 1, tradeId: 8, rowKey: row.key, date: '2026-11-02', ticker: 'REALIZADO', currency: 'USD', amount: '100', baseAmount: '500', conversionSource: 'historical', active: true, removedAtUtc: null }], realized: '500', difference: '500', status: 'partial' };
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/portfolios') return route.fulfill({ json: [testPortfolio] });
+    if (path.endsWith('/dashboard')) return route.fulfill({ json: testDashboard });
+    if (path.endsWith('/strategies')) return route.fulfill({ json: [] });
+    if (path.endsWith('/contribution-plans')) return route.fulfill({ json: { items: [plan], total: 1, pageIndex: 0, pageSize: 10 } });
+    if (path.endsWith('/contribution-plans/7')) return route.fulfill({ json: detail });
+    if (path.endsWith('/contribution-plans/7/purchases')) return route.fulfill({ json: { items: [candidate], total: 1, pageIndex: 0, pageSize: 10 } });
+    throw new Error('Unexpected request: ' + path);
+  });
+  await page.goto('/contributions'); await page.getByRole('button', { name: 'Abrir acompanhamento', exact: true }).click();
+  await page.getByRole('button', { name: 'Acompanhar ' + plan.name, exact: true }).click();
+  const section = page.locator('.tracking-detail'); await expect(section).toContainText('Parcial'); await expect(section).toContainText('Realizado: BRL 500,00');
+  await expect(section).toContainText('Moeda indicada: USD');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await section.screenshot({ path: info.outputPath('tracking-detail.png') });
+  await page.getByRole('button', { name: 'Ocultar valores', exact: true }).click();
+  await expect(section).not.toContainText('500,00'); await expect(section).not.toContainText('1.000,00');
+  await page.getByRole('button', { name: 'Mostrar valores', exact: true }).click();
+  await page.getByRole('button', { name: 'Vincular TESTUS', exact: true }).click();
+  const dialog = page.locator('dialog:modal'); await expect(dialog).toContainText('Não usamos o câmbio atual');
+  await dialog.getByLabel('Equivalente histórico na moeda do plano', { exact: true }).fill('500,1234');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await dialog.screenshot({ path: info.outputPath('tracking-link.png') });
+});
+
 test('filtros analíticos do dashboard retornam por carteira e reiniciam após recarga', async ({ page }, info) => {
   let reducedIncome = false;
   const second = { ...testPortfolio, id: 2, name: 'Segunda carteira' };
@@ -431,7 +463,11 @@ test('simulador reúne gráficos, plano em moeda original e marcas temporárias'
       if (sent.strategy) {
         expect(sent.strategy.model).toBe('real-estate');
         expect(sent.strategy.excludedCategoryIds).toEqual([3]);
-        expect(sent.strategy.rules).toEqual([{ categoryId: 3, kind: 'fixed', value: '500,00'.replace(',', '.') }]);
+        expect(sent.strategy.rules).toEqual([{ categoryId: 3, kind: 'fixed', value: '500,00'.replace(',', '.'), priority: 5 }]);
+        expect(sent.strategy.excludedCombinations).toEqual([{ categoryId: 2, sectorId: 3 }]);
+        expect(sent.strategy.concentrationLimits).toEqual([{ dimension: 'category', groupId: 2, maximumPercentage: '35' }]);
+        expect(sent.strategy.usePriorities).toBe(true);
+        expect(sent.strategy.groupPreferences).toEqual([{ categoryId: 2, sectorId: 3, priority: 1, preferredCurrency: 'USD' }]);
       }
       const analysis = (dimension: string) => {
         const groups = dimension === 'category' ? dashboard.allocation.categories : dashboard.allocation.sectors;
@@ -439,9 +475,13 @@ test('simulador reúne gráficos, plano em moeda original e marcas temporárias'
           rows: groups.map(r => ({ ...r, currencies: [], adjustedWeight: '0.1', suggestedContribution: r.groupId === (dimension === 'category' ? 2 : 3) ? '100' : '0' })) };
       };
       return route.fulfill({ json: { dashboard: { ...dashboard, summary: { ...dashboard.summary, positions } },
-        category: analysis('category'), sector: analysis('sector'),
-        plan: { unallocated: '0', rows: [{ key: '2-3', category: 'Ações EUA', sector: 'Consumo', amount: '100',
-          currencies: [{ currency: 'USD', amount: '20', rate: '5', dates: '2026-10-06', stale: false }] }] } } });
+        prioritiesApplied: !!sent.strategy, ruleFunding: sent.strategy ? [{ categoryId: 3, category: 'Fundos imobiliários', priority: 5, requested: '500', budget: '500', suggested: '0' }] : [],
+        category: sent.strategy ? null : analysis('category'), sector: sent.strategy ? null : analysis('sector'),
+        concentration: sent.strategy ? [{ dimension: 'category', groupId: 2, name: 'Ações EUA', maximumPercentage: '35', currentPercentage: '40', projectedPercentage: '40',
+          requestedContribution: '0', suggestedContribution: '0', initiallyAboveLimit: true, aboveLimit: true }] : [],
+        plan: sent.strategy ? { unallocated: '2000', rows: [] } : { unallocated: '0', rows: [{ key: '2-3', category: 'Ações EUA', sector: 'Consumo', amount: '100',
+          suggestedCurrency: 'USD', suggestionReason: 'USD é a única moeda elegível deste grupo.',
+          currencies: [{ currency: 'USD', amount: '20', rate: '5', dates: '2026-10-06', stale: false, tickers: ['TESTUS'] }] }] } } });
     }    throw new Error('Unexpected request: ' + path);
   });
   await page.goto('/contributions');
@@ -450,6 +490,7 @@ test('simulador reúne gráficos, plano em moeda original e marcas temporárias'
   await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
   await expect(page.locator('.joint-plan')).toContainText('Consumo → Ações EUA');
   await expect(page.locator('.joint-plan')).toContainText('USD 20,00');
+  await expect(page.locator('.joint-plan')).toContainText('Consumo em dólar (USD)');
   const checkbox = page.locator('.joint-plan input[type=checkbox]');
   await checkbox.check();
   await expect(page.locator('.joint-plan .completed')).toHaveCount(1);
@@ -478,12 +519,26 @@ test('simulador reúne gráficos, plano em moeda original e marcas temporárias'
   await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
   await page.getByLabel('Usar estratégia nesta simulação').check();
   await page.getByLabel('Modelo', { exact: true }).selectOption('real-estate');
+  await page.getByRole('checkbox', { name: 'Atender regras por prioridade', exact: true }).check();
   await page.getByLabel('Regras por página', { exact: true }).selectOption('25');
   await expect(page.getByLabel('Regras por página', { exact: true })).toHaveValue('25');
   const estate = page.locator('app-strategy-editor .rule').filter({ hasText: 'Fundos imobiliários' });
   await estate.getByLabel('Regra de Fundos imobiliários', { exact: true }).selectOption('fixed');
   await estate.getByLabel('Valor da regra de Fundos imobiliários', { exact: true }).fill('500,00');
+  await estate.getByRole('textbox', { name: 'Prioridade da reserva de Fundos imobiliários', exact: true }).fill('5');
   await estate.getByLabel('Excluir da base do restante').check();
+  await page.locator('.combination-rules > summary').click();
+  await page.getByRole('checkbox', { name: 'Bloquear Ações EUA / Consumo', exact: true }).check();
+  await page.getByRole('searchbox', { name: 'Buscar combinação', exact: true }).fill('sem resultados');
+  await expect(page.locator('.combination-rules')).toContainText('Nenhuma combinação corresponde');
+  await page.getByRole('searchbox', { name: 'Buscar combinação', exact: true }).fill('');
+  await expect(page.getByRole('checkbox', { name: 'Bloquear Ações EUA / Consumo', exact: true })).toBeChecked();
+  await page.getByRole('textbox', { name: 'Prioridade de Ações EUA / Consumo', exact: true }).fill('1');
+  await page.getByRole('combobox', { name: 'Moeda preferida de Ações EUA / Consumo', exact: true }).selectOption('USD');
+  await page.locator('.concentration-limits > summary').click();
+  await page.getByRole('searchbox', { name: 'Buscar grupo nos limites', exact: true }).fill('Ações EUA');
+  await page.getByRole('textbox', { name: 'Teto de categoria Ações EUA', exact: true }).fill('35');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Salvar como estratégia padrão' }).click();
   await expect(page.locator('app-strategy-editor')).toContainText('Estratégia salva');
   await page.screenshot({ path: info.outputPath('strategy-editor.png'), fullPage: false });
@@ -492,6 +547,8 @@ test('simulador reúne gráficos, plano em moeda original e marcas temporárias'
   await page.locator('#contribution-amount').fill('2.000,00');
   await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
   await expect(page.locator('.joint-plan')).toContainText('Plano da estratégia');
+  await expect(page.locator('.concentration-result')).toContainText('Projetado: 40%');
+  await expect(page.locator('.concentration-result')).toContainText('nenhuma venda é sugerida');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('strategy.png'), fullPage: true });
 });
@@ -606,6 +663,50 @@ test('carteira Material mantém paginação, filtros e escopo das cotações', a
   expect(errors).toEqual([]);
 });
 
+
+test('correções de eventos mantêm formulário e confirmação legíveis e exibem bloqueios', async ({ page }, info) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  let simulations = 0;
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/correction-simulation')) {
+      const op = route.request().postDataJSON().operation; simulations++;
+      if (op.kind === 'bonus') return route.fulfill({ json: { canApply: false, blockers: ['Confira o comunicado: dados históricos insuficientes.'] } });
+      expect(op.ratioNumerator).toBe('2'); expect(op.ratioDenominator).toBe('1'); expect(op.cashAssetId).toBeNull();
+      return route.fulfill({ json: { canApply: true, token: 'event-preview', fromDate: '2026-10-01', replacedMovementIds: [3, 4],
+        balances: [{ name: 'ATIVO', currencyCode: 'BRL', isPosition: true, beforeValue: '120', afterValue: '120', beforeQuantity: '6', afterQuantity: '12',
+          beforeCost: '60', afterCost: '60', beforeIncome: '0', afterIncome: '0' }], snapshots: [],
+        warnings: ['Evento informado: 2 novas unidades para cada 1 antigas. Confira o comunicado e as frações antes de confirmar.'], blockers: [] } });
+    }
+    const responses: Record<string, unknown> = {
+      '/api/portfolios': [testPortfolio], '/api/portfolios/1': testDashboard.summary,
+      '/api/portfolios/1/external-assets': { items: [] }, '/api/currencies': [{ id: 1, code: 'BRL', name: 'Real' }],
+      '/api/portfolios/1/movements/page': { items: [], total: 0, pageIndex: 0, pageSize: 10 },
+      '/api/assets': [{ id: 2, ticker: 'ATIVO', name: 'Ativo de demonstração', currencyId: 1 }],
+    };
+    if (!(path in responses)) throw new Error('Unexpected API call: ' + path);
+    await route.fulfill({ json: responses[path] });
+  });
+  await page.goto('/movements');
+  await page.getByRole('button', { name: 'Registrar operação atrasada', exact: true }).click();
+  await page.locator('#correction-op-kind').selectOption('split');
+  await page.locator('#correction-op-asset').selectOption({ index: 1 });
+  await page.locator('#correction-op-numerator').fill('2'); await page.locator('#correction-op-denominator').fill('1');
+  await page.locator('#correction-op-reason').fill('Conferência do comunicado');
+  await page.getByRole('button', { name: 'Simular correção', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Resultado da simulação' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Confirmar correção', exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.locator('dialog:modal').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('corporate-correction-preview.png'), fullPage: true });
+  await page.locator('#correction-op-kind').selectOption('bonus');
+  await page.locator('#correction-op-quantity').fill('0,5'); await page.locator('#correction-op-cost').fill('1,25');
+  await expect(page.getByRole('button', { name: 'Confirmar correção', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Simular correção', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('dados históricos insuficientes');
+  await expect(page.getByRole('button', { name: 'Confirmar correção', exact: true })).toHaveCount(0);
+  expect(simulations).toBe(2); expect(errors).toEqual([]);
+});
 
 test('movimentações paginadas com auditoria e formulários sob demanda', async ({ page }, info) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));

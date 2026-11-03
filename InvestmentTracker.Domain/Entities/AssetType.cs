@@ -6,6 +6,7 @@ namespace InvestmentTracker.Domain.Entities
 {
     public class AssetType
     {
+        public string InstrumentClass { get; set; } = InstrumentClasses.General;
         public const int NameMaxLength = 100;
 
         public int Id { get; set; }

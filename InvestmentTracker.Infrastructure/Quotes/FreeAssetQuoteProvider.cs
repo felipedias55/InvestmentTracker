@@ -12,9 +12,24 @@ namespace InvestmentTracker.Infrastructure.Quotes
     public sealed class FreeAssetQuoteProvider(HttpClient http, IConfiguration configuration, TimeProvider clock) : IAssetQuoteProvider
     {
         private readonly SemaphoreSlim gate = new(1, 1);
-        private readonly Dictionary<string, (AssetQuote Quote, DateTimeOffset Expires)> cache = [];
 
         public async Task<AssetQuote> FetchAsync(string market, string symbol, CancellationToken ct)
+        {
+            var mapped = configuration[$"Quotes:Symbols:{market}:{symbol}"];
+            if (mapped is null) return await FetchSymbolAsync(market, symbol, ct);
+            if (!Regex.IsMatch(mapped, @"^[A-Z0-9][A-Z0-9.\-]{0,19}$"))
+                return new(market == "BR" ? "brapi" : "Alpha Vantage", symbol,
+                    market == "BR" ? "BRL" : "USD", null, null, "invalid-mapping",
+                    "O símbolo configurado para consulta é inválido. Confira Quotes:Symbols na configuração da API.");
+            var quote = await FetchSymbolAsync(market, mapped, ct);
+            return quote with
+            {
+                Symbol = symbol,
+                Message = mapped == symbol ? quote.Message : $"Símbolo consultado: {mapped} (cadastro: {symbol}). {quote.Message}"
+            };
+        }
+
+        private async Task<AssetQuote> FetchSymbolAsync(string market, string symbol, CancellationToken ct)
         {
             var provider = market == "BR" ? "brapi" : "Alpha Vantage";
             var currency = market == "BR" ? "BRL" : "USD";
@@ -29,27 +44,34 @@ namespace InvestmentTracker.Infrastructure.Quotes
             var requested = false;
             try
             {
+                var directory = configuration["Quotes:StateDirectory"] ?? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "InvestmentTracker", "QuoteState");
+                // Preserve existing Alpha Vantage files; isolate brapi even when keys happen to match.
+                file = await QuoteRequestStateFile.OpenAsync(directory, token, ct, market == "BR" ? "brapi-" : "");
+                var state = await file.ReadAsync(ct);
                 var now = clock.GetUtcNow();
-                QuoteRequestState? state = null;
-                foreach (var expired in cache.Where(x => x.Value.Expires <= now).Select(x => x.Key).ToArray()) cache.Remove(expired);
-                var key = market + ":" + symbol;
-                if (market == "BR" && cache.TryGetValue(key, out var cached))
-                    return cached.Quote with { FromCache = true, Requested = false };
+                if (market == "BR") state.Attempts.RemoveAll(at => at <= now.AddDays(-31));
+                AssetQuote WithUsage(AssetQuote quote) => market == "BR"
+                    ? quote with { Usage = new(state.Attempts.Count, 15000, 31) } : quote;
+                foreach (var expired in state.Cache.Where(x => x.Value.Expires <= now).Select(x => x.Key).ToArray()) state.Cache.Remove(expired);
+                if (state.Cache.TryGetValue(symbol, out var saved))
+                    return WithUsage(saved.Quote with { FromCache = true, Requested = false });
+                if (state.BlockedUntil > now)
+                    return WithUsage(Failure(state.BlockReason, state.BlockReason == "daily-limit"
+                        ? "O provedor informou limite diário. Aguarde a liberação indicada."
+                        : "O provedor pediu uma pausa temporária. Tente novamente após o horário indicado.")
+                        with { RetryAfter = state.BlockedUntil });
+                if (market == "BR")
+                {
+                    // Conservative rolling window: do not guess the account's monthly billing reset.
+                    if (state.Attempts.Count >= 15000)
+                        return WithUsage(Failure("monthly-limit", "Proteção local brapi: 15.000 tentativas nos últimos 31 dias. Aguarde o horário indicado.")
+                            with { RetryAfter = state.Attempts.Min().AddDays(31) });
+                    state.Attempts.Add(now);
+                    await file.SaveAsync(state, ct);
+                }
                 if (market == "US")
                 {
-                    var directory = configuration["Quotes:StateDirectory"] ?? Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "InvestmentTracker", "QuoteState");
-                    file = await QuoteRequestStateFile.OpenAsync(directory, token, ct);
-                    state = await file.ReadAsync(ct);
-                    now = clock.GetUtcNow();
-                    foreach (var expired in state.Cache.Where(x => x.Value.Expires <= now).Select(x => x.Key).ToArray()) state.Cache.Remove(expired);
-                    if (state.Cache.TryGetValue(symbol, out var saved))
-                        return saved.Quote with { FromCache = true, Requested = false };
-                    if (state.BlockedUntil > now)
-                        return Failure(state.BlockReason, state.BlockReason == "daily-limit"
-                            ? "O provedor informou limite diário. Aguarde a liberação indicada."
-                            : "O provedor pediu uma pausa temporária. Tente novamente após o horário indicado.")
-                            with { RetryAfter = state.BlockedUntil };
                     // A rolling window avoids assuming the provider resets its quota at UTC midnight.
                     state.Attempts.RemoveAll(at => at <= now.AddHours(-24));
                     if (state.Attempts.Count >= 25)
@@ -96,21 +118,19 @@ namespace InvestmentTracker.Infrastructure.Quotes
                 catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or OverflowException or KeyNotFoundException)
                 { result = Failure("invalid", "O provedor retornou dados incompletos ou incompatíveis."); }
                 now = clock.GetUtcNow();
-                result = result with { RetrievedAt = now, Requested = true };
-                if (state is not null)
+                result = WithUsage(result with { RetrievedAt = now, Requested = true });
+                if (result.Status is "daily-limit" or "temporary-limit")
                 {
-                    if (result.Status is "daily-limit" or "temporary-limit")
-                    {
-                        state.BlockReason = result.Status;
-                        state.BlockedUntil = result.RetryAfter ?? now.Add(
-                            result.Status == "daily-limit" ? TimeSpan.FromHours(24) : TimeSpan.FromMinutes(1));
-                        result = result with { RetryAfter = state.BlockedUntil };
-                    }
-                    if (result.Price.HasValue) state.Cache[symbol] = new(result, now.AddHours(12));
-                    // Complete durable bookkeeping even if the browser disconnected after receiving the quote.
-                    await file!.SaveAsync(state, CancellationToken.None);
+                    state.BlockReason = result.Status;
+                    state.BlockedUntil = result.RetryAfter ?? now.Add(
+                        result.Status == "daily-limit" ? TimeSpan.FromHours(24) : TimeSpan.FromMinutes(1));
+                    result = result with { RetryAfter = state.BlockedUntil };
                 }
-                else cache[key] = (result, now.Add(result.Price.HasValue ? TimeSpan.FromMinutes(30) : TimeSpan.FromMinutes(2)));
+                if (result.Price.HasValue || market == "BR" && result.Status != "temporary-limit")
+                    state.Cache[symbol] = new(result, now.Add(market == "US" ? TimeSpan.FromHours(12)
+                        : result.Price.HasValue ? TimeSpan.FromMinutes(30) : TimeSpan.FromMinutes(2)));
+                // Complete durable bookkeeping even if the browser disconnected after receiving the quote.
+                await file.SaveAsync(state, CancellationToken.None);
                 return result;
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)

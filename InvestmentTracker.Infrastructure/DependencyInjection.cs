@@ -40,6 +40,7 @@ namespace InvestmentTracker.Infrastructure
             services.TryAddSingleton(TimeProvider.System);
             services.TryAddSingleton<ExchangeRateRefreshCoordinator>();
             services.AddScoped<IAllocationRepository, AllocationRepository>();
+            services.AddScoped<InvestmentTracker.Application.Allocation.Tracking.IContributionTrackingRepository, ContributionTrackingRepository>();
             services.AddScoped<IExternalAssetRepository, ExternalAssetRepository>();
             services.AddScoped<IHistoryRepository, HistoryRepository>();
             services.AddScoped<InvestmentTracker.Application.Trades.ITradeRepository, TradeRepository>();

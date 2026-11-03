@@ -8,7 +8,7 @@
 @if (portfolioId() && !loading()) { <button mat-stroked-button [disabled]="saving()" (click)="select(portfolioId()!)">Atualizar carteira e limpar simulação</button> }
 @if (dashboard(); as d) {
   <nav class="section-links" aria-label="Seções do Simulador"><a appSectionLink href="#simulation-input">Aporte</a>@if (plan()) { <a appSectionLink href="#simulation-plan">Plano</a> }<a appSectionLink href="#simulation-comparison">Comparações</a></nav>
-  <app-strategy-editor [portfolioId]="portfolioId()!" [categories]="d.allocation.categories" [currency]="d.summary.portfolio.baseCurrencyCode" (changed)="strategyChanged($event)" />
+  <app-strategy-editor [portfolioId]="portfolioId()!" [categories]="d.allocation.categories" [sectors]="d.allocation.sectors" [positions]="d.summary.positions" [currency]="d.summary.portfolio.baseCurrencyCode" (changed)="strategyChanged($event)" />
   <form class="panel simulation-form" [formGroup]="form" (ngSubmit)="simulate()">
     <h2 id="simulation-input">Configurar aporte</h2><fieldset [disabled]="saving()">
       <mat-form-field appearance="outline"><mat-label>Aporte em {{ d.summary.portfolio.baseCurrencyCode }}</mat-label>
@@ -26,21 +26,46 @@
     <section class="panel"><h2>Como sua estratégia foi aplicada</h2>
     <p>Base elegível do restante: {{ eligibleBase() | currency:d.summary.portfolio.baseCurrencyCode:'code' }}. Os gráficos abaixo continuam mostrando a carteira completa.</p>
     @for (note of strategyNotes(); track $index) { <p class="hint">{{ note }}</p> }
-    <p class="hint">As análises de metas abaixo referem-se somente ao restante após as reservas, com percentuais recalculados sobre a base elegível.</p></section>
+    <p class="hint">{{ concentration().length ? 'Com limites de concentração, confira o plano final e os percentuais projetados abaixo. As comparações continuam mostrando a carteira inteira.' : 'As análises de metas abaixo referem-se somente ao restante após as reservas, com percentuais recalculados sobre a base elegível.' }}</p></section>
+  }
+  @if (concentration().length) {
+    <section class="panel concentration-result"><h2>Limites de concentração</h2>
+      @for (limit of concentration(); track limit.dimension + ':' + limit.groupId) {
+        <article class="section-gap"><h3>{{ limit.dimension === 'category' ? 'Categoria' : 'Setor' }} · {{ limit.name }}</h3>
+          <p>Teto: {{ format(limit.maximumPercentage) }}%. Atual: {{ limit.currentPercentage === null ? 'sem base' : format(limit.currentPercentage) + '%' }} → Projetado: {{ limit.projectedPercentage === null ? 'sem base' : format(limit.projectedPercentage) + '%' }}.</p>
+          <p>Sugestão original: {{ limit.requestedContribution | currency:d.summary.portfolio.baseCurrencyCode:'code' }} · Após limites: {{ limit.suggestedContribution | currency:d.summary.portfolio.baseCurrencyCode:'code' }}.</p>
+          @if (limit.aboveLimit) { <p class="notice">Este grupo já está acima do teto e permanece acima após o plano. Não recebe aporte adicional; nenhuma venda é sugerida.</p> }
+        </article>
+      }
+    </section>
+  }
+  @if (prioritiesApplied() && ruleFunding().length) {
+    <section class="panel priority-result"><h2>Atendimento das prioridades</h2>
+      @for (rule of ruleFunding(); track rule.categoryId) {
+        <article class="section-gap"><h3>{{ rule.category }} · prioridade {{ rule.priority }}</h3>
+          <p>Reserva solicitada: {{ rule.requested | currency:d.summary.portfolio.baseCurrencyCode:'code' }} · Orçamento reservado: {{ rule.budget | currency:d.summary.portfolio.baseCurrencyCode:'code' }} · Sugestão final: {{ rule.suggested | currency:d.summary.portfolio.baseCurrencyCode:'code' }}.</p>
+        </article>
+      }
+    </section>
   }
   @if (plan(); as p) {
     <section class="panel joint-plan">
       <h2 id="simulation-plan">{{ strategy() ? 'Plano da estratégia' : 'Plano conjunto · setor e categoria' }}</h2>
-      <details><summary>Como o plano é escolhido</summary><p>Uma distribuição possível dos valores sugeridos, limitada às combinações das posições com quantidade positiva. Não é uma escolha de ativos nem garante atingir todas as metas. Se houver mais de uma solução, usamos a ordem dos cadastros para desempatar.</p></details>
+      <details><summary>Como o plano é escolhido</summary><p>Uma distribuição possível dos valores sugeridos, limitada às combinações das posições com quantidade positiva. Não é uma escolha de ativos nem garante atingir todas as metas. {{ prioritiesApplied() ? 'As prioridades configuradas orientam o orçamento e os desempates, respeitando elegibilidade e limites.' : 'Se houver mais de uma solução, usamos a ordem dos cadastros para desempatar.' }}</p></details>
       @if (number(p.unallocated) > 0) { <p class="notice">Valor não distribuído: <strong>{{ p.unallocated | currency:d.summary.portfolio.baseCurrencyCode:'code':'1.2-2' }}</strong>. {{ strategy() ? 'Este valor ficou reservado ou não encontrou distribuição compatível com as regras e combinações da carteira.' : 'As metas ou as combinações existentes não permitem distribuir todo o aporte.' }}</p> }
       @for (row of p.rows; track row.key) {
         <article class="suggestion" [class.completed]="checked().has('joint:' + row.key)">
           <mat-checkbox class="check" [checked]="checked().has('joint:' + row.key)" (change)="toggle('joint:' + row.key)">{{ row.sector }} → {{ row.category }} · investido</mat-checkbox>
           <strong>{{ row.amount | currency:d.summary.portfolio.baseCurrencyCode:'code':'1.2-2' }}</strong>
+          @if (prioritiesApplied()) { <p class="hint">{{ row.stage === 'reservation' ? 'Reserva' : 'Restante' }} · prioridade da regra {{ row.rulePriority || 100 }} · prioridade do grupo {{ row.groupPriority || 100 }}.</p> }
+          @if (row.suggestedCurrency) { <p class="currency-direction"><strong>Indicação do plano: {{ row.sector }} em {{ row.suggestedCurrency === 'USD' ? 'dólar (USD)' : row.suggestedCurrency === 'BRL' ? 'real (BRL)' : row.suggestedCurrency }}.</strong></p> }
+          @if (row.suggestionReason) { <p class="hint">{{ row.suggestionReason }}</p> }
           @for (quote of row.currencies; track quote.currency) {
             <p>Na moeda do ativo: {{ quote.amount === null ? quote.currency + ' — câmbio indisponível' : (quote.amount | currency:quote.currency:'code':'1.2-2') }}
+              @if (quote.currency === row.suggestedCurrency) { <strong> · Moeda indicada</strong> }
               @if (quote.currency !== d.summary.portfolio.baseCurrencyCode) { · {{ quote.dates || 'Data indisponível' }} {{ quote.stale ? '· Cotação anterior' : '' }} }
             </p>
+            @if (quote.tickers?.length) { <p class="hint">Ativos elegíveis em {{ quote.currency }}: {{ quote.tickers?.join(', ') }}.</p> }
           }
           @if (row.currencies.length > 1) { <p class="hint">Moedas alternativas para o mesmo valor. Escolha a moeda do ativo; não some os equivalentes.</p> }
         </article>
@@ -50,6 +75,7 @@
   @if (analyses().length) {
     <p>As duas análises representam o <strong>{{ strategy() ? 'mesmo restante do aporte' : 'mesmo aporte' }}</strong>. Não some seus valores. O plano conjunto reúne a distribuição sem duplicar o aporte.</p>
   }
+  <app-contribution-tracking [portfolioId]="portfolioId()!" [simulation]="trackingSimulation()" />
   <h2 id="simulation-comparison">Comparações da carteira inteira</h2><div class="comparison">
     @for (dimension of ['category', 'sector']; track dimension) {
       <section class="panel">

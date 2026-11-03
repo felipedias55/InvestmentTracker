@@ -6,6 +6,7 @@ namespace InvestmentTracker.Domain.Entities
 {
     public class Sector
     {
+        public bool IsRealEstate { get; set; }
         public const int NameMaxLength = 100;
 
         public int Id { get; set; }

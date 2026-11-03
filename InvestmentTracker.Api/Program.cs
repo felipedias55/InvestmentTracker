@@ -2,6 +2,7 @@ using InvestmentTracker.Application.Portfolios;
 using InvestmentTracker.Application.ExchangeRates.Interfaces;
 using InvestmentTracker.Infrastructure.ExchangeRates;
 using InvestmentTracker.Api.Exceptions;
+using InvestmentTracker.Api.Health;
 using InvestmentTracker.Infrastructure.Persistence;
 using InvestmentTracker.Application;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApplicationExceptionHandler>();
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>(
+    DatabaseHealthCheck.Name,
+    tags: [DatabaseHealthCheck.ReadinessTag],
+    timeout: TimeSpan.FromSeconds(5));
 
 builder.Services.AddOpenApi();
 
@@ -54,6 +59,22 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+if (builder.Configuration.GetValue<bool>("QuoteCoverage"))
+{
+    var output = builder.Configuration["QuoteCoverageOutput"];
+    if (string.IsNullOrWhiteSpace(output)) throw new InvalidOperationException("Informe QuoteCoverageOutput.");
+    await using var scope = app.Services.CreateAsyncScope();
+    var rows = await scope.ServiceProvider.GetRequiredService<InvestmentTracker.Application.Quotes.QuoteCoverageService>()
+        .CheckAsync(CancellationToken.None);
+    await File.WriteAllTextAsync(output, System.Text.Json.JsonSerializer.Serialize(new
+    {
+        CheckedAt = DateTimeOffset.UtcNow,
+        Assets = rows
+    }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine($"Cobertura conferida: {rows.Count} ativos. Relatório salvo no arquivo indicado.");
+    return;
+}
 
 if (builder.Configuration.GetValue<bool>("SeedCatalogs"))
 {

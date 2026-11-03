@@ -70,8 +70,10 @@ namespace InvestmentTracker.Application.Allocation.Services
         {
             ContributionCalculator.ValidateAmount(dto.Amount);
             var dashboard = await GetDashboardAsync(portfolioId, cancellationToken);
-            return dashboard is null ? null : dto.Strategy is null ? ContributionPlanCalculator.Calculate(dashboard, dto.Amount)
+            if (dashboard is null) return null;
+            var plan = dto.Strategy is null ? ContributionPlanCalculator.Calculate(dashboard, dto.Amount)
                 : InvestmentTracker.Application.Strategies.StrategyCalculator.Calculate(dashboard, dto.Amount, dto.Strategy);
+            return plan with { PlanToken = InvestmentTracker.Application.Allocation.Tracking.ContributionTrackingCalculator.Token(plan) };
         }
 
         private static IReadOnlyList<AllocationRowDto> BuildRows(PortfolioSummaryDto summary,

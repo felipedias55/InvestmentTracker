@@ -105,6 +105,13 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("InstrumentClass")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("unclassified");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -115,7 +122,10 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("AssetType", (string)null);
+                    b.ToTable("AssetType", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AssetType_InstrumentClass", "[InstrumentClass] IN ('general', 'fii', 'reit', 'unclassified')");
+                        });
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.CategoryAllocationTarget", b =>
@@ -146,6 +156,54 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.ToTable("CategoryAllocationTarget", null, t =>
                         {
                             t.HasCheckConstraint("CK_CategoryAllocationTarget_Percentage", "[TargetPercentage] >= 0 AND [TargetPercentage] <= 1");
+                        });
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.ContributionPurchaseLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BaseAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<string>("ConversionSource")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RemovedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RowKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SavedContributionPlanId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TradeId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SavedContributionPlanId");
+
+                    b.HasIndex("TradeId")
+                        .IsUnique()
+                        .HasFilter("[RemovedAtUtc] IS NULL");
+
+                    b.ToTable("ContributionPurchaseLink", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ContributionPurchaseLink_Amount", "[BaseAmount] > 0");
                         });
                 });
 
@@ -920,6 +978,53 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.SavedContributionPlan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("From")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("PortfolioId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateOnly>("To")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortfolioId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("SavedContributionPlan", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SavedContributionPlan_Period", "[From] <= [To]");
+                        });
+                });
+
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.Sector", b =>
                 {
                     b.Property<int>("Id")
@@ -927,6 +1032,9 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsRealEstate")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1032,6 +1140,21 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.Navigation("AssetCategory");
 
                     b.Navigation("Portfolio");
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.ContributionPurchaseLink", b =>
+                {
+                    b.HasOne("InvestmentTracker.Domain.Entities.SavedContributionPlan", null)
+                        .WithMany("Purchases")
+                        .HasForeignKey("SavedContributionPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InvestmentTracker.Domain.Entities.PortfolioTrade", null)
+                        .WithMany()
+                        .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.ExternalAsset", b =>
@@ -1256,6 +1379,15 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.SavedContributionPlan", b =>
+                {
+                    b.HasOne("InvestmentTracker.Domain.Entities.Portfolio", null)
+                        .WithMany()
+                        .HasForeignKey("PortfolioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.SectorAllocationTarget", b =>
                 {
                     b.HasOne("InvestmentTracker.Domain.Entities.Portfolio", "Portfolio")
@@ -1319,6 +1451,11 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.Navigation("PortfolioAssets");
 
                     b.Navigation("SectorAllocationTargets");
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.SavedContributionPlan", b =>
+                {
+                    b.Navigation("Purchases");
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.Sector", b =>

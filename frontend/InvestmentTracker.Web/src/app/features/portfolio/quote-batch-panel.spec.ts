@@ -114,6 +114,13 @@ describe('QuoteBatchPanel', () => {
       component.review.set(true); component.save(); http.expectNone('/api/portfolios/1/quotes');
     }
   });
+  it('identifies the local usage estimate without presenting it as an official balance', () => {
+    const component = initialize().componentInstance;
+    const details = component.quoteDetails({ provider: 'brapi', date: null, price: null, message: 'Limite',
+      usage: { attempts: 15000, limit: 15000, windowDays: 31 } });
+    expect(details).toContain('15000/15000 tentativas em 31 dias');
+    expect(details).toContain('não é o extrato oficial do provedor');
+  });
   it('matches server rounding for half-way values without floating point drift', () => {
     expect(quoteTotal('0.000001', '50')).toBe('0.0000');
     expect(quoteTotal('0.000003', '50')).toBe('0.0002');

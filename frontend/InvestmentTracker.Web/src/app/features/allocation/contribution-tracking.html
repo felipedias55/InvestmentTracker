@@ -1,0 +1,88 @@
+<section class="panel contribution-tracking">
+  <h2>Planejado × realizado</h2>
+  <p>Salve um plano e acompanhe sua execução com compras já registradas. As marcações temporárias do simulador continuam separadas.</p>
+  <div class="actions">
+    @if (simulation()) { <button mat-stroked-button (click)="startSave()" [disabled]="saving()">Salvar plano de aporte</button> }
+    @if (!open()) { <button mat-stroked-button (click)="show()">Abrir acompanhamento</button> }
+    @else { <button mat-stroked-button (click)="load(page()?.pageIndex || 0, page()?.pageSize || 10)" [disabled]="saving() || loading()">Atualizar planos</button> }
+  </div>
+  @if (error() && !saveOpen() && !linking()) { <p class="notice error" role="alert">{{ error() }}</p> }
+  @if (notice()) { <p role="status">{{ notice() }}</p> }
+  @if (loading()) { <p role="status">Carregando acompanhamento…</p> }
+  @if (open()) {
+    @if (page(); as page) {
+      <h3>Planos salvos</h3>
+      @for (plan of page.items; track plan.id) {
+        <article class="tracking-item"><strong>{{ plan.name }}</strong><p>{{ plan.from | date:'dd/MM/yyyy':'UTC' }} a {{ plan.to | date:'dd/MM/yyyy':'UTC' }}</p>
+          <button mat-stroked-button (click)="read(plan.id)" [disabled]="saving() || loading()">Acompanhar {{ plan.name }}</button></article>
+      } @empty { <p>Nenhum plano salvo nesta carteira.</p> }
+      <app-list-paginator [length]="page.total" [index]="page.pageIndex" [size]="page.pageSize" (changed)="load($event.pageIndex, $event.pageSize)" />
+    }
+    @if (detail(); as d) {
+      <section class="tracking-detail"><h3>{{ d.plan.name }} · {{ labels[d.status] }}</h3>
+        <p>Período: {{ d.plan.from | date:'dd/MM/yyyy':'UTC' }} a {{ d.plan.to | date:'dd/MM/yyyy':'UTC' }}. Salvo em {{ d.plan.createdAtUtc | date:'dd/MM/yyyy HH:mm':'-0300' }}.</p>
+        <p>Orçamento original: {{ d.snapshot.simulation.amount | currency:d.snapshot.currency:'code':'1.2-4' }} · Não distribuído: {{ d.snapshot.plan.unallocated | currency:d.snapshot.currency:'code':'1.2-4' }}.</p>
+        <p><strong>Realizado: {{ d.realized | currency:d.snapshot.currency:'code':'1.2-4' }}</strong> · Diferença para as sugestões: {{ d.difference | currency:d.snapshot.currency:'code':'1.2-4' }}.</p>
+        <p class="hint">Diferença = planejado menos realizado; negativa indica excesso. Compras incluem taxas. O saldo não distribuído não é uma meta de compra. Conclusão exige atender cada linha.</p>
+        <button mat-stroked-button (click)="read(d.plan.id)" [disabled]="saving() || loading()">Atualizar execução</button>
+        <details><summary>Regras preservadas no plano</summary><p>{{ d.snapshot.simulation.strategy?.name || 'Metas da carteira na simulação' }}</p>
+          @for (note of d.snapshot.notes; track $index) { <p class="hint">{{ note }}</p> }
+        </details>
+        @for (row of d.rows.slice(rowPage() * 10, rowPage() * 10 + 10); track row.planned.key) {
+          <article class="tracking-item"><h4>{{ row.planned.sector }} → {{ row.planned.category }} · {{ row.planned.stage === 'reservation' ? 'Reserva' : 'Restante' }}</h4>
+            <p>Planejado: {{ row.planned.amount | currency:d.snapshot.currency:'code':'1.2-4' }} · Realizado: {{ row.realized | currency:d.snapshot.currency:'code':'1.2-4' }} · Diferença: {{ row.difference | currency:d.snapshot.currency:'code':'1.2-4' }}.</p>
+            <p>{{ labels[row.status] }} @if (row.planned.suggestedCurrency) { · Moeda indicada: {{ row.planned.suggestedCurrency }} }</p>
+          </article>
+        } @empty { <p>Este plano não possui sugestões distribuídas.</p> }
+        <app-list-paginator [hidePageSize]="true" [length]="d.rows.length" [index]="rowPage()" [size]="10" (changed)="rowPage.set($event.pageIndex)" />
+        <h4>Vínculos de compras</h4>
+        @for (purchase of d.purchases.slice(historyPage() * 10, historyPage() * 10 + 10); track purchase.id) {
+          <article class="tracking-item"><strong>{{ purchase.ticker }} · {{ purchase.date | date:'dd/MM/yyyy':'UTC' }}</strong>
+            <p>Compra: {{ purchase.amount | currency:purchase.currency:'code':'1.2-4' }} · Equivalente: {{ purchase.baseAmount | currency:d.snapshot.currency:'code':'1.2-4' }} ({{ purchase.conversionSource === 'manual' ? 'informado no vínculo' : purchase.conversionSource === 'historical' ? 'histórico registrado' : 'mesma moeda' }}).</p>
+            <p>{{ purchase.removedAtUtc ? 'Vínculo removido' : purchase.active ? 'Incluído no realizado' : 'Compra estornada ou substituída: fora do realizado' }}.</p>
+            @if (!purchase.removedAtUtc) { <button mat-stroked-button [disabled]="saving()" (click)="unlink(purchase.id)">Remover vínculo de {{ purchase.ticker }}</button> }
+          </article>
+        } @empty { <p>Nenhuma compra vinculada.</p> }
+        <app-list-paginator [hidePageSize]="true" [length]="d.purchases.length" [index]="historyPage()" [size]="10" (changed)="historyPage.set($event.pageIndex)" />
+        <h4>Vincular compra registrada</h4>
+        <p>Uma compra inteira pode pertencer a somente uma linha de um plano. São listadas compras ativas do período ainda sem vínculo; categoria, setor e moeda devem corresponder. <a routerLink="/trades">Registrar uma compra</a>.</p>
+        @if (candidates(); as candidates) {
+          @for (trade of candidates.items; track trade.tradeId) {
+            <article class="tracking-item"><strong>{{ trade.ticker }} · {{ trade.date | date:'dd/MM/yyyy':'UTC' }}</strong><p>{{ trade.amount | currency:trade.currency:'code':'1.2-4' }}</p>
+              @if (matching(trade).length) { <button mat-stroked-button [disabled]="saving()" (click)="beginLink(trade)">Vincular {{ trade.ticker }}</button> }
+              @else { <p class="hint">Sem linha compatível neste plano.</p> }
+            </article>
+          } @empty { <p>Nenhuma compra disponível neste período. Registre as compras e atualize a execução.</p> }
+          <app-list-paginator [length]="candidates.total" [index]="candidates.pageIndex" [size]="candidates.pageSize" (changed)="loadCandidates($event.pageIndex, $event.pageSize)" />
+        }
+      </section>
+    }
+  }
+</section>
+@if (saveOpen()) {
+  <app-edit-panel [editing]="true" title="Salvar plano de aporte" [busy]="saving()" [error]="error()" (closed)="saveOpen.set(false)">
+    <form class="panel" [formGroup]="saveForm" [appDraftState]="saveForm.getRawValue()" [draftBusy]="saving()" (ngSubmit)="save()">
+      <p>O plano e as regras desta simulação serão preservados. Escolha o período de execução; salvar não registra compras nem altera sua carteira.</p>
+      <fieldset [disabled]="saving()"><mat-form-field appearance="outline"><mat-label>Nome do plano</mat-label><input matInput formControlName="name" maxlength="100" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Início da execução</mat-label><input matInput type="date" formControlName="from" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Fim da execução</mat-label><input matInput type="date" formControlName="to" /></mat-form-field>
+      @if (saveForm.touched && (saveForm.invalid || saveForm.controls.from.value > saveForm.controls.to.value)) { <p class="field-error">Informe nome e período válido.</p> }
+      @if (!simulation()) { <p class="notice">Simule novamente antes de salvar.</p> }
+      <button mat-flat-button type="submit" [disabled]="saving() || !simulation()">Salvar e acompanhar</button></fieldset>
+    </form>
+  </app-edit-panel>
+}
+@if (linking(); as trade) {
+  <app-edit-panel [editing]="true" title="Vincular compra ao plano" [busy]="saving()" [error]="error()" (closed)="linking.set(null)">
+    <form class="panel" [formGroup]="linkForm" [appDraftState]="linkForm.getRawValue()" [draftBusy]="saving()" (ngSubmit)="link()">
+      <p>{{ trade.ticker }} · {{ trade.amount | currency:trade.currency:'code':'1.2-4' }}. O vínculo acompanha a compra inteira e não altera dados financeiros.</p>
+      <fieldset [disabled]="saving()"><mat-form-field appearance="outline"><mat-label>Linha do plano</mat-label><select matNativeControl formControlName="rowKey">
+        @for (row of matching(trade); track row.planned.key) { <option [value]="row.planned.key">{{ row.planned.sector }} / {{ row.planned.category }} · {{ row.planned.stage === 'reservation' ? 'Reserva' : 'Restante' }}</option> }
+      </select></mat-form-field>
+      @if (needsEquivalent()) { <p>Esta compra não tem equivalente histórico na moeda do plano. Informe o custo histórico total, incluindo taxas, em {{ detail()?.snapshot?.currency }}. Não usamos o câmbio atual.</p>
+        <mat-form-field appearance="outline"><mat-label>Equivalente histórico na moeda do plano</mat-label><input matInput inputmode="decimal" formControlName="baseAmount" /></mat-form-field> }
+      @if (linkForm.touched && (linkForm.invalid || (needsEquivalent() && !linkForm.controls.baseAmount.value))) { <p class="field-error">Confira a linha e o equivalente histórico.</p> }
+      <button mat-flat-button type="submit" [disabled]="saving()">Confirmar vínculo</button></fieldset>
+    </form>
+  </app-edit-panel>
+}

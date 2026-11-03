@@ -1,5 +1,5 @@
 
 namespace InvestmentTracker.Application.Sectors.Dtos
 {
-    public sealed record CreateSectorDto(string Name);
+    public sealed record CreateSectorDto(string Name, bool IsRealEstate = false);
 }

@@ -9,7 +9,10 @@ namespace InvestmentTracker.Application.Movements
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal UnitPrice = 0,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal Fees = 0,
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal Amount = 0,
-        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal? BaseAmount = null);
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal? BaseAmount = null,
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal RatioNumerator = 0,
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal RatioDenominator = 0,
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)] decimal Cost = 0);
     public sealed record CorrectionInput(int? MovementId, string Reason, CorrectionOperation Operation);
     public sealed record ApplyCorrectionDto(Guid RequestId, string Token, CorrectionInput Input);
     public sealed record CorrectionBalanceDto(string Name, string CurrencyCode, bool IsPosition,

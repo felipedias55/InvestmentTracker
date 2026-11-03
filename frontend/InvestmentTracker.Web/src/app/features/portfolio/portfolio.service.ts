@@ -25,6 +25,8 @@ export interface Position extends PositionInput {
   assetCategoryId?: number;
   sectorId?: number;
   assetTypeName?: string;
+  instrumentClass?: string;
+  isRealEstateSector?: boolean;
   assetCategoryName?: string;
   sectorName?: string;
   countryName?: string;

@@ -58,7 +58,7 @@ O workflow usa somente permissão de leitura do repositório, cache de download 
 
 As suítes Playwright agora isolam suas saídas em `test-results/presentation/` e `test-results/e2e/`. A primeira execução simultânea revelou colisão dos diretórios temporários de trace; separar outputDir evita que a limpeza de uma suíte remova os arquivos da outra. As portas 65455 e 65454 também permanecem separadas.
 
-O workflow foi preparado e sua sintaxe YAML conferida localmente. A primeira execução nos runners do GitHub ainda depende do envio das alterações ao repositório e deve ser acompanhada para confirmar as particularidades dessas imagens. Nesta entrega não houve push, alteração de proteção de branch ou execução remota de Actions.
+O workflow foi preparado e sua sintaxe YAML conferida localmente. Após o envio das alterações, o usuário confirmou nesta conversa que a primeira execução do CI no GitHub deu certo. A consolidação e a validação inicial do CI ficam encerradas com base nessa confirmação; não foi feita inspeção independente dos logs remotos nesta atualização.
 
 ## Referências de configuração
 
@@ -82,4 +82,4 @@ Validação local final em **28/10/2026**:
 | E2E com API real | 12 cenários aprovados em 1,2 minuto; remoção da base temporária confirmada |
 | Build Angular | Aprovado, pacote inicial de 455,77 kB, abaixo do orçamento preservado de 500 kB |
 
-Total: **565 testes/cenários aprovados**. A repetição das duas suítes de navegador ocorreu simultaneamente, com diretórios independentes, confirmando a correção da colisão dos traces. Os testes com banco usaram somente bases temporárias. O CI hospedado continua aguardando sua primeira execução no GitHub.
+Total local: **565 testes/cenários aprovados**. A repetição das duas suítes de navegador ocorreu simultaneamente, com diretórios independentes, confirmando a correção da colisão dos traces. Os testes com banco usaram somente bases temporárias. O sucesso da primeira execução hospedada foi posteriormente confirmado pelo usuário.

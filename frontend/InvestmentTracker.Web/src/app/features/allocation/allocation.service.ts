@@ -49,9 +49,16 @@ export interface Contribution {
     currencies?: ContributionCurrency[];
   }[];
 }
-export interface ContributionCurrency { currency: string; amount: string | null; rate: string | null; dates: string; stale: boolean; }
-export interface JointPlan { rows: { key: string; category: string; sector: string; amount: string; currencies: ContributionCurrency[] }[]; unallocated: string; }
-export interface ContributionPlan { dashboard: Dashboard; category: Contribution | null; sector: Contribution | null; plan: JointPlan | null; strategyNotes?: string[]; eligibleBase?: string | null; }
+export interface ContributionCurrency { currency: string; amount: string | null; rate: string | null; dates: string; stale: boolean; tickers?: string[]; }
+export interface JointPlan { rows: { key: string; category: string; sector: string; amount: string; currencies: ContributionCurrency[];
+  categoryId?: number; sectorId?: number;
+  stage?: string; rulePriority?: number; groupPriority?: number; suggestedCurrency?: string | null; suggestionReason?: string }[]; unallocated: string; }
+export interface RuleFunding { categoryId: number; category: string; priority: number; requested: string; budget: string; suggested: string; }
+export interface ConcentrationStatus { dimension: string; groupId: number; name: string; maximumPercentage: string; currentPercentage: string | null;
+  projectedPercentage: string | null; requestedContribution: string; suggestedContribution: string; initiallyAboveLimit: boolean; aboveLimit: boolean; }
+export interface ContributionPlan { dashboard: Dashboard; category: Contribution | null; sector: Contribution | null; plan: JointPlan | null; strategyNotes?: string[]; eligibleBase?: string | null;
+  planToken?: string;
+  concentration?: ConcentrationStatus[]; prioritiesApplied?: boolean; ruleFunding?: RuleFunding[]; }
 @Injectable({ providedIn: 'root' })
 export class AllocationService {
   private readonly http = inject(HttpClient);

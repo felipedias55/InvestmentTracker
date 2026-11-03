@@ -49,7 +49,7 @@ namespace InvestmentTracker.Application.Sectors.Services
 
             var sector = new Sector
             {
-                Name = name
+                Name = name, IsRealEstate = dto.IsRealEstate
             };
 
             await repository.AddAsync(
@@ -90,6 +90,7 @@ namespace InvestmentTracker.Application.Sectors.Services
             }
 
             sector.Name = name;
+            if (dto.IsRealEstate.HasValue) sector.IsRealEstate = dto.IsRealEstate.Value;
 
             await repository.SaveChangesAsync(
                 cancellationToken);
@@ -142,7 +143,7 @@ namespace InvestmentTracker.Application.Sectors.Services
         {
             return new SectorDto(
                 sector.Id,
-                sector.Name);
+                sector.Name, sector.IsRealEstate);
         }
     }
 }

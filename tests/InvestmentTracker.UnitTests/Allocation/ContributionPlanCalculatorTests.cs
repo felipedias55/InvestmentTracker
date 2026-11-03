@@ -35,15 +35,27 @@ namespace InvestmentTracker.UnitTests.Allocation
         }
 
         [Theory]
-        [InlineData("REITs", "Tecnologia", 100)]
-        [InlineData("FII", "Consumo", 100)]
-        [InlineData("FIIs", "Imobiliário", 0)]
-        [InlineData("REIT", "Real Estate", 0)]
-        public void RealEstateRestrictionShouldMatchExistingBehavior(string category, string sector, int remaining)
+        [InlineData("reit", false, 100)]
+        [InlineData("fii", false, 100)]
+        [InlineData("fii", true, 0)]
+        [InlineData("reit", true, 0)]
+        [InlineData("general", false, 0)]
+        [InlineData("unclassified", true, 100)]
+        [InlineData("invalid", true, 100)]
+        public void RealEstateRestrictionShouldUseStructuredMetadata(string classification, bool realEstate, int remaining)
         {
             var result = ContributionPlanCalculator.Build(Analysis("category", 100), Analysis("sector", 100),
-                [Position(1, 1, name: category, sectorName: sector)]);
+                [Position(1, 1, name: "Nome personalizado", sectorName: "Nome personalizado") with
+                    { InstrumentClass = classification, IsRealEstateSector = realEstate }]);
             Assert.Equal(remaining, result.Unallocated);
+        }
+
+        [Fact]
+        public void NamesShouldNotOverrideExplicitClassification()
+        {
+            Assert.True(ContributionPlanCalculator.IsEligible(Position(1, 1, name: "FII", sectorName: "Tecnologia") with { InstrumentClass = "general" }));
+            Assert.False(ContributionPlanCalculator.IsEligible(Position(1, 1, name: "Ações", sectorName: "Imobiliário") with { InstrumentClass = "fii", IsRealEstateSector = false }));
+            Assert.True(ContributionPlanCalculator.IsEligible(Position(1, 1, name: "Ações", sectorName: "Tecnologia") with { InstrumentClass = "fii", IsRealEstateSector = true }));
         }
 
         [Fact]

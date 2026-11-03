@@ -34,6 +34,16 @@
         @if (isCurrency) {
           <mat-form-field appearance="outline"><mat-label>Símbolo <span>(opcional)</span></mat-label><input matInput id="symbol" formControlName="symbol" maxlength="10" placeholder="Ex.: R$" /></mat-form-field>
         }
+        @if (isAssetType) {
+          <mat-form-field appearance="outline"><mat-label>Classificação do instrumento</mat-label><select matNativeControl id="instrument-class" formControlName="instrumentClass">
+            <option value="general">Outros instrumentos</option><option value="fii">FII</option><option value="reit">REIT</option><option value="unclassified">Revisar classificação</option>
+          </select></mat-form-field>
+          <p class="hint">Vale para todos os ativos deste tipo. FII/REIT recebe sugestão de aporte apenas em setor marcado como imobiliário. Sem classificação, fica fora da distribuição. Renomear o tipo não muda esta regra.</p>
+        }
+        @if (isSector) {
+          <mat-checkbox formControlName="isRealEstate">Setor imobiliário para planejamento</mat-checkbox>
+          <p class="hint">Permite sugerir aportes em FII/REIT deste setor, independentemente do nome. Não altera posições, metas ou histórico.</p>
+        }
         <div class="actions">
           <button data-discard  mat-stroked-button type="button" (click)="cancel()">Cancelar</button>
 <button mat-flat-button class="primary" type="submit" [disabled]="saving()">
@@ -96,7 +106,10 @@
                     <strong>{{ item.code }}</strong>
                   </td>
                 }
-                <td>{{ item.name }}</td>
+                <td>{{ item.name }}
+                  @if (isAssetType) { <p class="hint">{{ instrumentLabels[item.instrumentClass || 'unclassified'] }}</p> }
+                  @if (isSector && item.isRealEstate) { <p class="hint">Imobiliário para planejamento</p> }
+                </td>
                 @if (isCurrency) {
                   <td>{{ item.symbol || '—' }}</td>
                 }

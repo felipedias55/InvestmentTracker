@@ -1,5 +1,52 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
+test('plano salvo acompanha compras e estornos sem duplicar ou alterar operações', async ({ page, request }, info) => {
+  const suffix = info.project.name === 'desktop' ? 'D' : 'C';
+  const created = await request.post('/api/portfolios', { data: { name: 'Execução de aporte ' + suffix } }); expect(created.ok()).toBeTruthy();
+  const portfolio = await created.json(), path = `portfolios/${portfolio.id}`;
+  const [currencies, types, countries, categories, sectors] = await Promise.all(['currencies', 'asset-types', 'countries', 'asset-categories', 'sectors'].map(p => json(request, p)));
+  const assetResponse = await request.post('/api/assets', { data: { ticker: 'EXEC' + suffix, name: 'Ativo sintético para acompanhamento', currencyId: currencies.find((c: any) => c.code === 'BRL').id,
+    assetTypeId: types.find((t: any) => t.instrumentClass === 'general').id, countryId: countries[0].id, assetCategoryId: categories[0].id, sectorId: sectors[0].id } }); expect(assetResponse.ok()).toBeTruthy();
+  const asset = await assetResponse.json();
+  expect((await request.post('/api/' + path + '/assets', { data: { assetId: asset.id, quantity: '1', investedAmount: '100', currentValue: '100', income: '0' } })).ok()).toBeTruthy();
+  await page.goto('/contributions'); await choosePortfolio(page, portfolio.name);
+  await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Usar estratégia nesta simulação', exact: true }).check();
+  await page.getByLabel('Modelo', { exact: true }).selectOption('regular');
+  await page.getByRole('button', { name: 'Concluir configuração', exact: true }).click();
+  await page.locator('#contribution-amount').fill('100');
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
+  await page.getByRole('button', { name: 'Salvar plano de aporte', exact: true }).click();
+  const modal = page.locator('dialog:modal'); await modal.getByLabel('Nome do plano', { exact: true }).fill('Aporte acompanhado');
+  const date = await modal.getByLabel('Início da execução', { exact: true }).inputValue();
+  const savedResponse = page.waitForResponse(r => r.url().endsWith('/contribution-plans') && r.request().method() === 'POST');
+  await modal.getByRole('button', { name: 'Salvar e acompanhar', exact: true }).click();
+  const saved = await (await savedResponse).json(); const snapshot = saved.snapshot;
+  await expect(modal).toHaveCount(0); await expect(page.locator('.tracking-detail')).toContainText('Pendente');
+  const tradeResponse = await request.post('/api/' + path + '/trades', { data: { requestId: 'e9180f36-9b17-4027-8de9-' + (suffix === 'D' ? '92f636521001' : '92f636521002'), date, kind: 'buy', assetId: asset.id, quantity: '1', unitPrice: '100', fees: '1' } }); expect(tradeResponse.ok()).toBeTruthy();
+  const trade = await tradeResponse.json(); const before = await json(request, path), movementsBefore = await json(request, path + '/movements');
+  await page.getByRole('button', { name: 'Atualizar execução', exact: true }).click();
+  await page.getByRole('button', { name: 'Vincular EXEC' + suffix, exact: true }).click();
+  await page.getByRole('button', { name: 'Confirmar vínculo', exact: true }).click();
+  await expect(page.locator('.tracking-detail')).toContainText('Acima do planejado');
+  await expect(page.locator('.tracking-detail')).toContainText('Realizado: BRL 101,00');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('.tracking-detail').screenshot({ path: info.outputPath('tracked-plan.png') });
+  expect(await json(request, path)).toEqual(before); expect(await json(request, path + '/movements')).toEqual(movementsBefore);
+  const movement = movementsBefore.find((m: any) => m.tradeId === trade.id);
+  expect((await request.post('/api/' + path + `/movements/${movement.id}/reversal`, { data: { requestId: 'e9180f36-9b17-4027-8de9-' + (suffix === 'D' ? '92f636521003' : '92f636521004'), reason: 'Conferência de execução' } })).ok()).toBeTruthy();
+  await page.getByRole('button', { name: 'Atualizar execução', exact: true }).click();
+  await expect(page.locator('.tracking-detail')).toContainText('Compra estornada ou substituída: fora do realizado');
+  await expect(page.locator('.tracking-detail')).toContainText('Realizado: BRL 0,00');
+  await page.getByRole('button', { name: 'Remover vínculo de EXEC' + suffix, exact: true }).click();
+  await expect(page.locator('.tracking-detail')).toContainText('Vínculo removido');
+  await page.reload(); await choosePortfolio(page, portfolio.name);
+  await page.getByRole('button', { name: 'Abrir acompanhamento', exact: true }).click();
+  await page.getByRole('button', { name: 'Acompanhar Aporte acompanhado', exact: true }).click();
+  await expect(page.locator('.tracking-detail')).toContainText('Pendente');
+  expect((await json(request, path + '/contribution-plans/' + saved.plan.id)).snapshot).toEqual(snapshot);
+});
+
 test('cotações em lote revisam valores e preservam filtros e posições não preenchidas', async ({ page, request }, info) => {
   const created = await request.post('/api/portfolios', { data: { name: 'Cotações ' + info.project.name } }); expect(created.ok()).toBeTruthy();
   const portfolio = await created.json(); const path = `portfolios/${portfolio.id}`;
@@ -365,7 +412,7 @@ test('menu permanece acessível após rolagem e gráficos mantêm preferências'
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
 
-test('correção confirmada recalcula compra e venda e lançamento atrasado preserva a fotografia', async ({ page, request }, info) => {
+test('correção confirmada recalcula compra, venda e evento atrasado preservando a fotografia', async ({ page, request }, info) => {
   const name = 'Correção E2E ' + info.project.name;
   const created = await request.post('/api/portfolios', { data: { name } }); expect(created.ok()).toBeTruthy();
   const portfolio = await created.json(); const path = `portfolios/${portfolio.id}`;
@@ -416,6 +463,39 @@ test('correção confirmada recalcula compra e venda e lançamento atrasado pres
   expect(Number((await json(request, path + '/external-assets')).items[0].value)).toBe(970);
   expect(Number((await json(request, path)).positions[0].quantity)).toBe(8);
   expect((await json(request, snapshotPath)).dashboard).toEqual(photo.dashboard);
+  await page.getByRole('button', { name: 'Registrar operação atrasada', exact: true }).click();
+  await page.locator('#correction-op-kind').selectOption('split');
+  await page.locator('#correction-op-asset').selectOption({ label: asset.ticker + ' — Ativo de correção' });
+  await page.locator('#correction-op-date').fill(day(-1));
+  await page.locator('#correction-op-numerator').fill('2'); await page.locator('#correction-op-denominator').fill('1');
+  await page.locator('#correction-op-reason').fill('Desdobramento esquecido no histórico');
+  await expect(page.locator('#correction-op-cash')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Simular correção', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Resultado da simulação' })).toBeVisible();
+  await expect(page.locator('dialog:modal')).toContainText('2 novas unidades para cada 1 antigas');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('late-split-correction.png'), fullPage: true });
+  await page.getByRole('checkbox', { name: 'Conferi os valores, os relançamentos e os fechamentos afetados.' }).check();
+  await page.getByRole('button', { name: 'Confirmar correção', exact: true }).click();
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  expect(Number((await json(request, path)).positions[0].quantity)).toBe(20);
+  const split = (await json(request, path + '/movements')).find((m: any) => m.kind === 'split' && !m.reversedById);
+  await page.locator('.movement-filters select[formcontrolname="kind"]').selectOption('split');
+  await page.locator('.movement-filters select[formcontrolname="status"]').selectOption('active');
+  await page.getByRole('button', { name: 'Aplicar filtros', exact: true }).click();
+  await movementDetails(page, split.id);
+  await page.getByRole('button', { name: `Corrigir #${split.id}`, exact: true }).click();
+  await expect(page.locator('#correction-op-numerator')).toHaveValue(/^2(?:,0+)?$/);
+  await page.locator('#correction-op-numerator').fill('3');
+  await page.locator('#correction-op-reason').fill('Proporção conferida no comunicado');
+  await page.getByRole('button', { name: 'Simular correção', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Resultado da simulação' })).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Conferi os valores, os relançamentos e os fechamentos afetados.' }).check();
+  await page.getByRole('button', { name: 'Confirmar correção', exact: true }).click();
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  expect(Number((await json(request, path)).positions[0].quantity)).toBe(32);
+  expect(Number((await json(request, path + '/external-assets')).items[0].value)).toBe(970);
+  expect((await json(request, snapshotPath)).dashboard).toEqual(photo.dashboard);
 });
 
 
@@ -456,4 +536,139 @@ test('carteira vazia, metas de categoria e setor e simulador respeitam percentua
   expect(Number(result.rows.find((r: any) => r.groupId === targets[1].groupId).suggestedContribution)).toBe(100.01);
   expect(Number(combined.sector.unallocatedAmount)).toBe(100.01);
   expect(await json(request, path)).toEqual(before); expect(await json(request, path + '/movements')).toHaveLength(0);
+});
+
+test('classificação explícita e bloqueio de combinação persistem sem movimentar a carteira', async ({ page, request }, info) => {
+  const suffix = info.project.name;
+  const typeName = 'Instrumento urbano ' + suffix, sectorName = 'Espaços ' + suffix;
+  await page.goto('/asset-types');
+  await page.getByRole('button', { name: 'Novo cadastro', exact: true }).click();
+  await page.locator('dialog:modal #name').fill(typeName);
+  await page.locator('#instrument-class').selectOption('fii');
+  await page.screenshot({ path: info.outputPath('instrument-classification.png'), fullPage: true });
+  const typeSaved = page.waitForResponse(r => r.url().endsWith('/asset-types') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Salvar cadastro', exact: true }).click();
+  const type = await (await typeSaved).json(); expect(type.instrumentClass).toBe('fii');
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  await navigate(page, 'Setores');
+  await page.getByRole('button', { name: 'Novo cadastro', exact: true }).click();
+  await page.locator('dialog:modal #name').fill(sectorName);
+  await page.getByRole('checkbox', { name: 'Setor imobiliário para planejamento', exact: true }).check();
+  const sectorSaved = page.waitForResponse(r => r.url().endsWith('/sectors') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Salvar cadastro', exact: true }).click();
+  const sector = await (await sectorSaved).json(); expect(sector.isRealEstate).toBe(true);
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  const [currencies, categories, countries] = await Promise.all(['currencies', 'asset-categories', 'countries'].map(p => json(request, p)));
+  const category = categories[0], currencyId = currencies.find((c: any) => c.code === 'BRL').id;
+  const portfolioResponse = await request.post('/api/portfolios', { data: { name: 'Elegibilidade ' + suffix } }); expect(portfolioResponse.ok()).toBeTruthy();
+  const portfolio = await portfolioResponse.json(), path = `portfolios/${portfolio.id}`;
+  const assetResponse = await request.post('/api/assets', { data: { ticker: suffix === 'desktop' ? 'ELIGD' : 'ELIGC', name: 'Ativo elegível', currencyId,
+    assetTypeId: type.id, countryId: countries[0].id, assetCategoryId: category.id, sectorId: sector.id } }); expect(assetResponse.ok()).toBeTruthy();
+  const asset = await assetResponse.json();
+  expect((await request.post('/api/' + path + '/assets', { data: { assetId: asset.id, quantity: '1', investedAmount: '100', currentValue: '100', income: '0' } })).ok()).toBeTruthy();
+  const before = await json(request, path); expect(before.positions[0].instrumentClass).toBe('fii'); expect(before.positions[0].isRealEstateSector).toBe(true);
+  await navigate(page, 'Simular aporte'); await choosePortfolio(page, portfolio.name);
+  await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Usar estratégia nesta simulação', exact: true }).check();
+  await page.getByLabel('Modelo', { exact: true }).selectOption('regular');
+  await page.locator('.combination-rules > summary').click();
+  const pairName = 'Bloquear ' + category.name + ' / ' + sectorName;
+  await page.getByRole('checkbox', { name: pairName, exact: true }).check();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('strategy-combination-block.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Salvar como estratégia padrão', exact: true }).click();
+  await expect(page.locator('app-strategy-editor')).toContainText('Estratégia salva');
+  await page.getByRole('button', { name: 'Concluir configuração', exact: true }).click();
+  await page.locator('#contribution-amount').fill('100');
+  const blocked = page.waitForResponse(r => r.url().endsWith('/contribution-plan'));
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
+  const blockedPlan = await (await blocked).json(); expect(Number(blockedPlan.plan.unallocated)).toBe(100); expect(Number(blockedPlan.eligibleBase)).toBe(0);
+  await page.reload();
+  await choosePortfolio(page, portfolio.name);
+  await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
+  await page.locator('.combination-rules > summary').click();
+  await expect(page.getByRole('checkbox', { name: pairName, exact: true })).toBeChecked();
+  await page.getByRole('checkbox', { name: pairName, exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Salvar como estratégia padrão', exact: true }).click();
+  await expect(page.locator('app-strategy-editor')).toContainText('Estratégia salva');
+  await page.getByRole('button', { name: 'Concluir configuração', exact: true }).click();
+  await page.locator('#contribution-amount').fill('100');
+  const allowed = page.waitForResponse(r => r.url().endsWith('/contribution-plan'));
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
+  const plan = await (await allowed).json(); expect(Number(plan.plan.unallocated)).toBe(0); expect(Number(plan.plan.rows[0].amount)).toBe(100);
+  await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
+  await page.locator('.concentration-limits > summary').click();
+  const capLabel = 'Teto de categoria ' + category.name;
+  await page.getByRole('textbox', { name: capLabel, exact: true }).fill('50');
+  await expect(page.locator('.joint-plan')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Salvar como estratégia padrão', exact: true }).click();
+  await expect(page.locator('app-strategy-editor')).toContainText('Estratégia salva');
+  await page.getByRole('button', { name: 'Concluir configuração', exact: true }).click();
+  const cappedResponse = page.waitForResponse(r => r.url().endsWith('/contribution-plan'));
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
+  const capped = await (await cappedResponse).json(); expect(Number(capped.plan.unallocated)).toBe(100);
+  expect(capped.plan.rows).toHaveLength(0); expect(Number(capped.concentration[0].suggestedContribution)).toBe(0);
+  await expect(page.locator('.concentration-result')).toContainText('nenhuma venda é sugerida');
+  await page.locator('.concentration-result').screenshot({ path: info.outputPath('concentration-result.png') });
+  await page.reload(); await choosePortfolio(page, portfolio.name);
+  await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
+  await page.locator('.concentration-limits > summary').click();
+  await expect(page.getByRole('textbox', { name: capLabel, exact: true })).toHaveValue(/^50(?:,0+)?$/);
+  await page.getByRole('textbox', { name: capLabel, exact: true }).fill('');
+  await page.getByRole('button', { name: 'Salvar como estratégia padrão', exact: true }).click();
+  await expect(page.locator('app-strategy-editor')).toContainText('Estratégia salva');
+  await page.getByRole('button', { name: 'Concluir configuração', exact: true }).click();
+  expect(await json(request, path)).toEqual(before); expect(await json(request, path + '/movements')).toHaveLength(0);
+});
+
+test('prioridades salvam reservas e indicam aporte em dólar por setor', async ({ page, request }, info) => {
+  const suffix = info.project.name === 'desktop' ? 'D' : 'C';
+  const [currencies, categories, sectors, countries, types] = await Promise.all(['currencies', 'asset-categories', 'sectors', 'countries', 'asset-types'].map(p => json(request, p)));
+  const usd = currencies.find((c: any) => c.code === 'USD'); const sector = sectors.find((s: any) => s.name === 'Tecnologia');
+  const type = types.find((t: any) => t.instrumentClass === 'general');
+  const created = await request.post('/api/portfolios', { data: { name: 'Prioridades USD ' + suffix, baseCurrencyId: usd.id } }); expect(created.ok()).toBeTruthy();
+  const portfolio = await created.json(), path = `portfolios/${portfolio.id}`;
+  for (let i = 0; i < 2; i++) {
+    const assetResponse = await request.post('/api/assets', { data: { ticker: `PRIO${suffix}${i}`, name: 'Ativo USD sintético', currencyId: usd.id,
+      assetTypeId: type.id, countryId: countries.find((c: any) => c.name === 'Estados Unidos').id, assetCategoryId: categories[i].id, sectorId: sector.id } });
+    expect(assetResponse.ok()).toBeTruthy(); const asset = await assetResponse.json();
+    expect((await request.post('/api/' + path + '/assets', { data: { assetId: asset.id, quantity: '1', investedAmount: '100', currentValue: '100', income: '0' } })).ok()).toBeTruthy();
+  }
+  const before = await json(request, path);
+  await page.goto('/contributions'); await page.locator('#analysis-portfolio').selectOption(String(portfolio.id));
+  await expect(page.getByRole('status').filter({ hasText: /^Carregando/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Usar estratégia nesta simulação', exact: true }).check();
+  await page.getByLabel('Modelo', { exact: true }).selectOption('custom');
+  await page.getByLabel('Distribuir o restante', { exact: true }).selectOption('reserve');
+  await page.getByRole('checkbox', { name: 'Atender regras por prioridade', exact: true }).check();
+  for (let i = 0; i < 2; i++) {
+    await page.getByLabel('Regra de ' + categories[i].name, { exact: true }).selectOption('fixed');
+    await page.getByLabel('Valor da regra de ' + categories[i].name, { exact: true }).fill('80');
+    await page.getByRole('textbox', { name: 'Prioridade da reserva de ' + categories[i].name, exact: true }).fill(i === 0 ? '5' : '1');
+  }
+  await page.locator('.combination-rules > summary').click();
+  await page.getByRole('combobox', { name: `Moeda preferida de ${categories[1].name} / ${sector.name}`, exact: true }).selectOption('USD');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('priority-editor.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Salvar como estratégia padrão', exact: true }).click();
+  await expect(page.locator('app-strategy-editor')).toContainText('Estratégia salva');
+  await page.getByRole('button', { name: 'Concluir configuração', exact: true }).click();
+  await page.locator('#contribution-amount').fill('100');
+  const resultResponse = page.waitForResponse(r => r.url().endsWith('/contribution-plan'));
+  await page.getByRole('button', { name: 'Simular aporte', exact: true }).click();
+  const result = await (await resultResponse).json();
+  expect(result.prioritiesApplied).toBe(true); expect(result.plan.rows[0].categoryId).toBe(categories[1].id);
+  expect(Number(result.ruleFunding.find((r: any) => r.categoryId === categories[1].id).budget)).toBe(80);
+  expect(Number(result.ruleFunding.find((r: any) => r.categoryId === categories[0].id).budget)).toBe(20);
+  expect(result.plan.rows.every((r: any) => r.suggestedCurrency === 'USD')).toBe(true);
+  await expect(page.locator('.joint-plan')).toContainText('Tecnologia em dólar (USD)');
+  await expect(page.locator('.joint-plan')).toContainText('PRIO' + suffix);
+  await page.locator('.joint-plan').screenshot({ path: info.outputPath('priority-dollar-plan.png') });
+  expect(await json(request, path)).toEqual(before); expect(await json(request, path + '/movements')).toHaveLength(0);
+  await page.reload(); await page.locator('#analysis-portfolio').selectOption(String(portfolio.id));
+  await expect(page.getByRole('status').filter({ hasText: /^Carregando/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Configurar estratégia', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Atender regras por prioridade', exact: true })).toBeChecked();
+  await expect(page.getByRole('textbox', { name: 'Prioridade da reserva de ' + categories[1].name, exact: true })).toHaveValue('1');
 });

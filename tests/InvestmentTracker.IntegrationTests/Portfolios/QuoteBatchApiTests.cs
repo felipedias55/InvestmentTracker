@@ -22,6 +22,28 @@ namespace InvestmentTracker.IntegrationTests.Portfolios
                 => Task.FromResult(new AssetQuote("brapi", symbol, "BRL", 15, DateOnly.FromDateTime(DateTime.UtcNow), "available", "Synthetic"));
         }
         [Fact]
+        public async Task Coverage_ShouldLoadCatalogIdentityWithoutWritingFinancialData()
+        {
+            var (_, batch) = await Seed();
+            var item = batch.Items.Single(x => x.CurrencyCode == "BRL");
+            int assetId;
+            await using (var db = fixture.Database.CreateContext())
+            {
+                var position = await db.PortfolioAssets.Include(p => p.Asset).SingleAsync(p => p.Id == item.PositionId);
+                position.Asset.CountryId = (await db.Countries.SingleAsync(c => c.Name == "Brasil")).Id;
+                assetId = position.AssetId;
+                await db.SaveChangesAsync();
+            }
+            using var factory = fixture.ApiFactory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IAssetQuoteProvider, FakeQuotes>()));
+            using var scope = factory.Services.CreateScope();
+            var rows = await scope.ServiceProvider.GetRequiredService<QuoteCoverageService>().CheckAsync(default);
+            Assert.Equal("available", rows.Single(row => row.AssetId == assetId).Status);
+            await using var check = fixture.Database.CreateContext();
+            Assert.Equal(await check.Assets.CountAsync(), rows.Count);
+            Assert.False(await check.Set<FinancialMovement>().AnyAsync());
+            Assert.All(await check.PortfolioAssets.ToListAsync(), p => Assert.Equal(20, p.CurrentValue));
+        }
+        [Fact]
         public async Task QuotePreview_ShouldNotWriteAndConfirmedBatchShouldKeepSourceInAudit()
         {
             var (portfolio, batch) = await Seed();

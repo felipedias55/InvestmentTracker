@@ -96,7 +96,8 @@ namespace InvestmentTracker.Application.Movements
             };
             if (ordered.Any(Unknown)) warnings.Add("Há registros sem efeitos auditáveis suficientes. A cadeia pode estar incompleta e exige conferência manual.");
             if (ordered.Any(x => reversed.Contains(x.Id) || x.ReversalOfId.HasValue)) warnings.Add("Há estornos na cadeia. Originais estornados são exibidos para auditoria e não devem ser estornados novamente.");
-            if (ordered.Any(x => x.Kind is "opening" or "position-adjustment" or "adjustment")) warnings.Add("Há saldos iniciais ou ajustes absolutos. Não é seguro reaplicar diferenças sem conferir o saldo e a intenção de cada ajuste.");
+            if (ordered.Any(x => x.Kind is "opening" or "position-adjustment" or "adjustment")) warnings.Add("Há saldos iniciais ou ajustes absolutos. Saldos iniciais exigem conferência manual. A simulação preserva os campos definidos em ajustes auditados e o preço unitário de cotações em lote, sem reaplicar diferenças antigas.");
+            if (ordered.Any(x => x.Kind is "split" or "reverse-split" or "bonus")) warnings.Add("Há eventos societários. A simulação exige dados e efeitos auditáveis consistentes; confira a proporção ou quantidade adicional e o custo no comunicado.");
             if (photos.Length > 0) warnings.Add("Fotografias listadas precisam de revisão. Nenhuma será reconstruída com preços ou câmbio atuais; versões anteriores devem ser preservadas.");
             return new CorrectionPreviewDto(impactFrom, original?.Id,
                 ordered.Select(x => new CorrectionMovementDto(x.Id, x.Date, x.Kind, x.Description,

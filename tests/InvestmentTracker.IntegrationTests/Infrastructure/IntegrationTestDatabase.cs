@@ -45,6 +45,8 @@ namespace InvestmentTracker.IntegrationTests.Infrastructure
             await using var context = CreateContext();
             // Only data in the newly generated database is reset; migrations are exercised on initialization.
             await context.Database.ExecuteSqlRawAsync("""
+                DELETE FROM ContributionPurchaseLink;
+                DELETE FROM SavedContributionPlan;
                 DELETE FROM MovementEffect;
                 DELETE FROM PortfolioCashFlow;
                 DELETE FROM FinancialMovement;
