@@ -32,6 +32,8 @@ namespace InvestmentTracker.Infrastructure
             services.AddScoped<ISectorRepository, SectorRepository>();
 
             services.AddScoped<IAssetRepository, AssetRepository>();
+            services.AddScoped<InvestmentTracker.Application.Assets.IAssetImageRepository, AssetImageRepository>();
+            services.AddScoped<InvestmentTracker.Application.Assets.IReferenceDefaultsRepository, ReferenceDefaultsRepository>();
 
             services.AddScoped<IPortfolioRepository, PortfolioRepository>();
             services.AddScoped<InvestmentTracker.Application.Portfolios.IQuoteBatchRepository, QuoteBatchRepository>();

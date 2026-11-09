@@ -80,6 +80,7 @@
       <p>Proventos retidos já estão no patrimônio. Os recebidos fora da carteira são considerados uma distribuição ao investidor. Custos, câmbio e ajustes de valores afetam o resultado. O cálculo considera os fluxos após a data inicial até a data final, inclusive, com convenção de fim do dia. Valores e equivalentes devem estar completos; lançamentos omitidos podem distorcer as taxas.</p>
       <p>TWR exato exige avaliações em cada fluxo externo e ainda não está disponível. Dietz é uma estimativa, especialmente sensível a aportes elevados e grandes oscilações. XIRR fica indisponível quando os fluxos alternam sinais mais de uma vez, pois a taxa pode não ser única, ou quando não há solução no intervalo numérico suportado. Fotografias reabertas, desatualizadas ou com moedas diferentes suspendem as métricas. Conversões históricas faltantes devem ser complementadas em Proventos ou nos movimentos.</p>
     </details>
+    <app-benchmark-comparison [portfolioId]="portfolioId()!" [periods]="rows()" [mode]="mode()" />
     <h2 class="section-gap">Patrimônio registrado</h2>
     <details><summary>Como ler o patrimônio registrado</summary><p class="hint">
       Use os botões abaixo do gráfico para abrir a fotografia. Anos usam a última fotografia disponível, sem
@@ -104,7 +105,7 @@
     <section class="panel section-gap">
       <div class="section-title"><h2>Fotografias por mês</h2><button mat-stroked-button [disabled]="saving()" (click)="openReopen()">Reabrir período</button></div>
       <details><summary>Fechamento, lacunas e comparações</summary>
-        <p>Atualize os valores em <a routerLink="/portfolio">Carteira</a> e <a routerLink="/external-assets">Patrimônio externo</a> antes de registrar. Uma fotografia por mês; somente a do mês corrente pode ser atualizada. Não há preenchimento automático de meses passados.</p>
+        <p>Atualize os valores em <a routerLink="/portfolio">Carteira</a> e <a routerLink="/external-assets">Saldos e patrimônio externo</a> antes de registrar. Uma fotografia por mês; somente a do mês corrente pode ser atualizada. Não há preenchimento automático de meses passados.</p>
         <p>Variação sem movimentos = patrimônio final − inicial − aportes + retiradas entre as datas das fotografias. Pode incluir câmbio, atualização de valores e movimentos não registrados; não é rentabilidade. Aportes e retiradas nas colunas do período abrangem o mês calendário.</p>
       </details>
     <div class="table-scroll">

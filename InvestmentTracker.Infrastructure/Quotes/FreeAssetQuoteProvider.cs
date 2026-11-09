@@ -155,7 +155,7 @@ namespace InvestmentTracker.Infrastructure.Quotes
             var date = DateOnly.FromDateTime(marketTime.UtcDateTime);
             return new("brapi", symbol, "BRL", price, date, "available", "Cotação com atraso do plano gratuito; confira a data antes de aplicar.") { MarketTime = marketTime };
         }
-        private static AssetQuote ParseAlpha(JsonElement root, string symbol)
+        internal static AssetQuote ParseAlpha(JsonElement root, string symbol)
         {
             AssetQuote Failure(string status, string message) => new("Alpha Vantage", symbol, "USD", null, null, status, message);
             if (root.TryGetProperty("Note", out var note) || root.TryGetProperty("Information", out note))

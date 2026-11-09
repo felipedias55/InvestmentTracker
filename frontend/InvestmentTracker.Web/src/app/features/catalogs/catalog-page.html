@@ -1,6 +1,7 @@
 <header class="page-header">
   <p class="eyebrow">CADASTROS</p>
   <h1>{{ config.label }}</h1>
+  <a [routerLink]="isCurrency || key === 'countries' ? '/references' : '/classifications'">{{ isCurrency || key === 'countries' ? 'Voltar para Referências' : 'Voltar para Classificações' }} →</a>
   <details><summary>Sobre este cadastro</summary><p>{{ config.description }}</p></details>
 </header>
 @if (error()) {

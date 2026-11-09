@@ -9,7 +9,7 @@ if (!/^InvestmentTracker_E2E_[a-f0-9]{32}$/.test(process.env['INVESTMENT_E2E_DAT
 export default defineConfig({
   testDir: './e2e',
   outputDir: './test-results/e2e',
-  testIgnore: 'presentation.spec.ts',
+  testIgnore: ['presentation.spec.ts', '*.presentation.spec.ts'],
   fullyParallel: false,
   workers: 1,
   retries: 0,

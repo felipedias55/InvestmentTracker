@@ -1,4 +1,5 @@
 using InvestmentTracker.Application.Assets.Dtos;
+using InvestmentTracker.Application.Assets;
 using InvestmentTracker.Application.Assets.Interfaces;
 using InvestmentTracker.Application.Assets.Services;
 using InvestmentTracker.Application.AssetTypes.Interfaces;
@@ -21,7 +22,7 @@ namespace InvestmentTracker.UnitTests.Assets
         private readonly Mock<IAssetCategoryRepository> _categories = new();
         private readonly Mock<ISectorRepository> _sectors = new();
         private AssetService Service => new(_repository.Object, _types.Object, _countries.Object,
-            _currencies.Object, _categories.Object, _sectors.Object);
+            _currencies.Object, _categories.Object, _sectors.Object, Mock.Of<IAssetImageRepository>());
 
         public AssetServiceTests()
         {

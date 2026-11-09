@@ -38,22 +38,23 @@ namespace InvestmentTracker.Application.Quotes
             foreach (var position in positions)
             {
                 var asset = position.Asset;
-                var market = asset.Country.Name switch
+                var market = asset.QuoteMarket ?? (asset.Country.Name switch
                 {
                     "Brasil" when asset.Currency.Code == "BRL" => "BR",
                     "Estados Unidos" when asset.Currency.Code == "USD" => "US",
                     _ => ""
-                };
+                });
                 AssetQuote quote;
                 if (market.Length == 0 || position.Quantity <= 0)
                     quote = new("", asset.Ticker, asset.Currency.Code, null, null, "unsupported", "País/moeda não suportados ou posição sem quantidade positiva.");
                 else
                 {
-                    quote = await provider.FetchAsync(market, asset.Ticker, ct);
+                    var symbol = asset.QuoteSymbol ?? asset.Ticker;
+                    quote = await provider.FetchAsync(market, symbol, ct);
                     if (quote.Price.HasValue)
                     {
                         var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
-                        if (quote.Symbol != asset.Ticker || quote.Currency != asset.Currency.Code || quote.Date is null ||
+                        if (quote.Symbol != symbol || quote.Currency != asset.Currency.Code || quote.Date is null ||
                             quote.Date > today || quote.Date < today.AddDays(-7))
                             quote = quote with { Price = null, Status = "invalid", Message = "Ticker, moeda ou data incompatíveis. Confira o cadastro e atualize manualmente." };
                         else
@@ -62,6 +63,7 @@ namespace InvestmentTracker.Application.Quotes
                             catch (InputValidationException) { quote = quote with { Price = null, Status = "invalid", Message = "Preço ou valor calculado fora dos limites da posição." }; }
                         }
                     }
+                    quote = quote with { Symbol = asset.Ticker };
                 }
                 result.Add(new(position.Id, quote));
             }

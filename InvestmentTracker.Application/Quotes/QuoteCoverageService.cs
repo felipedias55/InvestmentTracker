@@ -16,19 +16,20 @@ namespace InvestmentTracker.Application.Quotes
             foreach (var asset in (await assets.GetAllAsync(ct)).OrderBy(asset => asset.Ticker))
             {
                 ct.ThrowIfCancellationRequested();
-                var market = asset.Country.Name switch
+                var market = asset.QuoteMarket ?? (asset.Country.Name switch
                 {
                     "Brasil" when asset.Currency.Code == "BRL" => "BR",
                     "Estados Unidos" when asset.Currency.Code == "USD" => "US",
                     _ => ""
-                };
+                });
+                var symbol = asset.QuoteSymbol ?? asset.Ticker;
                 var quote = market.Length == 0
                     ? new AssetQuote("", asset.Ticker, asset.Currency.Code, null, null, "unsupported", "País/moeda sem suporte.")
-                    : await provider.FetchAsync(market, asset.Ticker, ct);
+                    : await provider.FetchAsync(market, symbol, ct);
                 if (quote.Price.HasValue)
                 {
                     var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
-                    if (quote.Symbol != asset.Ticker || quote.Currency != asset.Currency.Code || quote.Date is null ||
+                    if (quote.Symbol != symbol || quote.Currency != asset.Currency.Code || quote.Date is null ||
                         quote.Date > today || quote.Date < today.AddDays(-7))
                         quote = quote with { Status = "invalid", Message = "Ticker, moeda ou data incompatíveis." };
                     else

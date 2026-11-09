@@ -30,4 +30,5 @@
 	  <ProjectReference Include="..\..\InvestmentTracker.Api\InvestmentTracker.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup><Compile Include="../Shared/TestPng.cs" Link="TestPng.cs" /></ItemGroup>
 </Project>

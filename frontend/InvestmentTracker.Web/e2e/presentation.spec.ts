@@ -1,6 +1,61 @@
 import { test, expect } from '@playwright/test';
+import { selectAsset } from './helpers/asset-selection';
 import { testDashboard, testPortfolio } from '../src/app/features/allocation/allocation.test-data';
 test.beforeEach(async ({ page }) => { page.on('dialog', dialog => dialog.accept()); });
+
+test('cadastros agrupados e imagens mantêm padrão visual e criação contextual', async ({ page }, info) => {
+  const png = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 80; c.height = 40; const x = c.getContext('2d')!; x.fillStyle = '#315e99'; x.fillRect(0, 0, 80, 40); x.fillStyle = '#f0b429'; x.fillRect(0, 0, 30, 40); return c.toDataURL('image/png').split(',')[1]; });
+  const asset = { id: 1, ticker: 'FUND11', name: 'Fundo imobiliário de exemplo', assetTypeId: 1, countryId: 1, currencyId: 1, assetCategoryId: 1, sectorId: 1, createdAt: '2026-11-03T12:00:00Z', imageVersion: 'a'.repeat(64) };
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/assets') return route.fulfill({ json: [asset, { ...asset, id: 2, ticker: 'SEMIMG', name: 'Ativo com imagem indisponível', imageVersion: 'b'.repeat(64) }] });
+    if (path === '/api/assets/1/image') return route.fulfill({ body: Buffer.from(png, 'base64'), contentType: 'image/png' });
+    if (path === '/api/assets/2/image') return route.fulfill({ status: 404, body: '' });
+    if (path === '/api/currencies') return route.fulfill({ json: [{ id: 1, name: 'Real', code: 'BRL' }] });
+    if (path === '/api/countries') return route.fulfill({ json: [{ id: 1, name: 'Brasil' }] });
+    if (path === '/api/asset-types') return route.fulfill({ json: [{ id: 1, name: 'FII', instrumentClass: 'fii' }] });
+    if (path === '/api/asset-categories') return route.fulfill({ json: [{ id: 1, name: 'FIIs' }] });
+    if (path === '/api/sectors') return route.fulfill({ json: [{ id: 1, name: 'Imobiliário', isRealEstate: true }] });
+    throw new Error('Unexpected request: ' + path);
+  });
+  await page.goto('/classifications'); await expect(page.getByRole('heading', { name: 'Classificações', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Gerenciar setores', exact: true })).toBeVisible(); await page.screenshot({ path: info.outputPath('classifications-hub.png'), fullPage: true });
+  await page.goto('/references'); await expect(page.getByRole('heading', { name: 'Referências', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Gerenciar moedas', exact: true })).toBeVisible();
+  await page.goto('/assets'); const card = page.locator('.asset-card').filter({ hasText: 'FUND11' }); await expect(card.locator('img')).toBeVisible();
+  await expect.poll(() => card.locator('img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  expect(await card.locator('img').evaluate(img => {
+    const css = getComputedStyle(img); return [css.paddingTop, css.paddingRight, css.paddingBottom, css.paddingLeft];
+  })).toEqual(['0px', '0px', '0px', '0px']);
+  await expect(page.locator('.asset-card').filter({ hasText: 'SEMIMG' }).locator('.fallback')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('asset-images-catalog.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Editar FUND11', exact: true }).click(); const editor = page.getByRole('dialog', { name: 'Editar ativo', exact: true });
+  await editor.getByLabel('Nome', { exact: true }).fill('Rascunho preservado'); await editor.getByRole('button', { name: 'Criar opção de Setor', exact: true }).click();
+  const child = page.getByRole('dialog', { name: 'Criar setor', exact: true }); await child.getByLabel('Nome do cadastro', { exact: true }).fill('Setor em rascunho');
+  await child.screenshot({ path: info.outputPath('inline-sector-editor.png') }); await child.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(editor.getByLabel('Nome', { exact: true })).toHaveValue('Rascunho preservado');
+  await editor.getByRole('button', { name: 'Ajustar enquadramento', exact: true }).click();
+  await expect(editor.locator('.frame')).toBeVisible();
+  await expect(editor.locator('app-asset-image-picker .identity img')).toHaveAttribute('src', /\/api\/assets\/1\/image/);
+  await editor.getByRole('slider', { name: 'Zoom da imagem', exact: true }).focus(); await page.keyboard.press('End');
+  await editor.getByRole('button', { name: 'Desfazer alteração da imagem', exact: true }).click();
+  await expect(editor.locator('.frame')).toHaveCount(0);
+  await editor.locator('input[type=file]').setInputFiles({ name: 'marca.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(editor.locator('app-asset-image-picker .identity img')).toHaveAttribute('src', /^data:image\/png;base64,/);
+  const originalPreview = await editor.locator('.frame img').getAttribute('src');
+  await editor.getByRole('slider', { name: 'Zoom da imagem', exact: true }).focus(); await page.keyboard.press('End');
+  await expect(editor.locator('.frame img')).not.toHaveAttribute('src', originalPreview!);
+  const zoomedPreview = await editor.locator('.frame img').getAttribute('src');
+  const frame = editor.locator('.frame'); await frame.scrollIntoViewIfNeeded(); const frameBox = await frame.boundingBox();
+  await page.mouse.move(frameBox!.x + frameBox!.width / 2, frameBox!.y + frameBox!.height / 2); await page.mouse.down(); await page.mouse.move(frameBox!.x + frameBox!.width / 2 + 30, frameBox!.y + frameBox!.height / 2 + 20, { steps: 4 }); await page.mouse.up();
+  await expect(editor.locator('.frame img')).not.toHaveAttribute('src', zoomedPreview!);
+  await expect(editor.getByRole('slider')).toHaveCount(1);
+  await editor.getByRole('button', { name: 'Redefinir enquadramento', exact: true }).click(); await expect(editor.locator('.frame img')).toHaveAttribute('src', originalPreview!);
+  await editor.locator('.frame').screenshot({ path: info.outputPath('asset-image-framing-preview.png') });
+  await editor.getByRole('slider', { name: 'Zoom da imagem', exact: true }).scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('asset-image-picker.png'), animations: 'disabled' });
+});
 
 test('faixas específicas e diagnósticos mantêm busca, paginação e privacidade', async ({ page }, info) => {
   const strategy = { name: 'Faixas locais', model: 'bands', remainder: 'targets', excludedCategoryIds: [], rules: [], tolerance: '0.05', bands: [{ dimension: 'category', groupId: 1, tolerance: '0.03' }, { dimension: 'sector', groupId: 1, tolerance: '0' }] };
@@ -232,7 +287,8 @@ test('grade acompanha conteúdo e movimentações recentes abrem consulta comple
 });
 
 test('destaques visuais e proventos por moeda preservam ranking e períodos completos', async ({ page }, info) => {
-  const positions = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, assetId: i + 1, ticker: `RANK${String(i).padStart(2, '0')}`, quantity: '1', currencyCode: i % 2 ? 'USD' : 'BRL', pricePerformance: { variation: String((i < 6 ? 1 : -1) * (0.6 - i % 6 * 0.05)), unitPrice: '123.45', averagePrice: '100' } }));
+  const png = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 80; c.height = 40; const x = c.getContext('2d')!; x.fillStyle = '#315e99'; x.fillRect(0, 0, 80, 40); return c.toDataURL('image/png').split(',')[1]; });
+  const positions = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, assetId: i + 100, imageVersion: i === 0 || i === 6 ? 'a'.repeat(64) : null, ticker: `RANK${String(i).padStart(2, '0')}`, quantity: '1', currencyCode: i % 2 ? 'USD' : 'BRL', pricePerformance: { variation: String((i < 6 ? 1 : -1) * (0.6 - i % 6 * 0.05)), unitPrice: '123.45', averagePrice: '100' } }));
   const months = Array.from({ length: 14 }, (_, i) => ({ period: `${2025 + Math.floor(i / 12)}-${String(i % 12 + 1).padStart(2, '0')}`, currencyCode: 'BRL', net: i === 2 ? '-50' : '100' }));
   await page.route('**/api/**', async route => {
     expect(route.request().method()).toBe('GET');
@@ -243,12 +299,21 @@ test('destaques visuais e proventos por moeda preservam ranking e períodos comp
       '/api/portfolios/1/income/analysis': { months: [...months, ...months.map(r => ({ ...r, currencyCode: 'USD', net: '20' }))], years: [{ period: '2025', currencyCode: 'BRL', net: '1000' }, { period: '2026', currencyCode: 'BRL', net: '200' }], convertedMonths: months.map((r, i) => i === 0 ? { ...r, net: null, missingConversions: 1 } : r), convertedYears: [{ period: '2025', currencyCode: 'BRL', net: '2000' }, { period: '2026', currencyCode: 'BRL', net: '400' }] },
     };
     const path = new URL(route.request().url()).pathname;
+    if (path === '/api/assets/100/image') return route.fulfill({ body: Buffer.from(png, 'base64'), contentType: 'image/png' });
+    if (path === '/api/assets/106/image') return route.fulfill({ status: 404, body: '' });
     if (!(path in data)) throw new Error('Unexpected API call: ' + path);
     await route.fulfill({ json: data[path] });
   });
   await page.goto('/dashboard');
   const ranking = page.locator('[data-chart-id="highlights"]');
   await expect(ranking.locator('.leader')).toHaveCount(6);
+  const firstIdentity = ranking.locator('.leader').filter({ hasText: 'RANK00' }).locator('app-asset-identity');
+  await expect(firstIdentity.locator('img')).toHaveAttribute('src', '/api/assets/100/image?v=' + 'a'.repeat(64));
+  await expect.poll(() => firstIdentity.locator('img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect(ranking.locator('.leader').filter({ hasText: 'RANK06' }).locator('.fallback')).toBeVisible();
+  const codeBox = await firstIdentity.locator('strong').boundingBox(), imageBox = await firstIdentity.locator('.picture').boundingBox();
+  expect(codeBox!.x).toBeGreaterThanOrEqual(imageBox!.x + imageBox!.width);
+  expect(imageBox!.width).toBe(32);
   await expect(ranking.locator('.leader-track i.negative')).toHaveCount(3);
   await expect(ranking.locator('.leader').filter({ hasText: '123,45' })).toHaveCount(0);
   await ranking.screenshot({ path: info.outputPath('ranking-card.png') });
@@ -256,6 +321,7 @@ test('destaques visuais e proventos por moeda preservam ranking e períodos comp
   await rankAction.click();
   const rankPanel = page.getByRole('dialog', { name: 'Detalhes dos destaques', exact: true });
   await expect(rankPanel.locator('tbody tr')).toHaveCount(12);
+  await expect(rankPanel.locator('tbody tr').filter({ hasText: 'RANK00' }).locator('img')).toHaveAttribute('src', '/api/assets/100/image?v=' + 'a'.repeat(64));
   await expect(rankPanel).toContainText('RANK11');
   await expect(rankPanel).toContainText('123,45');
   await page.screenshot({ path: info.outputPath('ranking-details.png'), fullPage: false });
@@ -566,8 +632,8 @@ test('simulador reúne gráficos, plano em moeda original e marcas temporárias'
   }
   const beforeLeaving = [...writes];
   if (info.project.name.startsWith('celular')) await page.locator('.menu-toggle').click();
-  await page.locator('#app-navigation a[href="/currencies"]').click();
-  await expect(page.getByRole('heading', { name: 'Moedas', exact: true })).toBeVisible();
+  await page.locator('#app-navigation a[href="/references"]').click();
+  await expect(page.getByRole('heading', { name: 'Referências', exact: true })).toBeVisible();
   await page.goBack();
   await expect(page.locator('#contribution-amount')).toHaveValue('0');
   await expect(page.locator('.joint-plan')).toHaveCount(0);
@@ -668,12 +734,13 @@ test('carteira Material mantém paginação, filtros e escopo das cotações', a
   await page.getByRole('button', { name: 'Detalhes de TEST10', exact: true }).click();
   await page.getByRole('link', { name: 'Comprar', exact: true }).click();
   const tradePanel = page.getByRole('dialog', { name: 'Registrar compra', exact: true });
-  await expect(tradePanel.locator('select[formcontrolname="assetId"] option:checked')).toContainText('TEST10');
+  await expect(tradePanel.locator('app-asset-selector .selected')).toContainText('TEST10');
   await tradePanel.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.locator('#analysis-portfolio').selectOption('2');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Registrar compra', exact: true }).click();
-  await expect(tradePanel.locator('select[formcontrolname="assetId"] option:checked')).toContainText('Selecione');
+  await expect(tradePanel.locator('app-asset-selector')).toContainText('Nenhum ativo selecionado.');
+  await expect(tradePanel.locator('app-asset-selector .selected')).toHaveCount(0);
   await tradePanel.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.locator('#analysis-portfolio').selectOption('1');
   await page.getByRole('link', { name: 'Voltar à Carteira', exact: true }).click();
@@ -685,7 +752,7 @@ test('carteira Material mantém paginação, filtros e escopo das cotações', a
   await page.getByRole('button', { name: 'Detalhes de TEST10', exact: true }).click();
   await page.getByRole('link', { name: 'Registrar recebimento', exact: true }).click();
   const receiptPanel = page.getByRole('dialog', { name: 'Registrar recebimento', exact: true });
-  await expect(receiptPanel.locator('select[formcontrolname="assetId"] option:checked')).toContainText('TEST10');
+  await expect(receiptPanel.locator('app-asset-selector .selected')).toContainText('TEST10');
   await receiptPanel.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.getByRole('link', { name: 'Voltar à Carteira', exact: true }).click();
   await expect(page.locator('app-list-paginator')).toContainText('11–20 de 32');
@@ -751,7 +818,7 @@ test('correções de eventos mantêm formulário e confirmação legíveis e exi
   await page.goto('/movements');
   await page.getByRole('button', { name: 'Registrar operação atrasada', exact: true }).click();
   await page.locator('#correction-op-kind').selectOption('split');
-  await page.locator('#correction-op-asset').selectOption({ index: 1 });
+  await selectAsset(page.getByRole('dialog'));
   await page.locator('#correction-op-numerator').fill('2'); await page.locator('#correction-op-denominator').fill('1');
   await page.locator('#correction-op-reason').fill('Conferência do comunicado');
   await page.getByRole('button', { name: 'Simular correção', exact: true }).click();
@@ -830,8 +897,8 @@ test('movimentações paginadas com auditoria e formulários sob demanda', async
   await page.screenshot({ path: info.outputPath('movement-private-audit.png'), fullPage: false });
   await page.getByRole('button', { name: 'Fechar edição', exact: true }).click();
   if (info.project.name.startsWith('celular')) await page.locator('.menu-toggle').click();
-  await page.locator('#app-navigation a[href="/currencies"]').click();
-  await expect(page.getByRole('heading', { name: 'Moedas', exact: true })).toBeVisible();
+  await page.locator('#app-navigation a[href="/references"]').click();
+  await expect(page.getByRole('heading', { name: 'Referências', exact: true })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('searchbox', { name: 'Buscar movimentação' })).toHaveValue('demonstração');
   await expect(page.locator('app-list-paginator')).toContainText('11–20 de 23');
@@ -874,8 +941,9 @@ test('compras, vendas e eventos com histórico compacto e formulários Material'
   await page.getByRole('button', { name: 'Próxima página', exact: true }).click();
   await expect(page.locator('.trade-row').first()).toContainText('#13');
   await page.getByRole('button', { name: 'Registrar compra', exact: true }).click();
+  await page.getByRole('button', { name: 'Selecionar ativo', exact: true }).click();
   await page.getByRole('searchbox', { name: 'Buscar ativo por código ou nome' }).fill('TEST');
-  await page.locator('#trade-asset').selectOption({ label: 'TEST — Ativo de demonstração' });
+  await page.getByRole('button', { name: 'Selecionar TEST — Ativo de demonstração', exact: true }).click();
   await page.getByLabel('Quantidade comprada').fill('2');
   await page.locator('#trade-price').fill('12,50');
   await page.locator('#trade-fees').fill('1');
@@ -889,7 +957,7 @@ test('compras, vendas e eventos com histórico compacto e formulários Material'
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Registrar evento societário', exact: true }).click();
   await page.locator('#event-kind').selectOption('bonus');
-  await page.locator('#event-position').selectOption({ index: 1 });
+  await selectAsset(page.getByRole('dialog'));
   await page.locator('#event-quantity').fill('1');
   await page.locator('#event-cost').fill('10');
   await page.locator('#event-reason').fill('Comunicado fictício');
@@ -940,7 +1008,7 @@ test('proventos separa análise, paginação e conversões pendentes', async ({ 
   await page.getByRole('button', { name: 'Recebimentos', exact: true }).click();
   await expect(page.locator('.income-row').first()).toContainText('#13');
   await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
-  await page.locator('#income-asset').selectOption({ index: 1 });
+  await selectAsset(page.getByRole('dialog'));
   await page.locator('#income-amount').fill('10,50');
   await page.screenshot({ path: info.outputPath('income-receipt.png'), fullPage: false });
   await page.keyboard.press('Escape');
@@ -1069,8 +1137,8 @@ test('cadastros e patrimônio preservam contexto, totais e formulários no deskt
   await page.screenshot({ path: info.outputPath('assets-actions.png'), fullPage: true });
   const scrollBeforeLeaving = await page.evaluate(() => window.scrollY);
   if (info.project.name.startsWith('celular')) await page.locator('.menu-toggle').click();
-  await page.locator('nav a[href="/currencies"]').click();
-  await expect(page.getByRole('heading', { name: 'Moedas', exact: true })).toBeVisible();
+  await page.locator('nav a[href="/references"]').click();
+  await expect(page.getByRole('heading', { name: 'Referências', exact: true })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Ativos', exact: true })).toBeVisible();
   await expect(page.locator('app-list-paginator')).toContainText('11–11 de 11');
@@ -1105,13 +1173,13 @@ test('cadastros e patrimônio preservam contexto, totais e formulários no deskt
   await expect(page.locator('app-external-assets-page')).toContainText('14.814,81');
   await page.getByRole('button', { name: 'Próxima página', exact: true }).click();
   await page.getByRole('button', { name: 'Editar Reserva 10', exact: true }).click();
-  const balanceEditor = page.getByRole('dialog', { name: 'Editar patrimônio', exact: true });
+  const balanceEditor = page.getByRole('dialog', { name: 'Editar saldo ou patrimônio', exact: true });
   await expect(balanceEditor.getByLabel('Valor na moeda selecionada', { exact: true })).toHaveValue('1.234,5678');
   await expect(balanceEditor.getByLabel('Valor na moeda selecionada', { exact: true })).not.toBeEditable();
   await page.screenshot({ path: info.outputPath('external-editor.png'), fullPage: false });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Editar Reserva 10', exact: true })).toBeFocused();
-  await page.getByLabel('Buscar patrimônio', { exact: true }).fill('Reserva 01');
+  await page.getByLabel('Buscar saldo ou patrimônio', { exact: true }).fill('Reserva 01');
   await expect(page.locator('app-list-paginator')).toContainText('1–1 de 1');
   await expect(page.locator('app-external-assets-page')).toContainText('14.814,81');
   await expect(page.getByRole('link', { name: 'Depositar, retirar, transferir ou ajustar saldo', exact: true })).toHaveAttribute('href', '/movements');

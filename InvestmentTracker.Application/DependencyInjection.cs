@@ -42,6 +42,8 @@ namespace InvestmentTracker.Application
             services.AddScoped<ISectorService, SectorService>();
 
             services.AddScoped<IAssetService, AssetService>();
+            services.AddScoped<Assets.AssetDiscoveryService>();
+            services.AddScoped<Assets.ReferenceDefaultsService>();
 
             services.TryAddSingleton(new PortfolioDefaults());
             services.AddScoped<IPortfolioService, PortfolioService>();
@@ -62,6 +64,7 @@ namespace InvestmentTracker.Application
             services.AddScoped<InvestmentTracker.Application.Income.IIncomeAnalysisService, InvestmentTracker.Application.Income.IncomeAnalysisService>();
             services.AddScoped<InvestmentTracker.Application.Income.IIncomeConversionService, InvestmentTracker.Application.Income.IncomeConversionService>();
             services.AddScoped<InvestmentTracker.Application.Strategies.StrategyService>();
+            services.AddScoped<InvestmentTracker.Application.Benchmarks.BenchmarkService>();
             return services;
         }
     }

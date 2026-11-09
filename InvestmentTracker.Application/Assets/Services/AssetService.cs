@@ -17,8 +17,9 @@ namespace InvestmentTracker.Application.Assets.Services
         ICountryRepository countries,
         ICurrencyRepository currencies,
         IAssetCategoryRepository categories,
-        ISectorRepository sectors) : IAssetService
+        ISectorRepository sectors, IAssetImageRepository images) : IAssetService
     {
+        public Task<AssetImageFile?> GetImageAsync(int id, CancellationToken cancellationToken = default) => images.ReadAsync(id, cancellationToken);
         public async Task<IReadOnlyList<AssetDto>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             var assets = await repository.GetAllAsync(cancellationToken);
@@ -35,8 +36,10 @@ namespace InvestmentTracker.Application.Assets.Services
         {
             var ticker = InputRules.RequiredText(dto.Ticker, "O ticker", Asset.TickerMaxLength).ToUpperInvariant();
             var name = InputRules.RequiredText(dto.Name, "O nome do ativo", Asset.NameMaxLength);
-            await ValidateReferencesAsync(dto.AssetTypeId, dto.CountryId, dto.CurrencyId,
+            var imageVersion = dto.Image is null ? null : AssetImageRules.Validate(dto.Image, null);
+            var currency = await ValidateReferencesAsync(dto.AssetTypeId, dto.CountryId, dto.CurrencyId,
                 dto.AssetCategoryId, dto.SectorId, cancellationToken);
+            ValidateListingCurrency(dto.Listing?.Market, currency);
             await CheckDuplicateAsync(ticker, null, cancellationToken);
 
             var asset = new Asset
@@ -44,9 +47,11 @@ namespace InvestmentTracker.Application.Assets.Services
                 Ticker = ticker, Name = name, AssetTypeId = dto.AssetTypeId,
                 CountryId = dto.CountryId, CurrencyId = dto.CurrencyId,
                 AssetCategoryId = dto.AssetCategoryId, SectorId = dto.SectorId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow, ImageVersion = imageVersion
             };
             await repository.AddAsync(asset, cancellationToken);
+            ApplyListing(asset, dto.Listing);
+            if (dto.Image?.Data is not null) await images.StageAsync(asset, dto.Image.Data, cancellationToken);
             await repository.SaveChangesAsync(cancellationToken);
             return MapToDto(asset);
         }
@@ -61,12 +66,19 @@ namespace InvestmentTracker.Application.Assets.Services
                 return null;
             }
 
-            await ValidateReferencesAsync(dto.AssetTypeId, dto.CountryId, dto.CurrencyId,
+            var currency = await ValidateReferencesAsync(dto.AssetTypeId, dto.CountryId, dto.CurrencyId,
                 dto.AssetCategoryId, dto.SectorId, cancellationToken);
+            ValidateListingCurrency(dto.Listing?.Market ?? asset.QuoteMarket, currency);
             await CheckDuplicateAsync(ticker, id, cancellationToken);
 
             if (asset.CurrencyId != dto.CurrencyId && await repository.HasPositionsAsync(id, cancellationToken))
                 throw new ResourceConflictException("A moeda de um ativo com posições não pode ser alterada.");
+            if (dto.Image is not null)
+            {
+                asset.ImageVersion = AssetImageRules.Validate(dto.Image, asset.ImageVersion);
+                await images.StageAsync(asset, dto.Image.Data, cancellationToken);
+            }
+            ApplyListing(asset, dto.Listing);
 
             asset.Ticker = ticker;
             asset.Name = name;
@@ -100,7 +112,7 @@ namespace InvestmentTracker.Application.Assets.Services
             }
         }
 
-        private async Task ValidateReferencesAsync(int typeId, int countryId, int currencyId,
+        private async Task<Currency> ValidateReferencesAsync(int typeId, int countryId, int currencyId,
             int categoryId, int sectorId, CancellationToken cancellationToken)
         {
             // Sequential queries: the repositories share the same scoped DbContext.
@@ -112,7 +124,8 @@ namespace InvestmentTracker.Application.Assets.Services
             {
                 throw new InputValidationException("Selecione um país existente.");
             }
-            if (currencyId <= 0 || await currencies.GetByIdAsync(currencyId, cancellationToken) is null)
+            var currency = currencyId <= 0 ? null : await currencies.GetByIdAsync(currencyId, cancellationToken);
+            if (currency is null)
             {
                 throw new InputValidationException("Selecione uma moeda existente.");
             }
@@ -124,12 +137,27 @@ namespace InvestmentTracker.Application.Assets.Services
             {
                 throw new InputValidationException("Selecione um setor existente.");
             }
+            return currency;
         }
 
         private static AssetDto MapToDto(Asset asset)
         {
             return new AssetDto(asset.Id, asset.Ticker, asset.Name, asset.AssetTypeId,
-                asset.CountryId, asset.CurrencyId, asset.AssetCategoryId, asset.SectorId, DateTime.SpecifyKind(asset.CreatedAt, DateTimeKind.Utc));
+                asset.CountryId, asset.CurrencyId, asset.AssetCategoryId, asset.SectorId, DateTime.SpecifyKind(asset.CreatedAt, DateTimeKind.Utc)) { ImageVersion = asset.ImageVersion,
+                Listing = asset.QuoteMarket is null ? null : new(asset.QuoteMarket, asset.QuoteSymbol!) };
+        }
+        private static void ApplyListing(Asset asset, AssetListingChange? listing)
+        {
+            if (listing is null) return;
+            if (listing.Market == "" && listing.Symbol == "") { asset.QuoteMarket = null; asset.QuoteSymbol = null; return; }
+            AssetDiscoveryService.Validate(listing.Market, listing.Symbol);
+            asset.QuoteMarket = listing.Market;
+            asset.QuoteSymbol = listing.Symbol.Trim().ToUpperInvariant();
+        }
+        private static void ValidateListingCurrency(string? market, Currency currency)
+        {
+            if (market is "BR" && currency.Code != "BRL" || market is "US" && currency.Code != "USD")
+                throw new InputValidationException("O mercado de consulta exige BRL no Brasil ou USD nos EUA. Confira a moeda do ativo.");
         }
     }
 }

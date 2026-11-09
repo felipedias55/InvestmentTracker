@@ -7,6 +7,7 @@ namespace InvestmentTracker.Application.Assets.Interfaces
 {
     public interface IAssetService
     {
+        Task<AssetImageFile?> GetImageAsync(int id, CancellationToken cancellationToken = default);
         Task<IReadOnlyList<AssetDto>> GetAllAsync(
             CancellationToken cancellationToken = default);
 

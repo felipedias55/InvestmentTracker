@@ -1,6 +1,8 @@
+import { AssetSelector } from '../../shared/asset-selector';
 import { SectionLink } from '../../shared/section-link';
 import { ActivatedRoute } from '@angular/router';
 import { rememberContext } from '../../shared/page-context';
+import { AssetIdentity } from '../../shared/asset-identity';
 import { UnsavedForm } from '../../shared/unsaved-changes';
 import { UnsavedChanges } from '../../shared/unsaved-registry';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
@@ -35,8 +37,8 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-portfolio-page',
-  imports: [SectionLink, UnsavedForm, CurrencyPipe, EditPanel, QuoteBatchPanel, PositionPerformance, ReactiveFormsModule, DatePipe, RouterLink,
-    MatButtonModule, MatFormFieldModule, MatInputModule, MatTableModule, MatMenuModule, AppIcon, ListPaginator],
+  imports: [AssetSelector, SectionLink, UnsavedForm, CurrencyPipe, EditPanel, QuoteBatchPanel, PositionPerformance, ReactiveFormsModule, DatePipe, RouterLink,
+    AssetIdentity, MatButtonModule, MatFormFieldModule, MatInputModule, MatTableModule, MatMenuModule, AppIcon, ListPaginator],
   templateUrl: './portfolio-page.html',
   styleUrl: './portfolio-page.css',
 })

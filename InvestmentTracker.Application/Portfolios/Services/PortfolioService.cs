@@ -77,7 +77,7 @@ namespace InvestmentTracker.Application.Portfolios.Services
                     quote?.Rate, p.Asset.Currency.Code == portfolio.BaseCurrency.Code ? null : quote?.RateDate,
                     quote?.IsStale ?? false, quote?.IsFallback ?? false)
                 {
-                    UpdatedOn = p.UpdatedOn, Income = p.Income, BaseIncome = quote is null ? null : p.Income * quote.Rate,
+                    UpdatedOn = p.UpdatedOn, Income = p.Income, BaseIncome = quote is null ? null : p.Income * quote.Rate, ImageVersion = p.Asset.ImageVersion,
                     PricePerformance = PositionPricePerformance.Calculate(p.Quantity, p.InvestedAmount, p.CurrentValue),
                     AssetTypeId = p.Asset.AssetTypeId, AssetTypeName = p.Asset.AssetType?.Name ?? string.Empty,
                     InstrumentClass = p.Asset.AssetType?.InstrumentClass ?? InstrumentClasses.Unclassified,

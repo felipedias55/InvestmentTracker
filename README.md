@@ -190,7 +190,7 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - Evolução exibe Dietz estimado no intervalo e XIRR anualizada com limites explícitos e bloqueios por dados insuficientes. TWR exato continua pendente de avaliações a cada fluxo externo.
 - A fase de cotações foi concluída com mapeamento explícito, cache/pausas persistentes e proteção local de consumo por chave, incluindo 15.000 tentativas/31 dias para brapi. A conferência real de 28/10/2026 aprovou 27/27 ativos cadastrados, sem alterar preços. Veja [diagnóstico, resultados e limitações](docs/cotacoes-automaticas.md). Disponibilidade e consistência futuras dos dados externos continuam dependendo dos provedores.
 - Meta de 0% impede aporte sugerido ao grupo, mas não retira seus ativos da base de cálculo. No simulador de estratégias, a exclusão por categoria permite retirar imobiliário da base do restante, mantendo-o no patrimônio.
-- Ideias/reflexões, base de demonstração, Docker, CD, publicação e observabilidade ampliada permanecem no planejamento. O workflow de CI foi validado localmente e sua primeira execução hospedada foi confirmada pelo usuário. Backup automático foi adiado por decisão do usuário; o procedimento manual já atende ao uso atual.
+- Base de demonstração, Docker, CD, publicação e observabilidade ampliada permanecem no planejamento. Ideias, teses e diário de decisões foram retirados dos planos por decisão do usuário em 05/11/2026. O workflow de CI foi validado localmente e sua primeira execução hospedada foi confirmada pelo usuário. Backup automático foi adiado por decisão do usuário; o procedimento manual já atende ao uso atual.
 - Autenticação/autorização devem anteceder a exposição pública. O uso atual é local/privado.
 
 ## Documentação
@@ -205,6 +205,16 @@ Abra `http://IP_DO_COMPUTADOR:65453`. O menu permanece acessível pelo botão fi
 - [Acompanhamento de aportes: planejado versus realizado](docs/planejado-versus-realizado.md).
 - [Objetivos de patrimônio e renda com prazo](docs/objetivos-de-planejamento.md).
 - [Faixas de rebalanceamento específicas por categoria e setor](docs/faixas-por-grupo.md).
+- [Proposta de simplificação dos cadastros e imagens dos ativos](docs/proposta-simplificacao-cadastros.md).
+- [Cadastros agrupados, criação contextual e imagens dos ativos](docs/cadastros-e-imagens.md).
+- [Cadastro assistido por ticker, imagens sugeridas e saldos](docs/cadastro-assistido-e-saldos.md).
+- [Seletores visuais de ativos e posições nos formulários de investimentos](docs/seletores-visuais-de-ativos.md).
+- [Revisão e equivalências de setores no cadastro assistido](docs/revisao-de-setores.md).
+- [Benchmarks — CDI, IPCA, Ibovespa e S&P 500](docs/benchmarks.md).
+- [Revisão técnica e plano de melhorias](docs/plano-melhorias-tecnicas.md).
+- [Plano de tutorial guiado](docs/plano-tutorial-guiado.md).
+- [Plano de chatbot de ajuda](docs/plano-chatbot.md).
+- [Plano consolidado de Finanças pessoais](docs/plano-financas-pessoais.md).
 - [Revisões futuras: simplificação de cadastros e análise independente de gastos](docs/revisao-cadastros-e-gastos.md).
 - [Metas, dashboard e aportes](docs/metas-dashboard-aportes.md).
 - [Simulador de aportes: como são escolhidos setor, categoria e moeda](docs/simulador-de-aportes.md).

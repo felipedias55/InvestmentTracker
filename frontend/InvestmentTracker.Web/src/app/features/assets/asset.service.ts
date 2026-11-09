@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 export interface AssetInput {
+  listing?: { market: string; symbol: string } | null;
+  image?: AssetImageChange | null;
   ticker: string;
   name: string;
   assetTypeId: number;
@@ -10,9 +12,11 @@ export interface AssetInput {
   sectorId: number;
 }
 export interface Asset extends AssetInput {
+  imageVersion?: string | null;
   id: number;
   createdAt: string;
 }
+export interface AssetImageChange { data: string | null; expectedVersion: string | null; }
 @Injectable({ providedIn: 'root' })
 export class AssetService {
   private readonly http = inject(HttpClient);

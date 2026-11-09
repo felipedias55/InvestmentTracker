@@ -14,6 +14,48 @@ namespace InvestmentTracker.IntegrationTests.History
     [Collection(DatabaseCollection.Name)]
     public class HistoryApiTests(DatabaseFixture fixture)
     {
+        private sealed class SyntheticBenchmarks : InvestmentTracker.Application.Benchmarks.IBenchmarkProvider
+        {
+            public int Calls { get; private set; }
+            public Task<InvestmentTracker.Application.Benchmarks.BenchmarkSeries> FetchAsync(string code, DateOnly start, DateOnly end, CancellationToken ct)
+            {
+                Calls++;
+                InvestmentTracker.Application.Benchmarks.BenchmarkPoint[] points = code switch
+                {
+                    "CDI" => Enumerable.Range(1, end.DayNumber - start.DayNumber).Select(i => new InvestmentTracker.Application.Benchmarks.BenchmarkPoint(start.AddDays(i), .01m)).ToArray(),
+                    "IPCA" => [new(new DateOnly(end.Year, end.Month, 1), .5m)],
+                    _ => [new(start, 100), new(end, 105)]
+                };
+                return Task.FromResult(new InvestmentTracker.Application.Benchmarks.BenchmarkSeries(code, "Sintético", points));
+            }
+        }
+        [Fact]
+        public async Task BenchmarksUsePersistedHistoryWithoutWritingAndSuspendInvalidatedPhotos()
+        {
+            var (id, _, _, _, _) = await SeedAsync();
+            await using (var db = fixture.Database.CreateContext())
+            {
+                db.PortfolioSnapshots.AddRange(
+                    new PortfolioSnapshot { PortfolioId = id, Month = new(2025, 1, 1), SnapshotDate = new(2025, 1, 31), BaseCurrencyCode = "BRL", TotalWealth = 1000, PortfolioValue = 1000, DashboardJson = "{}" },
+                    new PortfolioSnapshot { PortfolioId = id, Month = new(2025, 2, 1), SnapshotDate = new(2025, 2, 28), BaseCurrencyCode = "BRL", TotalWealth = 1100, PortfolioValue = 1100, DashboardJson = "{}" });
+                await db.SaveChangesAsync();
+            }
+            var provider = new SyntheticBenchmarks();
+            using var factory = fixture.ApiFactory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<InvestmentTracker.Application.Benchmarks.IBenchmarkProvider>(provider)));
+            using var client = factory.CreateClient(); var path = $"/api/portfolios/{id}";
+            var before = await client.GetStringAsync(path); var history = await client.GetStringAsync(path + "/history");
+            var response = await client.GetAsync(path + "/history/benchmarks?mode=months&period=2025-02"); response.EnsureSuccessStatusCode();
+            using var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal("0.1", json.RootElement.GetProperty("portfolioReturn").GetString()); Assert.Equal(4, json.RootElement.GetProperty("items").GetArrayLength());
+            var typed = await response.Content.ReadFromJsonAsync<InvestmentTracker.Application.Benchmarks.BenchmarkComparison>(); Assert.Equal(.1m, typed!.PortfolioReturn);
+            Assert.Equal(before, await client.GetStringAsync(path)); Assert.Equal(history, await client.GetStringAsync(path + "/history"));
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync(path + "/history/benchmarks?mode=months&period=2030-01")).StatusCode);
+            var calls = provider.Calls;
+            await using (var db = fixture.Database.CreateContext()) { (await db.PortfolioSnapshots.SingleAsync(p => p.PortfolioId == id && p.Month == new DateOnly(2025, 2, 1))).IsOutdated = true; await db.SaveChangesAsync(); }
+            using var invalid = System.Text.Json.JsonDocument.Parse(await client.GetStringAsync(path + "/history/benchmarks?mode=months&period=2025-02"));
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, invalid.RootElement.GetProperty("portfolioReturn").ValueKind); Assert.Equal(calls, provider.Calls);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/portfolios/2147483647/history/benchmarks?mode=months&period=2025-02")).StatusCode);
+        }
         [Fact]
         public async Task History_ReturnsMetricsFromPersistedSnapshotsAndSuspendsOutdatedComparison()
         {

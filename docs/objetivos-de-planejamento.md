@@ -43,7 +43,7 @@ A migration **20261103132654_PlanningGoals** adiciona somente a tabela de revis�
 dotnet ef database update --project InvestmentTracker.Infrastructure --startup-project InvestmentTracker.Api
 ```
 
-O comando também aplica migrations anteriores pendentes. O banco pessoal não foi atualizado durante esta implementação. Faixas adicionais por grupo, teses e benchmarks continuam fora desta entrega.
+O comando também aplica migrations anteriores pendentes. O banco pessoal não foi atualizado durante esta implementação. Faixas adicionais por grupo e benchmarks ficaram fora desta entrega. Teses foram retiradas do planejamento por decisão do usuário em 05/11/2026.
 
 ## Validação
 

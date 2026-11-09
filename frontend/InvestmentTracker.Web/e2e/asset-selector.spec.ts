@@ -1,0 +1,35 @@
+import { test, expect } from '@playwright/test';
+
+test('seleção visual mantém ids e valores ao cadastrar posição e confirmar compra', async ({ page, request }, info) => {
+  page.on('dialog', d => d.accept()); const suffix = info.project.name === 'desktop' ? 'D' : 'C';
+  const read = async (path: string) => { const response = await request.get('/api/' + path); expect(response.ok()).toBeTruthy(); return response.json(); };
+  const [types, countries, currencies, categories, sectors] = await Promise.all(['asset-types', 'countries', 'currencies', 'asset-categories', 'sectors'].map(read));
+  const png = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 128; c.height = 128; c.getContext('2d')!.fillRect(0, 0, 128, 128); return c.toDataURL('image/png').split(',')[1]; });
+  const assetResponse = await request.post('/api/assets', { data: { ticker: 'SELECT' + suffix, name: 'Saúde visual ' + suffix, assetTypeId: types[0].id, countryId: countries[0].id, currencyId: currencies.find((c: any) => c.code === 'BRL').id, assetCategoryId: categories[0].id, sectorId: sectors[0].id, image: { data: png, expectedVersion: null } } });
+  expect(assetResponse.ok()).toBeTruthy(); const asset = await assetResponse.json();
+  const portfolioResponse = await request.post('/api/portfolios', { data: { name: 'Seletor visual ' + suffix } }); expect(portfolioResponse.ok()).toBeTruthy(); const portfolio = await portfolioResponse.json();
+  await page.goto('/portfolio'); await page.locator('#portfolio-select').selectOption(String(portfolio.id)); await page.getByRole('button', { name: 'Cadastrar saldo inicial', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Ajustar posição', exact: true }), selector = editor.locator('app-asset-selector');
+  await editor.locator('#quantity').fill('2'); await editor.locator('#invested').fill('100'); await editor.locator('#current').fill('120'); await editor.locator('#income').fill('0');
+  await selector.getByRole('button', { name: 'Selecionar ativo', exact: true }).click(); await selector.getByRole('searchbox', { name: 'Buscar ativo por código ou nome', exact: true }).fill('saude visual ' + suffix);
+  await expect(selector.locator('.choice')).toHaveCount(1); await expect(selector.locator('.choice img')).toBeVisible();
+  await selector.getByRole('button', { name: `Selecionar ${asset.ticker} — ${asset.name}`, exact: true }).click();
+  await expect(editor.locator('#quantity')).toHaveValue('2'); expect((await read(`portfolios/${portfolio.id}`)).positions).toHaveLength(0);
+  await selector.screenshot({ path: info.outputPath('selected-initial-position.png') });
+  await editor.getByRole('button', { name: 'Salvar posição', exact: true }).click(); await expect(editor).toHaveCount(0);
+  const before = await read(`portfolios/${portfolio.id}`); expect(before.positions).toHaveLength(1); expect(before.positions[0].assetId).toBe(asset.id); expect(Number(before.positions[0].investedAmount)).toBe(100);
+  await page.getByRole('button', { name: 'Cadastrar saldo inicial', exact: true }).click(); await selector.getByRole('button', { name: 'Selecionar ativo', exact: true }).click();
+  await selector.getByRole('searchbox', { name: 'Buscar ativo por código ou nome', exact: true }).fill(asset.ticker); await expect(selector.locator('.choice')).toHaveCount(0);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await expect(editor).toHaveCount(0);
+  await page.getByRole('button', { name: 'Editar ' + asset.ticker, exact: true }).click(); await expect(selector.getByRole('button', { name: 'Trocar ativo', exact: true })).toBeDisabled(); await page.keyboard.press('Escape');
+  await page.goto('/trades'); await page.locator('#analysis-portfolio').selectOption(String(portfolio.id)); await page.getByRole('button', { name: 'Registrar compra', exact: true }).click();
+  const trade = page.getByRole('dialog', { name: 'Registrar compra', exact: true }), tradeSelector = trade.locator('app-asset-selector');
+  await trade.locator('#trade-quantity').fill('1'); await trade.locator('#trade-price').fill('50'); await trade.locator('#trade-fees').fill('1');
+  await tradeSelector.getByRole('button', { name: 'Selecionar ativo', exact: true }).click(); await tradeSelector.getByRole('searchbox', { name: 'Buscar ativo por código ou nome', exact: true }).fill(asset.ticker); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+  await tradeSelector.getByRole('button', { name: 'Trocar ativo', exact: true }).click(); await tradeSelector.getByRole('searchbox', { name: 'Buscar ativo por código ou nome', exact: true }).fill('inexistente'); await page.keyboard.press('Escape');
+  await expect(tradeSelector.locator('.selected')).toContainText(asset.ticker); await expect(trade.locator('#trade-quantity')).toHaveValue('1');
+  expect(await read(`portfolios/${portfolio.id}`)).toEqual(before);
+  const savedResponse = page.waitForResponse(r => r.url().endsWith(`/portfolios/${portfolio.id}/trades`) && r.request().method() === 'POST');
+  await trade.getByRole('button', { name: 'Confirmar operação', exact: true }).click(); const saved = await savedResponse; expect(saved.ok()).toBeTruthy(); await expect(trade).toHaveCount(0);
+  const after = await read(`portfolios/${portfolio.id}`); expect(after.positions).toHaveLength(1); expect(after.positions[0].assetId).toBe(asset.id); expect(Number(after.positions[0].quantity)).toBe(3); expect(Number(after.positions[0].investedAmount)).toBe(151);
+});

@@ -12,7 +12,7 @@
         </select></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Data correta</mat-label><input matInput id="correction-op-date" type="date" formControlName="date" min="1900-01-01" [max]="today" /></mat-form-field>
         @if (usesAsset()) {
-          <mat-form-field appearance="outline"><mat-label>Ativo</mat-label><select matNativeControl id="correction-op-asset" formControlName="assetId"><option [ngValue]="0">Selecione</option>@for (a of assets(); track a.id) { <option [ngValue]="a.id">{{ a.ticker }} — {{ a.name }}</option> }</select></mat-form-field>
+          <app-asset-selector formControlName="assetId" [assets]="assets()" [currencies]="currencies" [locked]="applying() || loading()" />
         }
         @if (!isEvent()) {
         <mat-form-field appearance="outline"><mat-label>Saldo de patrimônio externo</mat-label><select matNativeControl id="correction-op-cash" formControlName="cashAssetId">

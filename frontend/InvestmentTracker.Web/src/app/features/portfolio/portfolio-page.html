@@ -29,7 +29,7 @@
   <mat-menu #portfolioActions="matMenu">
     <button mat-menu-item (click)="newPortfolio()" [disabled]="saving() || loading()">Nova carteira</button>
     <button mat-menu-item (click)="editPortfolio()" [disabled]="saving() || !summary()">Editar carteira</button>
-    <a mat-menu-item routerLink="/external-assets">Patrimônio externo</a>
+    <a mat-menu-item routerLink="/external-assets">Saldos e patrimônio externo</a>
     <a mat-menu-item routerLink="/income">Registrar proventos</a>
     <a mat-menu-item routerLink="/history">Evolução e aportes realizados</a>
   </mat-menu>
@@ -159,12 +159,7 @@
       <h2>{{ editingPosition() === null ? 'Cadastrar saldo inicial' : 'Ajustar posição' }}</h2>
       <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="positionForm" (ngSubmit)="savePosition()">
         <fieldset [disabled]="saving()">
-          <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Ativo</mat-label><select matNativeControl id="position-asset" formControlName="assetId">
-            <option [ngValue]="0">Selecione</option>
-            @for (asset of availableAssets(); track asset.id) {
-              <option [ngValue]="asset.id">{{ asset.ticker }} — {{ asset.name }}</option>
-            }
-          </select></mat-form-field>
+          <app-asset-selector formControlName="assetId" [assets]="availableAssets()" [currencies]="currencies()" [locked]="saving()" />
           @if (!assets().length) {
             <p><a routerLink="/assets">Cadastre um ativo</a> para adicionar uma posição.</p>
           }
@@ -252,7 +247,7 @@
       @if (s.positions.length && !filteredPositions().length) { <p class="empty">Nenhuma posição corresponde aos filtros. Use Limpar filtros para voltar a consultar a carteira inteira.</p> }
       <div class="positions-table-scroll">
       <table mat-table class="portfolio-table" [dataSource]="pagedPositions()" aria-label="Posições da carteira">
-        <ng-container matColumnDef="asset"><th mat-header-cell *matHeaderCellDef>Ativo</th><td mat-cell *matCellDef="let p" data-label="Ativo"><strong>{{ p.ticker }}</strong><small>{{ p.name }}</small>@if (lastSaved() === p.id) { <small role="status">Posição atualizada</small> }</td></ng-container>
+        <ng-container matColumnDef="asset"><th mat-header-cell *matHeaderCellDef>Ativo</th><td mat-cell *matCellDef="let p" data-label="Ativo"><app-asset-identity [assetId]="p.assetId" [version]="p.imageVersion" [name]="p.name" [ticker]="p.ticker" />@if (lastSaved() === p.id) { <small role="status">Posição atualizada</small> }</td></ng-container>
         <ng-container matColumnDef="category"><th mat-header-cell *matHeaderCellDef>Categoria</th><td mat-cell *matCellDef="let p" data-label="Categoria">{{ p.assetCategoryName || 'Não informada' }}</td></ng-container>
         <ng-container matColumnDef="quantity"><th mat-header-cell *matHeaderCellDef>Quantidade</th><td mat-cell *matCellDef="let p" data-label="Quantidade" class="numeric">{{ formatNumber(p.quantity) }}</td></ng-container>
         <ng-container matColumnDef="invested"><th mat-header-cell *matHeaderCellDef>Investido</th><td mat-cell *matCellDef="let p" data-label="Investido" class="numeric">{{ view() === 'original' ? (p.investedAmount | currency:p.currencyCode:'code':'1.2-2') : p.baseInvestedAmount === null ? 'Indisponível' : (p.baseInvestedAmount | currency:s.portfolio.baseCurrencyCode:'code':'1.2-2') }}</td></ng-container>
@@ -267,8 +262,7 @@
         <article class="position-card" [class.just-saved]="lastSaved() === p.id">
           <div class="section-title">
             <div>
-              <strong class="ticker">{{ p.ticker }}</strong>
-              <p>{{ p.name }}</p>
+              <app-asset-identity [assetId]="p.assetId" [version]="p.imageVersion" [name]="p.name" [ticker]="p.ticker" [large]="true" />
               <p class="position-classification">{{ p.assetCategoryName || 'Categoria não informada' }} · {{ p.sectorName || 'Setor não informado' }}</p>
               @if (lastSaved() === p.id) { <small role="status">Posição atualizada</small> }
             </div>

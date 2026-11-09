@@ -90,10 +90,7 @@
     <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Registrar recebimento" (closed)="formOpen.set(false)"><section class="panel">
       <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="saving()">
         <mat-form-field appearance="outline"><mat-label>Data do recebimento</mat-label><input matInput id="income-date" type="date" formControlName="date" [max]="today" min="1900-01-01" /></mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Ativo</mat-label><select matNativeControl id="income-asset" formControlName="assetId" (change)="form.patchValue({ cashAssetId: 0, baseAmount: '' })">
-          <option [ngValue]="0">Selecione</option>
-          @for (p of positions(); track p.id) { <option [ngValue]="p.assetId">{{ p.ticker }} — {{ p.name }}</option> }
-        </select></mat-form-field>
+        <app-asset-selector formControlName="assetId" [assets]="receiptChoices()" [locked]="saving() || loading()" (selectionChanged)="form.patchValue({ cashAssetId: 0, baseAmount: '' })" />
         <p class="hint">Inclui posições zeradas, para recebimentos após a venda do ativo.</p>
         <mat-form-field appearance="outline"><mat-label>Valor líquido total ({{ currency() || 'moeda do ativo' }})</mat-label><input matInput id="income-amount" formControlName="amount" inputmode="decimal" placeholder="Ex.: 123,45" (blur)="formatInput()" /></mat-form-field>
         @if (currency() && currency() !== s.portfolio.baseCurrencyCode) {

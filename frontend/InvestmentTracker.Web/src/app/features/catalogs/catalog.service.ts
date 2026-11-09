@@ -5,6 +5,7 @@ import { CatalogInput, CatalogItem, CatalogKey } from './catalog.models';
 @Injectable({ providedIn: 'root' })
 export class CatalogService {
   private readonly http = inject(HttpClient);
+  prepareDefaults() { return this.http.post<{ countriesAdded: number; currenciesAdded: number; message: string }>('/api/reference-defaults', {}); }
   list(key: CatalogKey) {
     return this.http.get<CatalogItem[]>(`/api/${key}`);
   }

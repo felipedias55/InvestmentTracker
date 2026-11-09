@@ -12,6 +12,7 @@ import type { IncomeAnalysis } from '../income/income-page';
 import type { Position } from '../portfolio/portfolio.service';
 import { apiError } from '../../core/services/api-error';
 import { EditPanel } from '../../shared/edit-panel';
+import { AssetIdentity } from '../../shared/asset-identity';
 import { PageContexts } from '../../shared/page-context';
 
 interface AnalysisContext {
@@ -22,7 +23,7 @@ interface AnalysisContext {
 
 @Component({
   selector: 'app-dashboard-analysis', standalone: true,
-  imports: [EditPanel, MatButtonModule, MatFormFieldModule, MatInputModule, MoneyChart, PrivateCurrencyPipe, PercentPipe, RouterLink],
+  imports: [AssetIdentity, EditPanel, MatButtonModule, MatFormFieldModule, MatInputModule, MoneyChart, PrivateCurrencyPipe, PercentPipe, RouterLink],
   template: `
     @if (loading()) { <p role="status">Carregando análise…</p> }
     @if (error()) { <p class="notice error" role="alert">{{ error() }}</p><button mat-stroked-button (click)="retry.update(increment)">Tentar novamente</button> }
@@ -104,7 +105,7 @@ interface AnalysisContext {
       @for (group of leaders(); track group.title) {
         <h3>{{ group.title }}</h3>
         @for (p of group.rows.slice(0, 3); track p.id) {
-          <div class="leader"><strong>{{ p.ticker }}</strong><span [class.gain]="number(p.pricePerformance!.variation) > 0" [class.loss]="number(p.pricePerformance!.variation) < 0">{{ number(p.pricePerformance!.variation) > 0 ? '▲ +' : '▼ ' }}{{ p.pricePerformance!.variation | percent:'1.2-2' }}</span><div class="leader-track" aria-hidden="true"><i [class.negative]="number(p.pricePerformance!.variation) < 0" [style.width.%]="leaderWidth(p)" [style.left.%]="number(p.pricePerformance!.variation) > 0 ? 50 : 50 - leaderWidth(p)"></i></div></div>
+          <div class="leader"><app-asset-identity [assetId]="p.assetId" [version]="p.imageVersion" [ticker]="p.ticker" [tickerOnly]="true" /><span [class.gain]="number(p.pricePerformance!.variation) > 0" [class.loss]="number(p.pricePerformance!.variation) < 0">{{ number(p.pricePerformance!.variation) > 0 ? '▲ +' : '▼ ' }}{{ p.pricePerformance!.variation | percent:'1.2-2' }}</span><div class="leader-track" aria-hidden="true"><i [class.negative]="number(p.pricePerformance!.variation) < 0" [style.width.%]="leaderWidth(p)" [style.left.%]="number(p.pricePerformance!.variation) > 0 ? 50 : 50 - leaderWidth(p)"></i></div></div>
         } @empty { <p class="hint">Nenhum ativo nesta condição.</p> }
       }
       <div class="analysis-actions"><button mat-button type="button" (click)="detailsOpen.set(true)">Ver ranking completo</button></div>
@@ -114,7 +115,7 @@ interface AnalysisContext {
           @for (group of leaders(); track group.title) {
             <h3>{{ group.title }} · {{ group.rows.length }}</h3>
             <div class="table-scroll" tabindex="0" role="region" [attr.aria-label]="group.title"><table><thead><tr><th scope="col">Ativo</th><th scope="col">Cotação unitária</th><th scope="col">Variação</th></tr></thead><tbody>
-              @for (p of group.rows; track p.id) { <tr><th scope="row">{{ p.ticker }}</th><td>{{ p.pricePerformance!.unitPrice == null ? 'Indisponível' : (p.pricePerformance!.unitPrice | currency:p.currencyCode:'code':'1.2-4') }}</td><td>{{ p.pricePerformance!.variation | percent:'1.2-2' }}</td></tr> } @empty { <tr><td colspan="3">Nenhum ativo nesta condição.</td></tr> }
+              @for (p of group.rows; track p.id) { <tr><th scope="row"><app-asset-identity [assetId]="p.assetId" [version]="p.imageVersion" [ticker]="p.ticker" [tickerOnly]="true" /></th><td>{{ p.pricePerformance!.unitPrice == null ? 'Indisponível' : (p.pricePerformance!.unitPrice | currency:p.currencyCode:'code':'1.2-4') }}</td><td>{{ p.pricePerformance!.variation | percent:'1.2-2' }}</td></tr> } @empty { <tr><td colspan="3">Nenhum ativo nesta condição.</td></tr> }
             </tbody></table></div>
           }
           <a routerLink="/portfolio">Conferir posições e atualizar cotações →</a>

@@ -1,4 +1,58 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { selectAsset } from './helpers/asset-selection';
+
+test('cadastro contextual e imagens do ativo preservam o formulário e os valores financeiros', async ({ page, request }, info) => {
+  const suffix = info.project.name === 'desktop' ? 'D' : 'C', ticker = 'IMAGEM' + suffix;
+  await page.goto('/classifications'); await expect(page.getByRole('heading', { name: 'Classificações', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Gerenciar tipos de ativo', exact: true }).click(); await expect(page).toHaveURL(/\/asset-types$/);
+  await page.goto('/assets'); await page.getByRole('button', { name: 'Novo ativo', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Novo ativo', exact: true });
+  await editor.getByLabel('Ticker', { exact: true }).fill(ticker); await editor.getByLabel('Nome', { exact: true }).fill('Fundo com imagem ' + suffix);
+  await editor.locator('#assetTypeId').selectOption({ label: 'FII' }); await editor.locator('#countryId').selectOption({ label: 'Brasil' });
+  const [currencies] = await Promise.all([json(request, 'currencies')]); const brl = currencies.find((c: any) => c.code === 'BRL');
+  await editor.locator('#currencyId').selectOption({ label: 'BRL — ' + brl.name }); await editor.locator('#assetCategoryId').selectOption({ label: 'FIIs' });
+  await editor.getByRole('button', { name: 'Criar opção de Setor', exact: true }).click();
+  const child = page.getByRole('dialog', { name: 'Criar setor', exact: true }); await child.getByLabel('Nome do cadastro', { exact: true }).fill('Setor imagens ' + suffix);
+  await child.getByRole('checkbox', { name: 'Setor imobiliário', exact: true }).check(); await child.getByRole('button', { name: 'Criar e selecionar', exact: true }).click();
+  await expect(child).toHaveCount(0); await expect(editor.getByLabel('Nome', { exact: true })).toHaveValue('Fundo com imagem ' + suffix);
+  await expect(editor.locator('#sectorId option:checked')).toHaveText('Setor imagens ' + suffix);
+  const fileInput = editor.locator('input[type=file]'); await fileInput.setInputFiles({ name: 'invalida.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg/>') });
+  await expect(editor.locator('app-asset-image-picker')).toContainText('Selecione uma imagem PNG, JPEG ou WebP');
+  const png = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 80; c.height = 40; const x = c.getContext('2d')!; x.fillStyle = '#315e99'; x.fillRect(0, 0, 80, 40); x.fillStyle = '#f0b429'; x.fillRect(0, 0, 30, 40); return c.toDataURL('image/png').split(',')[1]; });
+  await fileInput.setInputFiles({ name: 'marca.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(editor.locator('app-asset-image-picker .identity img')).toBeVisible();
+  const initialPreview = await editor.locator('.frame img').getAttribute('src');
+  await editor.getByRole('slider', { name: 'Zoom da imagem', exact: true }).focus(); await page.keyboard.press('End');
+  const frame = editor.locator('.frame'); await frame.scrollIntoViewIfNeeded(); const frameBox = await frame.boundingBox();
+  await page.mouse.move(frameBox!.x + frameBox!.width / 2, frameBox!.y + frameBox!.height / 2); await page.mouse.down(); await page.mouse.move(frameBox!.x + frameBox!.width / 2 + 30, frameBox!.y + frameBox!.height / 2 + 20, { steps: 4 }); await page.mouse.up();
+  const framedPreview = await editor.locator('app-asset-image-picker .identity img').getAttribute('src'); expect(framedPreview).not.toBe(initialPreview);
+  await editor.locator('.frame').screenshot({ path: info.outputPath('asset-image-editor.png') });
+  const savedResponse = page.waitForResponse(r => new URL(r.url()).pathname === '/api/assets' && r.request().method() === 'POST');
+  await editor.getByRole('button', { name: 'Salvar ativo', exact: true }).click(); const saved = await (await savedResponse).json();
+  expect(saved.imageVersion).toMatch(/^[a-f0-9]{64}$/); await expect(editor).toHaveCount(0);
+  const storedImage = await request.get(`/api/assets/${saved.id}/image?v=${saved.imageVersion}`); expect(storedImage.ok()).toBeTruthy(); expect(await storedImage.body()).toEqual(Buffer.from(framedPreview!.split(',')[1], 'base64'));
+  await page.getByRole('searchbox', { name: 'Buscar cadastro', exact: true }).fill(ticker);
+  const card = page.locator('.asset-card').filter({ hasText: ticker }); await expect(card.locator('img')).toBeVisible();
+  await expect.poll(() => card.locator('img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  const created = await request.post('/api/portfolios', { data: { name: 'Carteira imagens ' + suffix } }); expect(created.ok()).toBeTruthy(); const portfolio = await created.json(), path = `portfolios/${portfolio.id}`;
+  expect((await request.post('/api/' + path + '/assets', { data: { assetId: saved.id, quantity: '2', investedAmount: '100', currentValue: '120', income: '5' } })).ok()).toBeTruthy();
+  const before = await json(request, path);
+  await page.goto('/portfolio'); await page.locator('#portfolio-select').selectOption(String(portfolio.id));
+  const row = page.locator('tr').filter({ hasText: ticker }); await expect(row.locator('app-asset-identity img')).toBeVisible();
+  await row.screenshot({ path: info.outputPath('asset-image-position.png') });
+  await page.goto('/assets'); await page.getByRole('searchbox', { name: 'Buscar cadastro', exact: true }).fill(ticker);
+  await page.getByRole('button', { name: 'Editar ' + ticker, exact: true }).click(); const edit = page.getByRole('dialog', { name: 'Editar ativo', exact: true });
+  await edit.getByRole('button', { name: 'Ajustar enquadramento', exact: true }).click(); await expect(edit.locator('.frame')).toBeVisible();
+  await edit.getByRole('slider', { name: 'Zoom da imagem', exact: true }).focus(); await page.keyboard.press('Home');
+  await expect(edit.locator('app-asset-image-picker .identity img')).toHaveAttribute('src', /^data:image\/png;base64,/);
+  expect((await json(request, `assets/${saved.id}`)).imageVersion).toBe(saved.imageVersion);
+  await edit.getByRole('button', { name: 'Desfazer alteração da imagem', exact: true }).click(); await expect(edit.locator('.frame')).toHaveCount(0);
+  await expect(edit.locator('app-asset-image-picker .identity img')).toHaveAttribute('src', new RegExp(saved.imageVersion));
+  await edit.getByRole('button', { name: 'Remover imagem', exact: true }).click(); await expect(edit.locator('app-asset-image-picker .identity img')).toHaveCount(0);
+  await edit.getByRole('button', { name: 'Salvar ativo', exact: true }).click(); await expect(edit).toHaveCount(0); await expect(card.locator('img')).toHaveCount(0);
+  const after = await json(request, path); const clean = (s: any) => ({ ...s, positions: s.positions.map((p: any) => { const value = { ...p }; delete value.imageVersion; return value; }) });
+  expect(clean(after)).toEqual(clean(before)); expect(after.positions[0].imageVersion).toBeNull(); expect(await json(request, path + '/movements')).toHaveLength(0);
+});
 
 test('faixas específicas persistem zero e explicam conflitos entre categoria e setor', async ({ page, request }, info) => {
   const suffix = info.project.name === 'desktop' ? 'D' : 'C';
@@ -243,7 +297,10 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   const trade = async (kind: string, quantity: string, price: string, cash = false, valid = true, fees = '0') => {
     await page.getByRole('button', { name: kind === 'buy' ? 'Registrar compra' : 'Registrar venda', exact: true }).click();
     await page.locator('#trade-kind').selectOption(kind);
-    await page.locator('#trade-asset').selectOption({ label: `${ticker} — Ativo revisado ${suffix}` });
+    const selector = page.locator('app-asset-selector');
+    await selector.getByRole('button', { name: /^(Selecionar|Trocar) ativo$/ }).click();
+    await selector.getByRole('searchbox', { name: 'Buscar ativo por código ou nome', exact: true }).fill(ticker);
+    await selector.getByRole('button', { name: `Selecionar ${ticker} — Ativo revisado ${suffix}`, exact: true }).click();
     await page.locator('#trade-quantity').fill(quantity);
     await page.locator('#trade-price').fill(price);
     await page.locator('#trade-fees').fill(fees);
@@ -263,9 +320,9 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   expect(history.cashFlows).toHaveLength(1);
   expect(Number(history.cashFlows[0].amount)).toBe(255);
 
-  await navigate(page, 'Patrimônio externo');
+  await navigate(page, 'Saldos e patrimônio externo');
   await choosePortfolio(page, name);
-  await page.getByRole('button', { name: 'Novo patrimônio', exact: true }).click();
+  await page.getByRole('button', { name: 'Adicionar saldo ou patrimônio', exact: true }).click();
   await page.getByLabel('Nome', { exact: true }).fill('Saldo E2E');
   await page.getByLabel('Moeda original', { exact: true }).selectOption({ label: 'BRL — Real brasileiro' });
   await page.getByLabel('Valor na moeda selecionada').fill('100,50');
@@ -330,14 +387,14 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   await navigate(page, 'Proventos');
   await choosePortfolio(page, name);
   await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
-  await page.getByLabel('Ativo', { exact: true }).selectOption({ label: `${ticker} — Ativo revisado ${suffix}` });
+  await selectAsset(page.getByRole('dialog'), ticker);
   await page.locator('#income-amount').fill('12,34');
   await page.locator('#income-cash').selectOption({ index: 1 });
   await page.locator('dialog:modal').getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Recebimento registrado' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Recarregar dados' })).toBeEnabled();
   await page.getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
-  await page.locator('dialog:modal').getByLabel('Ativo', { exact: true }).selectOption({ label: `${ticker} — Ativo revisado ${suffix}` });
+  await selectAsset(page.getByRole('dialog'), ticker);
   await page.locator('#income-amount').fill('2');
   await page.locator('#income-cash').selectOption({ index: 0 });
   await page.locator('dialog:modal').getByRole('button', { name: 'Registrar recebimento', exact: true }).click();
@@ -365,7 +422,7 @@ test('cadastro, compra, venda, reinvestimento e fotografia preservam os valores'
   const withFees = await json(request, path);
   expect(Number(withFees.positions[0].investedAmount)).toBe(259.25);
   await page.getByRole('button', { name: 'Registrar evento societário', exact: true }).click();
-  await page.locator('#event-position').selectOption({ index: 1 });
+  await selectAsset(page.getByRole('dialog'));
   await page.locator('#event-quantity').fill('20');
   await page.locator('#event-reason').fill('Desdobramento sintético de teste');
   await page.getByRole('button', { name: 'Confirmar evento', exact: true }).click();
@@ -558,7 +615,7 @@ test('correção confirmada recalcula compra, venda e evento atrasado preservand
   expect((await json(request, snapshotPath)).dashboard).toEqual(photo.dashboard);
   await page.getByRole('button', { name: 'Registrar operação atrasada', exact: true }).click();
   await page.locator('#correction-op-kind').selectOption('split');
-  await page.locator('#correction-op-asset').selectOption({ label: asset.ticker + ' — Ativo de correção' });
+  await selectAsset(page.getByRole('dialog'), asset.ticker);
   await page.locator('#correction-op-date').fill(day(-1));
   await page.locator('#correction-op-numerator').fill('2'); await page.locator('#correction-op-denominator').fill('1');
   await page.locator('#correction-op-reason').fill('Desdobramento esquecido no histórico');
@@ -643,7 +700,8 @@ test('classificação explícita e bloqueio de combinação persistem sem movime
   await page.getByRole('button', { name: 'Salvar cadastro', exact: true }).click();
   const type = await (await typeSaved).json(); expect(type.instrumentClass).toBe('fii');
   await expect(page.locator('dialog:modal')).toHaveCount(0);
-  await navigate(page, 'Setores');
+  await navigate(page, 'Classificações');
+  await page.getByRole('link', { name: 'Gerenciar setores', exact: true }).click();
   await page.getByRole('button', { name: 'Novo cadastro', exact: true }).click();
   await page.locator('dialog:modal #name').fill(sectorName);
   await page.getByRole('checkbox', { name: 'Setor imobiliário para planejamento', exact: true }).check();

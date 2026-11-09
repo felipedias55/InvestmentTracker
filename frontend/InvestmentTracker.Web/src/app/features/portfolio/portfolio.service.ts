@@ -21,6 +21,7 @@ export interface PositionInput {
 }
 export interface PricePerformance { averagePrice: string | null; unitPrice: string | null; variation: string | null; }
 export interface Position extends PositionInput {
+  imageVersion?: string | null;
   pricePerformance?: PricePerformance | null;
   assetCategoryId?: number;
   sectorId?: number;

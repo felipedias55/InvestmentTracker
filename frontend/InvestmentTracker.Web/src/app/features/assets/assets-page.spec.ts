@@ -37,6 +37,7 @@ describe('AssetsPage', () => {
     flushLoad();
     fixture.componentInstance.newItem();
     fixture.componentInstance.form.setValue({
+      image: null, listing: null,
       ticker: 'PETR4',
       name: 'Petrobras',
       assetTypeId: 1,
@@ -62,7 +63,7 @@ describe('AssetsPage', () => {
     fixture.componentInstance.newItem();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('a[href="/currencies"]')).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain('Cadastre primeiro');
+    expect(fixture.nativeElement.textContent).toContain('Crie uma opção acima');
   });
   it('retains the form on a validation error', () => {
     const fixture = TestBed.createComponent(AssetsPage);
@@ -70,6 +71,7 @@ describe('AssetsPage', () => {
     flushLoad();
     fixture.componentInstance.newItem();
     fixture.componentInstance.form.setValue({
+      image: null, listing: null,
       ticker: 'PETR4',
       name: 'Petrobras',
       assetTypeId: 1,
@@ -101,6 +103,20 @@ describe('AssetsPage', () => {
     component.edit(component.pageItems()[0]); component.cancel(); expect(component.currentPage()).toBe(1);
     component.search('TEST00'); expect(component.currentPage()).toBe(0); expect(component.pageItems()).toHaveLength(1);
     expect(component.items()).toHaveLength(26);
+  });
+  it('creates and selects a missing reference without losing the asset draft or image', () => {
+    const f = TestBed.createComponent(AssetsPage); f.detectChanges(); flushLoad(); const c = f.componentInstance; c.newItem();
+    c.form.patchValue({ ticker: 'NOVO11', name: 'Nome preenchido', image: { data: 'png', expectedVersion: null } });
+    c.creatingReference.set({ key: 'sectors', control: 'sectorId' }); c.referenceCreated({ id: 9, name: 'Novo setor', isRealEstate: true });
+    expect(c.form.controls.sectorId.value).toBe(9); expect(c.form.controls.ticker.value).toBe('NOVO11'); expect(c.form.controls.image.value?.data).toBe('png'); expect(c.creatingReference()).toBeNull();
+    expect(c.references()['sectors'].find(s => s.id === 9)?.isRealEstate).toBe(true); http.expectNone(r => r.url === '/api/assets' && r.method === 'POST');
+  });
+  it('sends image changes atomically and preserves the draft after a conflict', () => {
+    const f = TestBed.createComponent(AssetsPage); f.detectChanges(); flushLoad(); const c = f.componentInstance;
+    c.edit({ id: 2, ticker: 'IMG', name: 'Imagem', assetTypeId: 1, countryId: 1, currencyId: 1, assetCategoryId: 1, sectorId: 1, createdAt: '', imageVersion: 'a'.repeat(64) });
+    c.changeImage({ data: 'png', expectedVersion: 'a'.repeat(64) }); c.imageProcessing.set(true); c.save(); http.expectNone('/api/assets/2'); c.imageProcessing.set(false); c.save();
+    const request = http.expectOne('/api/assets/2'); expect(request.request.body.image).toEqual({ data: 'png', expectedVersion: 'a'.repeat(64) }); request.flush({ detail: 'Imagem mudou' }, { status: 409, statusText: 'Conflict' });
+    expect(c.form.controls.image.value?.data).toBe('png'); expect(c.formOpen()).toBe(true); expect(c.error()).toContain('Imagem mudou');
   });
 
 });

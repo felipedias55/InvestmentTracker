@@ -6,6 +6,7 @@ using InvestmentTracker.Application.Quotes;
 namespace InvestmentTracker.Infrastructure.Quotes
 {
     public sealed record CachedAssetQuote(AssetQuote Quote, DateTimeOffset Expires);
+    public sealed record CachedProviderDocument(string Json, DateTimeOffset RetrievedAt, DateTimeOffset Expires);
 
     public sealed class QuoteRequestState
     {
@@ -14,6 +15,7 @@ namespace InvestmentTracker.Infrastructure.Quotes
         public DateTimeOffset BlockedUntil { get; set; }
         public string BlockReason { get; set; } = "";
         public Dictionary<string, CachedAssetQuote> Cache { get; set; } = [];
+        public Dictionary<string, CachedProviderDocument> Documents { get; set; } = [];
     }
 
     // The separate lock survives atomic replacement of the data file, including across API processes.
@@ -37,7 +39,7 @@ namespace InvestmentTracker.Infrastructure.Quotes
             if (!File.Exists(path)) return new();
             var state = JsonSerializer.Deserialize<QuoteRequestState>(await File.ReadAllTextAsync(path, ct))
                 ?? throw new JsonException("Invalid quote state.");
-            if (state.Attempts is null || state.Cache is null || state.Cache.Values.Any(value => value is null || value.Quote is null))
+            if (state.Attempts is null || state.Cache is null || state.Documents is null || state.Documents.Values.Any(value => value is null || value.Json is null) || state.Cache.Values.Any(value => value is null || value.Quote is null))
                 throw new JsonException("Invalid quote state.");
             return state;
         }

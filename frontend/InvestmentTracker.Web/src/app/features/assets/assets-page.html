@@ -2,6 +2,7 @@
   <p class="eyebrow">CADASTROS</p>
   <h1>Ativos</h1>
   <p>Seu catálogo de investimentos, organizado por instrumento, geografia e estratégia.</p>
+  <div class="actions"><a routerLink="/classifications">Gerenciar classificações</a><a routerLink="/references">Países e moedas</a></div>
 </header>
 @if (error()) {
   <div class="notice error" role="alert">{{ error() }}</div>
@@ -13,8 +14,9 @@
 <div class="registration-workspace">
   @if (formOpen()) {
   <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" [title]="editing() === null ? 'Novo ativo' : 'Editar ativo'" (closed)="cancel()"><section class="panel editor">
-    <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="form" (ngSubmit)="save()">
+    <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving() || imageProcessing()" [formGroup]="form" (ngSubmit)="save()">
       <fieldset [disabled]="saving() || !ready()">
+        <app-asset-discovery [current]="form.getRawValue()" [references]="references()" [imageVersion]="imageVersion()" (appliedFields)="applySuggestions($event)" />
         <mat-form-field appearance="outline"><mat-label>Ticker</mat-label><input matInput
           id="ticker"
           formControlName="ticker"
@@ -35,6 +37,14 @@
         @if (form.controls.name.touched && form.controls.name.invalid) {
           <small class="field-error">Informe o nome com até 200 caracteres.</small>
         }
+        <app-asset-image-picker [assetId]="editing()" [version]="imageVersion()" [name]="form.controls.name.value" [ticker]="form.controls.ticker.value" [change]="form.controls.image.value" (changed)="changeImage($event)" (busy)="imageProcessing.set($event)" />
+        <details><summary>Mercado e símbolo para consultas</summary><p class="hint">O mercado de negociação é independente do país do emissor. Cadastros sem mapeamento explícito mantêm a compatibilidade com a configuração atual.</p>
+          <mat-form-field appearance="outline"><mat-label>Mercado de consulta</mat-label><select matNativeControl [value]="form.controls.listing.value?.market || ''" (change)="changeMarket($any($event.target).value)"><option value="">Compatibilidade com o cadastro atual</option><option value="BR">Brasil · B3</option><option value="US">EUA · USD</option></select></mat-form-field>
+          @if (form.controls.listing.value?.market) { <mat-form-field appearance="outline"><mat-label>Símbolo de consulta</mat-label><input matInput maxlength="20" [value]="form.controls.listing.value?.symbol || ''" (input)="changeSymbol($any($event.target).value)" /></mat-form-field> }
+        </details>
+        <h3>Classificações e referências</h3>
+        <button mat-stroked-button type="button" (click)="prepareReferences()" [disabled]="preparingReferences()">{{ preparingReferences() ? 'Preparando referências…' : 'Disponibilizar países e moedas BR/US' }}</button>
+        <p class="hint">Adiciona apenas referências ausentes, preservando as existentes e este formulário.</p>
         @for (field of fields; track field.control) {
           <mat-form-field appearance="outline"><mat-label>{{ field.label }}</mat-label><select matNativeControl [id]="field.control" [formControlName]="field.control">
             <option [ngValue]="0">Selecione</option>
@@ -44,9 +54,11 @@
               </option>
             }
           </select></mat-form-field>
+          <p class="hint">{{ fieldHints[field.control] }}</p>
+          <button mat-button type="button" [attr.aria-label]="'Criar opção de ' + field.label" (click)="creatingReference.set({ key: field.key, control: field.control })" [disabled]="imageProcessing()">Criar opção de {{ field.label.toLowerCase() }}</button>
           @if (ready() && !references()[field.key]?.length) {
             <small
-              >Cadastre primeiro em <a [routerLink]="'/' + field.key">{{ field.label }}</a
+              >Crie uma opção acima ou gerencie em <a [routerLink]="'/' + field.key">{{ field.label }}</a
               >.</small
             >
           }
@@ -57,7 +69,7 @@
         <details><summary>País e moeda</summary><p>O país classifica o ativo. A moeda é definida separadamente.</p></details>
         <div class="actions">
           <button data-discard  mat-stroked-button type="button" (click)="cancel()">Cancelar</button>
-<button mat-flat-button class="primary" type="submit" [disabled]="saving() || !ready()">
+<button mat-flat-button class="primary" type="submit" [disabled]="saving() || imageProcessing() || !ready()">
             {{ saving() ? 'Salvando…' : 'Salvar ativo' }}
           </button>
         </div>
@@ -108,10 +120,7 @@
         @for (asset of pageItems(); track asset.id) {
           <article class="asset-card" [class.record-saved]="lastSaved() === asset.id">
             <div class="section-title">
-              <div>
-                <strong class="ticker">{{ asset.ticker }}</strong>
-                <h3>{{ asset.name }}</h3>
-              </div>
+              <h3 [attr.aria-label]="asset.name"><app-asset-identity [assetId]="asset.id" [version]="asset.imageVersion" [name]="asset.name" [ticker]="asset.ticker" /></h3>
               <span class="badge">{{ label('asset-types', asset.assetTypeId) }}</span>
             </div>
             <details><summary>Classificações e cadastro</summary><dl>
@@ -159,3 +168,4 @@
     <app-list-paginator [length]="filteredItems().length" [index]="currentPage()" [size]="pageSize()" (changed)="changePage($event)" />
   </section>
 </div>
+@if (creatingReference(); as ref) { <app-inline-catalog-create [catalog]="ref.key" (created)="referenceCreated($event)" (closed)="creatingReference.set(null)" /> }

@@ -36,6 +36,7 @@ namespace InvestmentTracker.Api.Controllers
         }
 
         [HttpPost]
+        [RequestSizeLimit(400000)]
         public async Task<ActionResult<AssetDto>> Create(
             CreateAssetDto dto,
             CancellationToken cancellationToken)
@@ -46,6 +47,7 @@ namespace InvestmentTracker.Api.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [RequestSizeLimit(400000)]
         public async Task<ActionResult<AssetDto>> Update(
             int id,
             UpdateAssetDto dto,
@@ -76,6 +78,16 @@ namespace InvestmentTracker.Api.Controllers
             }
 
             return NoContent();
+        }
+        [HttpGet("{id:int}/image")]
+        public async Task<IActionResult> Image(int id, string? v, CancellationToken cancellationToken)
+        {
+            var file = await service.GetImageAsync(id, cancellationToken);
+            if (file is null || (v is not null && v != file.Version)) return NotFound();
+            Response.Headers.CacheControl = "private,max-age=3600";
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            return File(file.Data, "image/png", lastModified: null,
+                entityTag: new Microsoft.Net.Http.Headers.EntityTagHeaderValue('"' + file.Version + '"'));
         }
     }
 }

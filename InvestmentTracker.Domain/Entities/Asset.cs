@@ -14,6 +14,9 @@ namespace InvestmentTracker.Domain.Entities
         public string Ticker { get; set; } = string.Empty;
 
         public string Name { get; set; } = string.Empty;
+        public string? ImageVersion { get; set; }
+        public string? QuoteMarket { get; set; }
+        public string? QuoteSymbol { get; set; }
 
         public int AssetTypeId { get; set; }
 

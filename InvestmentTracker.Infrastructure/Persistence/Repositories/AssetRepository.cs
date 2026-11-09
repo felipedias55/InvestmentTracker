@@ -76,6 +76,8 @@ namespace InvestmentTracker.Infrastructure.Persistence.Repositories
             {
                 await context.SaveChangesAsync(cancellationToken);
             }
+            catch (DbUpdateConcurrencyException ex)
+            { throw new ResourceConflictException("O cadastro ou a imagem do ativo mudou. Recarregue antes de salvar.", ex); }
             catch (DbUpdateException ex) when (
                 ex.InnerException is SqlException { Number: 2601 or 2627 }
                 && ex.Entries.Count > 0

@@ -1,14 +1,16 @@
 <header class="page-header">
   <p class="eyebrow">SEU PATRIMÔNIO</p>
-  <h1>Patrimônio externo</h1><a routerLink="/movements">Depositar, retirar, transferir ou ajustar saldo</a>
+  <h1>Saldos e patrimônio externo</h1><a routerLink="/movements">Depositar, retirar, transferir ou ajustar saldo</a>
   <p>
     Registre reservas, FGTS e outros valores vinculados à carteira, fora das posições em ativos.
   </p>
+  <p>Os valores entram no patrimônio total do dashboard. Saldos de contas podem servir como origem ou destino de compras, vendas e outras movimentações. Bens e valores como FGTS também podem ser acompanhados aqui, com sua avaliação registrada manualmente.</p>
+  <p class="hint">Para cadastrar ações, FIIs e REITs, use <a routerLink="/assets">Ativos</a>. Para entradas, saídas, transferências ou correções de saldo, use <a routerLink="/movements">Movimentações</a>.</p>
 </header>
 <app-portfolio-picker [disabled]="saving()" (selectedId)="select($event)" />
 @if (portfolioId()) {
   <div class="actions">
-  <button mat-flat-button class="primary" (click)="newItem()" [disabled]="loading() || saving() || !summary()">Novo patrimônio</button>
+  <button mat-flat-button class="primary" (click)="newItem()" [disabled]="loading() || saving() || !summary()">Adicionar saldo ou patrimônio</button>
   <button mat-stroked-button (click)="load()" [disabled]="saving() || loading()">Recarregar dados</button>
   </div>
 }
@@ -19,7 +21,7 @@
   <p class="notice success" role="status">{{ success() }}</p>
 }
 @if (loading()) {
-  <p role="status">Carregando patrimônio externo…</p>
+  <p role="status">Carregando saldos e patrimônio externo…</p>
 }
 @if (summary(); as s) {
   <section class="panel" style="margin: 24px 0">
@@ -44,8 +46,9 @@
   }
   <div class="registration-workspace">
   @if (formOpen()) {
-    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" [title]="editingId() === null ? 'Novo patrimônio' : 'Editar patrimônio'" (closed)="cancel()"><form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" class="panel" [formGroup]="form" (ngSubmit)="save()">
+    <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" [title]="editingId() === null ? 'Novo saldo ou patrimônio' : 'Editar saldo ou patrimônio'" (closed)="cancel()"><form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" class="panel" [formGroup]="form" (ngSubmit)="save()">
       <fieldset [disabled]="saving()">
+        <p>Crie uma conta, reserva ou item patrimonial com o valor inicial na moeda escolhida. Esse cadastro será incluído no patrimônio da carteira; não cria uma posição em ativo.</p>
         <mat-form-field appearance="outline"><mat-label>Nome</mat-label><input matInput id="external-name" formControlName="name" maxlength="200" /></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Moeda original</mat-label><select matNativeControl id="external-currency" formControlName="currencyId" [attr.inert]="editingId() !== null ? '' : null" [attr.aria-disabled]="editingId() !== null">
           <option [ngValue]="0">Selecione</option>
@@ -108,15 +111,15 @@
         </div></app-edit-panel>
       }
       @if (!s.items.length) {
-        <p class="empty">Nenhum patrimônio externo cadastrado nesta carteira.</p>
+        <p class="empty">Nenhum saldo ou patrimônio externo cadastrado nesta carteira.</p>
       }
       <div class="registration-filters">
-        <mat-form-field appearance="outline"><mat-label>Buscar patrimônio</mat-label><input matInput type="search" [value]="query()" (input)="search($any($event.target).value)" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Buscar saldo ou patrimônio</mat-label><input matInput type="search" [value]="query()" (input)="search($any($event.target).value)" /></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Moeda</mat-label><select matNativeControl [value]="currencyFilter()" (change)="currencyFilter.set($any($event.target).value); pageIndex.set(0)">
           <option value="">Todas</option>@for (c of currencies(); track c.id) { <option [value]="c.code" [selected]="'' + (currencyFilter()) === '' + (c.code)">{{ c.code }}</option> }
         </select></mat-form-field>
       </div>
-      @if (s.items.length && !filteredItems().length) { <p class="empty">Nenhum patrimônio corresponde aos filtros.</p> }
+      @if (s.items.length && !filteredItems().length) { <p class="empty">Nenhum saldo ou patrimônio corresponde aos filtros.</p> }
       <div class="asset-cards">
         @for (item of pageItems(); track item.id) {
           <article class="asset-card">

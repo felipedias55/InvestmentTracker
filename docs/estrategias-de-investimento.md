@@ -65,6 +65,6 @@ A migration original foi validada em banco temporário; não foi aplicada ao ban
 
 ## Ainda fora desta etapa
 
-Agendamento; destinação automática de proventos; seleção de empresas por valor/crescimento/qualidade; benchmarks; previsão de composição após compras com quantidades e custos; editor/restauração de revisões anteriores. As estratégias atuais planejam o dinheiro novo por categoria/setor, sem prometer essas funções. Os limites de concentração já foram implementados conforme a documentação acima.
+Agendamento; destinação automática de proventos; seleção de empresas por valor/crescimento/qualidade; previsão de composição após compras com quantidades e custos; editor/restauração de revisões anteriores. As estratégias atuais planejam o dinheiro novo por categoria/setor, sem prometer essas funções. Os limites de concentração já foram implementados conforme a documentação acima. A [comparação com benchmarks](benchmarks.md) foi implementada posteriormente na Evolução; não simula os aportes do planejamento nas referências.
 
 Objetivos com prazo de patrimônio e renda estão disponíveis em **Metas e objetivos**, com progresso e cenários independentes da distribuição de aportes. Veja [regras e limites](objetivos-de-planejamento.md).

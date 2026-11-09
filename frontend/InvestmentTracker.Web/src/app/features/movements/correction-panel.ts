@@ -16,6 +16,7 @@ import { createRequestId } from '../../core/request-id';
 import { apiError } from '../../core/services/api-error';
 import { brazilianNumberValidator, formatBrazilianNumber, parseBrazilianNumber } from '../../core/brazilian-number';
 import { Asset } from '../assets/asset.service';
+import { AssetSelector } from '../../shared/asset-selector';
 import { ExternalAsset } from '../external-assets/external-assets.service';
 
 export interface CorrectionOperation {
@@ -31,7 +32,7 @@ export interface CorrectionSimulation {
   snapshots: { id: number; month: string; revision: number }[]; warnings: string[]; blockers: string[];
 }
 @Component({
-  standalone: true, selector: 'app-correction-panel', imports: [UnsavedForm, MatCheckboxModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, CurrencyPipe, ReactiveFormsModule, DatePipe, EditPanel],
+  standalone: true, selector: 'app-correction-panel', imports: [AssetSelector, UnsavedForm, MatCheckboxModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, CurrencyPipe, ReactiveFormsModule, DatePipe, EditPanel],
   templateUrl: './correction-panel.html',
   styles: ['mat-form-field { width: 100%; }'],
 })
@@ -40,6 +41,7 @@ export class CorrectionPanel implements OnInit {
   @Input() movementId: number | null = null;
   @Input() balances: ExternalAsset[] = [];
   @Input() baseCurrency = '';
+  @Input() currencies: readonly { id: number; code?: string }[] = [];
   @Output() closed = new EventEmitter<void>();
   @Output() completed = new EventEmitter<number>();
   private readonly http = inject(HttpClient);

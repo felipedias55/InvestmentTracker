@@ -25,16 +25,10 @@
       <a routerLink="/history" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="trend" /><span>Evolução e fechamentos</span></a>
       <a routerLink="/contributions" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="calculator" /><span>Simular aporte</span></a>
       <a routerLink="/allocation" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="target" /><span>Metas</span></a>
-      <a routerLink="/external-assets" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="folder" /><span>Patrimônio externo</span></a>
+      <a routerLink="/external-assets" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="folder" /><span>Saldos e patrimônio externo</span></a>
       <a routerLink="/assets" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="folder" /><span>Ativos</span></a>
-      @for (catalog of catalogs; track catalog.key) {
-        <a
-          [routerLink]="'/' + catalog.key"
-          routerLinkActive="active"
-          ariaCurrentWhenActive="page"
-          ><app-icon name="folder" /><span>{{ catalog.label }}</span></a
-        >
-      }
+      <a routerLink="/classifications" [class.active]="catalogSection() === 'classifications'" [attr.aria-current]="catalogSection() === 'classifications' ? 'location' : null"><app-icon name="folder" /><span>Classificações</span></a>
+      <a routerLink="/references" [class.active]="catalogSection() === 'references'" [attr.aria-current]="catalogSection() === 'references' ? 'location' : null"><app-icon name="folder" /><span>Referências</span></a>
     </nav>
 
   </aside>

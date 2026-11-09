@@ -116,7 +116,7 @@ Próximo passo: uniformizar injeção de relógio nos pontos de auditoria e test
 | Estratégias | Modelos básicos e exclusões já estão implementados. Evoluções: concentração, prioridades mais amplas, planejado versus realizado e objetivos/renda. |
 | Classificação imobiliária | O backlog menciona substituir identificação por nomes; o editor atual já pede seleção explícita de categorias. Antes de alterar o modelo, localizar o uso residual da heurística e definir a finalidade da classificação estruturada. |
 | Rentabilidade | Dietz estimado e XIRR existem. TWR exato exige avaliações por fluxo externo; permanece evolução própria. |
-| Ideias e reflexões | Funcionalidades novas de produto, sem necessidade de reabrir a rodada concluída de layout. |
+| Ideias e reflexões | Retiradas do planejamento por decisão do usuário em 05/11/2026. |
 | Demonstração e distribuição | Preparar base fictícia isolada; CI, empacotamento e autenticação conforme o destino de distribuição. |
 | Backup | Procedimento manual com restauração e CHECKDB já existe. Automação permanece adiada por decisão do usuário. Esta revisão não repetiu a restauração. |
 
@@ -127,7 +127,7 @@ Próximo passo: uniformizar injeção de relógio nos pontos de auditoria e test
 3. Completar contexto analítico do Dashboard e executar a conferência móvel/acessibilidade com registro reproduzível dos problemas.
 4. Formalizar análise estática e execução automatizada das suítes; reduzir ruído dos mocks de navegador nos testes.
 5. Validar consistência de leitura e escala com dados fictícios antes de alterar a arquitetura de consultas.
-6. Retomar as funcionalidades conforme o uso real: cobertura de cotações, correções bloqueadas e planejamento. Ideias/diário podem seguir como entregas separadas.
+6. Retomar as funcionalidades conforme o uso real: cobertura de cotações, correções bloqueadas e planejamento. Ideias e diário foram posteriormente retirados dos planos por decisão do usuário em 05/11/2026.
 
 ## Verificações desta rodada
 

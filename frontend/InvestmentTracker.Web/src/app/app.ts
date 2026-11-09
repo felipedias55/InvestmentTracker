@@ -3,7 +3,6 @@ import { ThemePicker } from './shared/theme-picker';
 import { afterNextRender, Component, ElementRef, HostListener, Injector, ViewChild, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catalogs } from './features/catalogs/catalog.models';
 import { ValuePrivacy } from './core/value-privacy';
 import { MatButtonModule } from '@angular/material/button';
 import { AppIcon } from './shared/app-icon';
@@ -15,14 +14,19 @@ export class App {
   constructor() {
     history.scrollRestoration = 'manual';
     inject(Router).events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (event instanceof NavigationEnd) window.scrollTo({ top: 0, behavior: 'instant' });
+      if (event instanceof NavigationEnd) {
+        const path = event.urlAfterRedirects.split(/[?#]/)[0];
+        this.catalogSection.set(['/classifications', '/asset-types', '/asset-categories', '/sectors'].includes(path) ? 'classifications'
+          : ['/references', '/countries', '/currencies'].includes(path) ? 'references' : '');
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      }
     });
   }
   readonly theme = inject(Theme);
   readonly themeRequested = signal(false);
   readonly privacy = inject(ValuePrivacy);
   private readonly injector = inject(Injector);
-  readonly catalogs = catalogs;
+  readonly catalogSection = signal('');
   readonly mobile = signal(window.innerWidth <= 900);
   readonly menuOpen = signal(window.innerWidth > 900);
   @ViewChild('menuButton', { read: ElementRef }) menuButton?: ElementRef<HTMLButtonElement>;

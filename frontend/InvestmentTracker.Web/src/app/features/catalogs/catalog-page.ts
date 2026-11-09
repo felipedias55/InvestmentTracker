@@ -9,7 +9,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { ListPaginator } from '../../shared/list-paginator';
 import { EditPanel } from '../../shared/edit-panel';
 import { Component, computed, DestroyRef, inject, signal, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, Subscription } from 'rxjs';
@@ -20,7 +20,7 @@ import { apiError } from '../../core/services/api-error';
 @Component({
   standalone: true,
   selector: 'app-catalog-page',
-  imports: [UnsavedForm, AppIcon, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatCheckboxModule, ListPaginator, EditPanel, ReactiveFormsModule],
+  imports: [RouterLink, UnsavedForm, AppIcon, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatCheckboxModule, ListPaginator, EditPanel, ReactiveFormsModule],
   templateUrl: './catalog-page.html',
   styleUrl: '../../shared/registration-list.css',
 })

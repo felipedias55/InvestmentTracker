@@ -14,6 +14,9 @@ namespace InvestmentTracker.Infrastructure.Persistence.Configurations
             builder.ToTable("Asset");
 
             builder.HasKey(x => x.Id);
+            builder.Property(x => x.ImageVersion).HasMaxLength(64).IsConcurrencyToken();
+            builder.Property(x => x.QuoteMarket).HasMaxLength(2);
+            builder.Property(x => x.QuoteSymbol).HasMaxLength(20);
 
             builder.Property(x => x.Ticker)
                 .IsRequired()

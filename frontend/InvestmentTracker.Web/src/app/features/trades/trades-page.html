@@ -46,7 +46,8 @@
     <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="eventForm" (ngSubmit)="saveEvent()"><fieldset [disabled]="saving()">
       <mat-form-field appearance="outline"><mat-label>Evento</mat-label><select matNativeControl id="event-kind" formControlName="kind"><option value="split">Desdobramento</option><option value="reverse-split">Grupamento</option><option value="bonus">Bonificação</option></select></mat-form-field>
       <mat-form-field appearance="outline"><mat-label>Data do evento</mat-label><input matInput id="event-date" type="date" formControlName="date" [max]="today" /></mat-form-field>
-      <mat-form-field appearance="outline"><mat-label>Posição do evento</mat-label><select matNativeControl id="event-position" formControlName="positionId"><option [ngValue]="0">Selecione</option>@for (p of s.positions; track p.id) { <option [ngValue]="p.id">{{ p.ticker }} · {{ formatNumber(p.quantity) }} unidades</option> }</select></mat-form-field>
+      <app-asset-selector label="Posição do evento" formControlName="positionId" [assets]="eventChoices()" [locked]="saving() || loading()" />
+      @if (eventForm.controls.positionId.value) { <p class="hint">Quantidade atual: {{ formatNumber(eventQuantity()) }} unidades.</p> }
       <mat-form-field appearance="outline"><mat-label>{{ eventForm.controls.kind.value === 'bonus' ? 'Quantidade recebida em bonificação' : 'Quantidade total após o evento' }}</mat-label><input matInput id="event-quantity" formControlName="quantity" inputmode="decimal" /></mat-form-field>
       @if (eventForm.controls.kind.value === 'bonus') { <mat-form-field appearance="outline"><mat-label>Custo total da bonificação na moeda do ativo (conforme comunicado)</mat-label><input matInput id="event-cost" formControlName="cost" inputmode="decimal" /></mat-form-field> }
       <mat-form-field appearance="outline"><mat-label>Comunicado ou motivo</mat-label><input matInput id="event-reason" formControlName="reason" maxlength="400" /></mat-form-field>
@@ -61,8 +62,7 @@
         <fieldset [disabled]="saving()">
           <mat-form-field appearance="outline"><mat-label>Operação</mat-label><select matNativeControl id="trade-kind" formControlName="kind"><option value="buy">Comprar / aportar</option><option value="sell">Vender</option></select></mat-form-field>
           <mat-form-field appearance="outline"><mat-label>Data da operação</mat-label><input matInput id="trade-date" type="date" formControlName="date" [max]="today" /></mat-form-field>
-          <mat-form-field appearance="outline"><mat-label>Buscar ativo por código ou nome</mat-label><input matInput type="search" [value]="assetSearch()" (input)="assetSearch.set($any($event.target).value)" /></mat-form-field>
-          <mat-form-field appearance="outline"><mat-label>Ativo</mat-label><select matNativeControl id="trade-asset" formControlName="assetId" (change)="form.patchValue({ cashAssetId: 0, baseAmount: '' })"><option [ngValue]="0">Selecione</option>@for (a of selectableAssets(); track a.id) { <option [ngValue]="a.id">{{ a.ticker }} — {{ a.name }}</option> }</select></mat-form-field>
+          <app-asset-selector formControlName="assetId" [assets]="assets()" [currencies]="currencies()" [locked]="saving() || loading()" (selectionChanged)="form.patchValue({ cashAssetId: 0, baseAmount: '' })" />
           @if (!assets().length) { <p><a routerLink="/assets">Cadastre o ativo</a> antes de registrar a compra.</p> }
           <p class="hint">Quantidade disponível: {{ formatNumber(availableQuantity()) }}. Valores em {{ currency() || 'moeda do ativo' }}.</p>
           <mat-form-field appearance="outline"><mat-label>Quantidade {{ form.controls.kind.value === 'sell' ? 'vendida' : 'comprada' }}</mat-label><input matInput id="trade-quantity" formControlName="quantity" inputmode="decimal" placeholder="Ex.: 10" (blur)="formatInput('quantity')" /></mat-form-field>

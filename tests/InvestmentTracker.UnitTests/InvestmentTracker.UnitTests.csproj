@@ -24,4 +24,5 @@
     <ProjectReference Include="..\..\InvestmentTracker.Domain\InvestmentTracker.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup><Compile Include="../Shared/TestPng.cs" Link="TestPng.cs" /></ItemGroup>
 </Project>

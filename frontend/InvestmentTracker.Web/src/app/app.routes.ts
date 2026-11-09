@@ -4,6 +4,8 @@ import { PageContexts } from './shared/page-context';
 import { Routes } from '@angular/router';
 import { catalogs } from './features/catalogs/catalog.models';
 const pageRoutes: Routes = [
+  { path: 'classifications', data: { catalogGroup: 'classifications' }, loadComponent: () => import('./features/catalogs/catalog-hub').then(m => m.CatalogHub) },
+  { path: 'references', data: { catalogGroup: 'references' }, loadComponent: () => import('./features/catalogs/catalog-hub').then(m => m.CatalogHub) },
   { path: 'movements', loadComponent: () => import('./features/movements/movements-page').then(m => m.MovementsPage) },
   { path: 'income', loadComponent: () => import('./features/income/income-page').then(m => m.IncomePage) },
   { path: 'trades', loadComponent: () => import('./features/trades/trades-page').then(m => m.TradesPage) },

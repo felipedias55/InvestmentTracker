@@ -45,10 +45,23 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.Property<int>("CurrencyId")
                         .HasColumnType("int");
 
+                    b.Property<string>("ImageVersion")
+                        .IsConcurrencyToken()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("QuoteMarket")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("QuoteSymbol")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<int>("SectorId")
                         .HasColumnType("int");
@@ -95,6 +108,24 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("AssetCategory", (string)null);
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.AssetImage", b =>
+                {
+                    b.Property<int>("AssetId")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasMaxLength(262144)
+                        .HasColumnType("varbinary(max)");
+
+                    b.HasKey("AssetId");
+
+                    b.ToTable("AssetImage", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AssetImage_Size", "DATALENGTH([Data]) > 0 AND DATALENGTH([Data]) <= 262144");
+                        });
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.AssetType", b =>
@@ -1183,6 +1214,17 @@ namespace InvestmentTracker.Infrastructure.Persistence.Migrations
                     b.Navigation("Currency");
 
                     b.Navigation("Sector");
+                });
+
+            modelBuilder.Entity("InvestmentTracker.Domain.Entities.AssetImage", b =>
+                {
+                    b.HasOne("InvestmentTracker.Domain.Entities.Asset", "Asset")
+                        .WithOne()
+                        .HasForeignKey("InvestmentTracker.Domain.Entities.AssetImage", "AssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Asset");
                 });
 
             modelBuilder.Entity("InvestmentTracker.Domain.Entities.CategoryAllocationTarget", b =>

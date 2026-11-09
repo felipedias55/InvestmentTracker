@@ -1,3 +1,4 @@
+import { AssetSelector } from '../../shared/asset-selector';
 import { FilterSummary } from '../../shared/filter-summary';
 import { rememberContext } from '../../shared/page-context';
 import { UnsavedForm } from '../../shared/unsaved-changes';
@@ -9,7 +10,7 @@ import { EditPanel } from '../../shared/edit-panel';
 import { ListPaginator } from '../../shared/list-paginator';
 import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { createRequestId } from '../../core/request-id';
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -33,7 +34,7 @@ export interface Trade {
 interface TradePage { items: { trade: Trade; movementId: number | null; reversedById: number | null }[]; total: number; pageIndex: number; pageSize: number; }
 @Component({
   standalone: true, selector: 'app-trades-page',
-  imports: [FilterSummary, UnsavedForm, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, EditPanel, ListPaginator, CurrencyPipe, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink],
+  imports: [AssetSelector, FilterSummary, UnsavedForm, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, EditPanel, ListPaginator, CurrencyPipe, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink],
   templateUrl: './trades-page.html',
   styleUrl: './trades-page.css',
 })
@@ -59,6 +60,8 @@ export class TradesPage {
   private requestId = createRequestId();
   readonly id = signal<number | null>(null);
   readonly summary = signal<PortfolioSummary | null>(null);
+  readonly eventChoices = computed(() => this.summary()?.positions ?? []);
+  eventQuantity() { return this.eventChoices().find(p => p.id === this.eventForm.controls.positionId.value)?.quantity ?? '0'; }
   readonly assets = signal<Asset[]>([]);
   readonly currencies = signal<CatalogItem[]>([]);
   readonly balances = signal<ExternalAsset[]>([]);
@@ -73,18 +76,11 @@ export class TradesPage {
   readonly total = signal(0);
   readonly listLoading = signal(false);
   readonly listError = signal('');
-  readonly assetSearch = signal('');
   readonly filters = this.fb.nonNullable.group({ search: [''], kind: [''], from: [''], to: [''] });
   private appliedFilters = this.filters.getRawValue();
   private pageRequest?: Subscription;
   openTrade(kind: 'buy' | 'sell') { this.form.controls.kind.setValue(kind); this.error.set(''); this.panel.set('trade'); }
   openEvent() { this.error.set(''); this.panel.set('event'); }
-  selectableAssets() {
-    const search = this.assetSearch().trim().toLocaleLowerCase('pt-BR');
-    const selected = Number(this.form.controls.assetId.value);
-    return this.assets().filter(a => a.id === selected || `${a.ticker} ${a.name}`.toLocaleLowerCase('pt-BR').includes(search));
-  }
-
   activeFilters(): Record<string, string> { const v = this.appliedFilters; return { Busca: v.search, Tipo: ({buy:'Compra',sell:'Venda'} as Record<string,string>)[v.kind] || v.kind, De: v.from, Até: v.to }; }
   hasAppliedFilters() { return Object.values(this.appliedFilters).some(value => !!value); }
   filtersPending() { return JSON.stringify(this.filters.getRawValue()) !== JSON.stringify(this.appliedFilters); }
@@ -136,7 +132,7 @@ export class TradesPage {
     this.context.save();
     if (this.saving()) return;
     const contextualAsset = this.contextualAsset(id);
-    this.panel.set(null); this.assetSearch.set(''); this.pageIndex.set(0); this.filters.reset(); this.appliedFilters = this.filters.getRawValue();
+    this.panel.set(null); this.pageIndex.set(0); this.filters.reset(); this.appliedFilters = this.filters.getRawValue();
     this.id.set(id); this.requestId = createRequestId(); this.eventRequestId = createRequestId();
     this.eventForm.reset({ date: this.today, kind: 'split', positionId: 0, quantity: '', cost: '0', reason: '' });
     this.form.reset({ date: this.today, kind: this.route.snapshot.queryParamMap.get('kind') === 'sell' ? 'sell' : 'buy',

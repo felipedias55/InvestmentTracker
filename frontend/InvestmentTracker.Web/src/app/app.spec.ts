@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { App } from './app';
 describe('App', () => {
-  it('shows navigation to analysis, portfolio and all six registrations', async () => {
+  it('shows core navigation and groups catalog maintenance into classifications and references', async () => {
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [provideRouter([])],
@@ -11,9 +11,10 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const links = fixture.nativeElement.querySelectorAll('nav a');
-    expect(links.length).toBe(15);
+    expect(links.length).toBe(12);
     expect(fixture.nativeElement.textContent).toContain('Investment');
-    expect(fixture.nativeElement.querySelector('a[href="/currencies"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('a[href="/references"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('a[href="/classifications"]')).toBeTruthy();
   });
   afterEach(() => vi.unstubAllGlobals());
   it('opens a mobile drawer, traps keyboard navigation and closes with Escape', async () => {

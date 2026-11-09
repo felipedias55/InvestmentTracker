@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { AssetSelector } from '../../shared/asset-selector';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -76,8 +78,13 @@ describe('TradesPage', () => {
   it('opens forms on demand and preserves the selected asset while searching', () => {
     const fixture = initialize(); const c = fixture.componentInstance;
     expect(fixture.nativeElement.querySelector('#trade-kind')).toBeNull();
-    c.openTrade('sell'); c.form.controls.assetId.setValue(10); c.assetSearch.set('OTHER');
-    expect(c.selectableAssets().map(a => a.id)).toEqual([10]);
+    c.openTrade('sell'); c.form.controls.assetId.setValue(10);
+    c.form.patchValue({ cashAssetId: 5, baseAmount: '12,50' }); fixture.detectChanges();
+    const selector = fixture.debugElement.query(By.directive(AssetSelector)).componentInstance as AssetSelector;
+    selector.toggle(); selector.query.set('OTHER'); fixture.detectChanges();
+    expect(c.form.controls.assetId.value).toBe(10); expect(c.form.controls.cashAssetId.value).toBe(5); expect(c.form.controls.baseAmount.value).toBe('12,50');
+    selector.choose(10); expect(c.form.controls.cashAssetId.value).toBe(5);
+    selector.choose(0); expect(c.form.controls.cashAssetId.value).toBe(0); expect(c.form.controls.baseAmount.value).toBe('');
     fixture.detectChanges(); expect(fixture.nativeElement.querySelector('#trade-kind').value).toBe('sell');
     c.panel.set(null); fixture.detectChanges(); expect(fixture.nativeElement.querySelector('#trade-kind')).toBeNull();
     c.openEvent(); fixture.detectChanges(); expect(fixture.nativeElement.querySelector('#event-kind')).not.toBeNull();

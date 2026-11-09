@@ -37,6 +37,8 @@ O sistema não consegue provar que o usuário registrou todos os fluxos. Aportes
 
 ## Verificação
 
+A comparação com [CDI, IPCA, Ibovespa e S&P 500](benchmarks.md) está disponível na Evolução. Usa Dietz do intervalo e referências na moeda das fotografias, com diferenças em pontos percentuais. Não compara XIRR anualizada diretamente com retornos mensais nem simula aportes nas referências.
+
 Testes cobrem ganhos, perdas e retorno zero; datas de fronteira; ponderação de aportes; proventos retidos/distribuídos sem duplicação; estornos; conversões faltantes; capital inválido; fotografias reabertas/desatualizadas; fluxos não convencionais e estabilidade em intervalos longos. A integração verifica a resposta HTTP a partir de fotografias persistidas e a suspensão após invalidá-las. O teste da interface verifica percentuais brasileiros, datas e motivos de indisponibilidade.
 
 Referências: [GIPS / CFA Institute — metodologia e Dietz](https://www.gipsstandards.org/wp-content/uploads/2021/03/gips_standards_handbook_for_asset_owners.pdf), [Microsoft — XIRR e base de 365 dias](https://support.microsoft.com/en-us/excel/functions/xirr-function).

@@ -19,6 +19,7 @@ import { CatalogService } from '../catalogs/catalog.service';
 import { CatalogItem } from '../catalogs/catalog.models';
 import { AllocationTable } from '../allocation/allocation-table';
 import { HistoryChart } from './history-chart';
+import { BenchmarkComparison } from './benchmark-comparison';
 import { MoneyChart, MoneyPoint } from '../../shared/money-chart';
 import { CashFlow, HistoryService, PortfolioHistory, SnapshotDetail } from './history.service';
 import { apiError } from '../../core/services/api-error';
@@ -34,6 +35,7 @@ import {
   imports: [UnsavedForm, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, EditPanel, CurrencyPipe,
     PortfolioPicker,
     HistoryChart,
+    BenchmarkComparison,
     MoneyChart,
     AllocationTable,
     ReactiveFormsModule,

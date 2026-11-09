@@ -1,4 +1,5 @@
 import { FilterSummary } from '../../shared/filter-summary';
+import { AssetSelector } from '../../shared/asset-selector';
 import { rememberContext } from '../../shared/page-context';
 import { DraftState } from '../../shared/draft-state';
 import { UnsavedForm } from '../../shared/unsaved-changes';
@@ -11,7 +12,7 @@ import { PrivateCurrencyPipe as CurrencyPipe } from '../../core/value-privacy';
 import { EditPanel } from '../../shared/edit-panel';
 import { CorrectionPanel } from './correction-panel';
 import { createRequestId } from '../../core/request-id';
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
@@ -43,7 +44,7 @@ export interface CorrectionPreview {
 }
 @Component({
   standalone: true, selector: 'app-movements-page',
-  imports: [FilterSummary, DraftState, UnsavedForm, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, CurrencyPipe, CorrectionPanel, EditPanel, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink],
+  imports: [AssetSelector, FilterSummary, DraftState, UnsavedForm, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, CurrencyPipe, CorrectionPanel, EditPanel, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink],
   templateUrl: './movements-page.html',
   styleUrl: './movements-page.css',
 })
@@ -61,6 +62,7 @@ export class MovementsPage {
   private requestId = createRequestId();
   readonly id = signal<number | null>(null);
   readonly summary = signal<PortfolioSummary | null>(null);
+  readonly correctionChoices = computed(() => this.summary()?.positions ?? []);
   readonly currencies = signal<CatalogItem[]>([]);
   readonly balances = signal<ExternalAsset[]>([]);
   readonly movements = signal<MovementSummary[]>([]);

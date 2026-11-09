@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { AssetSelector } from '../../shared/asset-selector';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -29,6 +31,17 @@ describe('IncomePage', () => {
     const fixture = TestBed.createComponent(IncomePage); fixture.detectChanges();
     http.expectOne('/api/portfolios').flush([testPortfolio]); flush(); fixture.detectChanges(); return fixture;
   }
+  it('keeps zero positions eligible and preserves the receipt draft until a different asset is chosen', () => {
+    const f = initialize(), c = f.componentInstance;
+    const position = { id: 90, assetId: 10, ticker: 'TEST', name: 'Teste', currencyCode: 'BRL', quantity: '0', investedAmount: '0', currentValue: '0', income: '0', baseInvestedAmount: '0', baseCurrentValue: '0', baseIncome: '0', exchangeRate: null, rateDate: null, isStale: false, isFallback: false };
+    c.summary.set({ ...testDashboard.summary, positions: [{ ...position, id: 90, assetId: 10, quantity: '0' }, { ...position, id: 91, assetId: 11 }] });
+    c.openReceipt(); c.form.patchValue({ assetId: 10, amount: '12,50', cashAssetId: 5, baseAmount: '10' }); f.detectChanges();
+    const selector = f.debugElement.query(By.directive(AssetSelector)).componentInstance as AssetSelector;
+    expect(c.receiptChoices().map(p => p.id)).toEqual([10, 11]);
+    selector.toggle(); selector.query.set('inexistente'); selector.close(); selector.choose(10);
+    expect(c.form.getRawValue()).toMatchObject({ assetId: 10, cashAssetId: 5, baseAmount: '10', amount: '12,50' });
+    selector.choose(11); expect(c.form.getRawValue()).toMatchObject({ assetId: 11, cashAssetId: 0, baseAmount: '', amount: '12,50' });
+  });
   it('aggregates chart periods per currency and keeps missing conversions pending', () => {
     const component = initialize().componentInstance;
     const row = { period: '2026-01', ticker: 'TEST', assetId: 1, currencyCode: 'BRL', received: '10', reversed: '0', net: '10' };

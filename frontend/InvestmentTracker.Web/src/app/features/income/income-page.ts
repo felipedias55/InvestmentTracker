@@ -1,4 +1,5 @@
 import { FilterSummary } from '../../shared/filter-summary';
+import { AssetSelector } from '../../shared/asset-selector';
 import { rememberContext } from '../../shared/page-context';
 import { UnsavedForm } from '../../shared/unsaved-changes';
 import { MatButtonModule } from '@angular/material/button';
@@ -38,7 +39,7 @@ export interface IncomeReceipt {
 interface IncomeReceiptPage { items: IncomeReceipt[]; total: number; pageIndex: number; pageSize: number; }
 @Component({
   standalone: true, selector: 'app-income-page',
-  imports: [FilterSummary, UnsavedForm, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, CurrencyPipe, EditPanel, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink, MoneyChart],
+  imports: [AssetSelector, FilterSummary, UnsavedForm, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, CurrencyPipe, EditPanel, PortfolioPicker, ReactiveFormsModule, DatePipe, RouterLink, MoneyChart],
   templateUrl: './income-page.html',
   styleUrl: './income-page.css',
 })
@@ -64,6 +65,7 @@ export class IncomePage {
   private requestId = createRequestId();
   readonly id = signal<number | null>(null);
   readonly summary = signal<PortfolioSummary | null>(null);
+  readonly receiptChoices = computed(() => (this.summary()?.positions ?? []).map(p => ({ ...p, id: p.assetId })));
   readonly assets = signal<Asset[]>([]);
   readonly currencies = signal<CatalogItem[]>([]);
   readonly balances = signal<ExternalAsset[]>([]);

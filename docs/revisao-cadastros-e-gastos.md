@@ -17,6 +17,8 @@ Pontos a revisar:
 
 Antes de implementar, apresentar proposta de fluxo, campos manuais/automáticos, compatibilidade com os cadastros atuais e plano de migração auditável. Preservar IDs/vínculos, revisões de estratégias, metas, histórico e fotografias; não apagar cadastros para reduzir a quantidade de telas.
 
+Revisão inicial e proposta concluídas em 03/11/2026: [simplificação de cadastros e identidade visual](proposta-simplificacao-cadastros.md). A proposta organiza telas e fluxo, diferencia os sete cadastros, inclui imagens e define etapas de implementação; a primeira entrega foi implementada posteriormente: [cadastros e imagens](cadastros-e-imagens.md). As etapas seguintes de [cadastro assistido e saldos](cadastro-assistido-e-saldos.md) também foram concluídas.
+
 ## Imagens para identificar ações, FIIs e REITs
 
 Solicitação adicional registrada em 03/11/2026: associar uma imagem/logotipo aos ativos e exibi-la **ao lado do nome**, facilitando a identificação de ações, FIIs e REITs. Usar somente locais estratégicos, seguindo o mesmo padrão visual em todas as telas escolhidas.
@@ -30,11 +32,11 @@ Requisitos para a proposta:
 - Avaliar fontes e cobertura Brasil/EUA para ações, FIIs e REITs, identidade correta do ativo/emissor e regras de uso das imagens. Definir obtenção automática, armazenamento/cache e atualização, junto da revisão de preenchimento por ticker.
 - Preservar personalizações confirmadas e os vínculos financeiros existentes. A identidade visual do ativo não deve alterar seu tipo, categoria, setor ou moeda.
 
-Esta é uma pendência registrada para proposta e implementação futura. Ainda não há fonte de imagens nem lista definitiva de telas escolhidas.
+Primeira entrega implementada em 03/11/2026: imagem opcional selecionada pelo usuário no catálogo, posições e detalhes, com componente compartilhado. [Busca assistida por ticker e imagens sugeridas implementadas](cadastro-assistido-e-saldos.md), sujeitas à cobertura das fontes; veja também [a base de imagens](cadastros-e-imagens.md).
 
 ## Análise de gastos pessoais como extra independente
 
-Desejo registrado: analisar gastos pessoais, embora isso amplie o escopo além de investimentos. O usuário ainda não definiu como o módulo deverá funcionar.
+Desejo inicialmente registrado: analisar gastos pessoais, embora isso amplie o escopo além de investimentos. O funcionamento foi posteriormente detalhado com o usuário: veja o [plano consolidado de Finanças pessoais, de 06/11/2026](plano-financas-pessoais.md), que reúne os requisitos e substitui a indefinição inicial desta seção. O módulo continua somente planejado, sem implementação.
 
 Requisito firme: **ser independente dos investimentos, sem afetar carteira e dashboard de investimentos**. Gastos não devem gerar movimentações financeiras da carteira, diminuir Patrimônio Externo, criar fluxos de aporte/retirada, alterar rentabilidade ou marcar fotografias como desatualizadas. Nenhuma integração automática entre os módulos deve ser presumida.
 

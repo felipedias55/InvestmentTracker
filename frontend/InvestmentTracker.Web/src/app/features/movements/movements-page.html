@@ -108,7 +108,7 @@
       <form #draftForm="unsavedForm" appUnsavedChanges [appFormBusy]="saving()" [formGroup]="previewForm" (ngSubmit)="analyzeCorrection()">
         <mat-form-field appearance="outline"><mat-label>Data pretendida para a operação</mat-label><input matInput id="correction-date" type="date" formControlName="date" min="1900-01-01" [max]="today" /></mat-form-field>
         <p class="hint">Em correções existentes, a análise começa na mais antiga entre a data original e a informada. As referências originais já estão incluídas; selecione referências adicionais se elas também mudarem.</p>
-        <mat-form-field appearance="outline"><mat-label>Posição envolvida (se houver)</mat-label><select matNativeControl id="correction-position" formControlName="positionId"><option [ngValue]="0">Nenhuma adicional</option>@for (p of summary()?.positions ?? []; track p.id) { <option [ngValue]="p.id">{{ p.ticker }}</option> }</select></mat-form-field>
+        <app-asset-selector label="Posição envolvida (opcional)" emptyLabel="Nenhuma posição adicional." formControlName="positionId" [assets]="correctionChoices()" [locked]="saving()" />
         <mat-form-field appearance="outline"><mat-label>Saldo envolvido (se houver)</mat-label><select matNativeControl id="correction-cash" formControlName="cashAssetId"><option [ngValue]="0">Nenhum adicional</option>@for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }</select></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Outro saldo envolvido (transferências)</mat-label><select matNativeControl id="correction-destination" formControlName="destinationId"><option [ngValue]="0">Nenhum adicional</option>@for (b of balances(); track b.id) { <option [ngValue]="b.id">{{ b.name }}</option> }</select></mat-form-field>
         @if (previewForm.touched && previewForm.invalid) { <p class="field-error">Informe a data da operação.</p> }
@@ -131,7 +131,7 @@
   </app-edit-panel>
 }
 @if (executionOpen() && id() && summary()) {
-  <app-correction-panel [portfolioId]="id()!" [movementId]="executionSourceId()" [balances]="balances()" [baseCurrency]="summary()!.portfolio.baseCurrencyCode" (closed)="executionOpen.set(false)" (completed)="corrected($event)" />
+  <app-correction-panel [portfolioId]="id()!" [movementId]="executionSourceId()" [balances]="balances()" [currencies]="currencies()" [baseCurrency]="summary()!.portfolio.baseCurrencyCode" (closed)="executionOpen.set(false)" (completed)="corrected($event)" />
 }
 @if (pending(); as m) {
   <app-edit-panel [editing]="true" [busy]="saving()" [error]="error()" title="Confirmar estorno" (closed)="pending.set(null)">

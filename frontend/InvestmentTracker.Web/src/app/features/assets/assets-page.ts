@@ -1,4 +1,9 @@
 import { rememberContext } from '../../shared/page-context';
+import { AssetIdentity } from '../../shared/asset-identity';
+import { AssetImagePicker } from './asset-image-picker';
+import { AssetImageChange } from './asset.service';
+import { AssetDiscovery } from './asset-discovery';
+import { InlineCatalogCreate } from '../catalogs/inline-catalog-create';
 import { UnsavedForm } from '../../shared/unsaved-changes';
 import { AppIcon } from '../../shared/app-icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -22,7 +27,7 @@ type ReferenceField = 'assetTypeId' | 'countryId' | 'currencyId' | 'assetCategor
 @Component({
   standalone: true,
   selector: 'app-assets-page',
-  imports: [UnsavedForm, AppIcon, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, EditPanel, ReactiveFormsModule, RouterLink, DatePipe],
+  imports: [AssetDiscovery, AssetIdentity, AssetImagePicker, InlineCatalogCreate, UnsavedForm, AppIcon, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ListPaginator, EditPanel, ReactiveFormsModule, RouterLink, DatePipe],
   templateUrl: './assets-page.html',
   styleUrl: '../../shared/registration-list.css',
 })
@@ -43,6 +48,10 @@ export class AssetsPage implements OnInit {
   readonly lastSaved = signal<number | null>(null);
   readonly editing = signal<number | null>(null);
   readonly formOpen = signal(false);
+  readonly creatingReference = signal<{ key: CatalogKey; control: ReferenceField } | null>(null);
+  readonly imageVersion = signal<string | null>(null); readonly imageProcessing = signal(false);
+  readonly preparingReferences = signal(false);
+  readonly fieldHints: Record<ReferenceField, string> = { assetTypeId: 'Identifica o instrumento, como ação, FII ou REIT.', assetCategoryId: 'Agrupamento usado nas metas e regras da sua estratégia.', sectorId: 'Atividade econômica; independente da categoria da estratégia.', countryId: 'Classificação geográfica do ativo, independente da moeda.', currencyId: 'Moeda em que os valores e operações deste ativo são registrados.' };
   readonly pageIndex = signal(0);
   readonly pageSize = signal(10);
   readonly currentPage = computed(() => Math.min(this.pageIndex(), Math.max(0, Math.ceil(this.filteredItems().length / this.pageSize()) - 1)));
@@ -67,6 +76,8 @@ export class AssetsPage implements OnInit {
     { control: 'sectorId', key: 'sectors', label: 'Setor' },
   ];
   readonly form = inject(FormBuilder).nonNullable.group({
+    image: inject(FormBuilder).control<AssetImageChange | null>(null),
+    listing: inject(FormBuilder).control<{ market: string; symbol: string } | null>(null),
     ticker: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(20)]],
     name: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(200)]],
     assetTypeId: [0, Validators.min(1)],
@@ -109,20 +120,22 @@ export class AssetsPage implements OnInit {
     return item?.code ?? item?.name ?? 'Indisponível';
   }
   edit(asset: Asset) {
+    this.imageVersion.set(asset.imageVersion ?? null);
     this.formOpen.set(true);
     this.editing.set(asset.id);
     this.pendingDelete.set(null);
     this.error.set('');
     this.success.set('');
-    this.form.reset(asset);
+    this.form.reset({ ...asset, image: null, listing: asset.listing ?? null });
   }
   cancel() {
+    this.creatingReference.set(null); this.imageVersion.set(null); this.imageProcessing.set(false);
     this.formOpen.set(false);
     this.editing.set(null);
     this.form.reset();
   }
   save() {
-    if (this.form.invalid || this.saving() || !this.ready()) {
+    if (this.form.invalid || this.saving() || this.imageProcessing() || this.creatingReference() || !this.ready()) {
       this.form.markAllAsTouched();
       return;
     }
@@ -130,7 +143,7 @@ export class AssetsPage implements OnInit {
     this.error.set('');
     this.success.set('');
     const id = this.editing();
-    const input = this.form.getRawValue();
+    const { image, listing, ...fields } = this.form.getRawValue(); const input = { ...fields, ...(image ? { image } : {}), ...(listing ? { listing } : {}) };
     const request = id === null ? this.service.create(input) : this.service.update(id, input);
     request
       .pipe(
@@ -168,5 +181,20 @@ export class AssetsPage implements OnInit {
         },
         error: (error) => this.error.set(apiError(error)),
       });
+  }
+  changeImage(value: AssetImageChange | null) { this.form.controls.image.setValue(value); this.form.controls.image.markAsDirty(); }
+  applySuggestions(value: Partial<Asset>) { this.form.patchValue(value); this.form.markAsDirty(); }
+  changeMarket(market: string) { this.form.controls.listing.setValue({ market, symbol: market ? this.form.controls.listing.value?.symbol || this.form.controls.ticker.value.trim().toUpperCase() : '' }); this.form.controls.listing.markAsDirty(); }
+  changeSymbol(symbol: string) { const listing = this.form.controls.listing.value; if (listing) this.form.controls.listing.setValue({ ...listing, symbol }); this.form.controls.listing.markAsDirty(); }
+  prepareReferences() {
+    if (this.preparingReferences()) return; this.preparingReferences.set(true); this.error.set('');
+    this.catalogs.prepareDefaults().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: result => {
+      forkJoin({ countries: this.catalogs.list('countries'), currencies: this.catalogs.list('currencies') }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: rows => { this.references.update(current => ({ ...current, ...rows })); this.preparingReferences.set(false); this.success.set(result.message); }, error: e => { this.error.set(apiError(e)); this.preparingReferences.set(false); } });
+    }, error: e => { this.error.set(apiError(e)); this.preparingReferences.set(false); } });
+  }
+  referenceCreated(item: CatalogItem) {
+    const ref = this.creatingReference(); if (!ref) return;
+    this.references.update(rows => ({ ...rows, [ref.key]: [...(rows[ref.key] ?? []).filter(c => c.id !== item.id), item].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) }));
+    this.form.controls[ref.control].setValue(item.id); this.form.controls[ref.control].markAsDirty(); this.creatingReference.set(null);
   }
 }
